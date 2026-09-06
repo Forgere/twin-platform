@@ -1,5 +1,7 @@
 import CameraControls from 'camera-controls';
 import * as THREE from 'three';
+import { TwinWorld } from '@twin-platform/world-kernel';
+import { demoScene, entityLabel } from './demoScene';
 
 CameraControls.install({ THREE });
 
@@ -11,16 +13,15 @@ export interface TwinEntityView {
   kind: string;
 }
 
-const ENTITIES: Array<
-  TwinEntityView & { color: string; position: [number, number, number] }
-> = [
-  { id: 'infeed-01', label: '入料输送线', kind: 'transport', color: '#22c55e', position: [-4, 0.6, 0] },
-  { id: 'inspection-01', label: '视觉检测站', kind: 'inspect', color: '#38bdf8', position: [0, 0.8, 0] },
-  { id: 'buffer-01', label: '缓存货架', kind: 'buffer', color: '#f59e0b', position: [4, 1, 0] },
-];
+const DEFAULT_COLOR = '#94a3b8';
 
 export class TwinSceneController {
-  readonly entities = ENTITIES.map(({ id, label, kind }) => ({ id, label, kind }));
+  /** 侧边栏列出的可选实体（物料这类动态实体不进列表）。 */
+  readonly entities: TwinEntityView[] = demoScene.entities
+    .filter((entity) => entity.kind !== 'parcel')
+    .map((entity) => ({ id: entity.id, kind: entity.kind, label: entityLabel(entity.config?.label, entity.id) }));
+
+  private readonly world = new TwinWorld(demoScene, { seed: 20240906 });
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(42, 1, 0.1, 200);
   private readonly clock = new THREE.Clock();
@@ -52,6 +53,11 @@ export class TwinSceneController {
     this.renderer.domElement.addEventListener('pointerdown', this.pick);
     this.resize();
     this.renderFrame();
+  }
+
+  /** 仿真时间（秒），供 HUD 显示。 */
+  get simTime(): number {
+    return this.world.time;
   }
 
   selectEntity(id: string): void {
@@ -104,18 +110,31 @@ export class TwinSceneController {
     floor.rotateX(-Math.PI / 2);
     floor.receiveShadow = true;
     this.scene.add(floor);
-    for (const entity of ENTITIES) this.addEntity(entity);
+
+    for (const entity of demoScene.entities) {
+      const size = entity.visual?.size ?? [1, 1, 1];
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(size[0], size[1], size[2]),
+        new THREE.MeshStandardMaterial({ color: entity.visual?.color ?? DEFAULT_COLOR, metalness: 0.2, roughness: 0.44 }),
+      );
+      mesh.position.set(...entity.transform.position);
+      mesh.rotation.y = entity.transform.rotation?.[1] ?? 0;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.userData.entityId = entity.id;
+      this.entityMeshes.set(entity.id, mesh);
+      this.scene.add(mesh);
+    }
   }
 
-  private addEntity(entity: (typeof ENTITIES)[number]): void {
-    const geometry = entity.kind === 'buffer' ? new THREE.BoxGeometry(2.2, 2, 1.8) : new THREE.BoxGeometry(2.7, entity.kind === 'inspect' ? 1.6 : 0.7, 1.6);
-    const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: entity.color, metalness: 0.2, roughness: 0.44 }));
-    mesh.position.set(...entity.position);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    mesh.userData.entityId = entity.id;
-    this.entityMeshes.set(entity.id, mesh);
-    this.scene.add(mesh);
+  /** 渲染层只消费帧差量：内核算什么这里就画什么，绝不自己推演状态。 */
+  private applyFrame(delta: ReturnType<TwinWorld['advance']>): void {
+    for (const change of delta.changed) {
+      const mesh = this.entityMeshes.get(change.id);
+      if (!mesh || !change.transform) continue;
+      mesh.position.set(...change.transform.position);
+      mesh.rotation.y = change.transform.rotation?.[1] ?? 0;
+    }
   }
 
   private readonly pick = (event: PointerEvent): void => {
@@ -123,7 +142,10 @@ export class TwinSceneController {
     this.pointer.x = ((event.clientX - bounds.left) / bounds.width) * 2 - 1;
     this.pointer.y = -((event.clientY - bounds.top) / bounds.height) * 2 + 1;
     this.raycaster.setFromCamera(this.pointer, this.camera);
-    const hit = this.raycaster.intersectObjects([...this.entityMeshes.values()], false)[0];
+    const selectable = this.entities
+      .map((entity) => this.entityMeshes.get(entity.id))
+      .filter((mesh): mesh is THREE.Mesh => mesh !== undefined);
+    const hit = this.raycaster.intersectObjects(selectable, false)[0];
     const id = hit?.object.userData.entityId as string | undefined;
     if (id) this.selectEntity(id);
   };
@@ -138,7 +160,9 @@ export class TwinSceneController {
 
   private renderFrame = (): void => {
     this.frameId = requestAnimationFrame(this.renderFrame);
-    this.controls.update(this.clock.getDelta());
+    const delta = this.clock.getDelta();
+    this.applyFrame(this.world.advance(delta));
+    this.controls.update(delta);
     this.renderer.render(this.scene, this.camera);
   };
 }

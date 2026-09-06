@@ -1,0 +1,13 @@
+{
+  "name": "@twin-platform/storage-memory",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "typecheck": "tsc --noEmit -p tsconfig.json" },
+  "dependencies": {
+    "@twin-platform/scene-schema": "workspace:*",
+    "@twin-platform/storage-contracts": "workspace:*",
+    "@twin-platform/world-kernel": "workspace:*"
+  }
+}

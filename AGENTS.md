@@ -21,3 +21,40 @@ Use these whenever you are debugging reactivity (something doesn't update, updat
   - `{"method":"costs"}` — running cost tables for the open session
 
 Name your signals/memos/effects (the `{ name: "..." }` option) — attribution reports scopes by name.
+
+## Monorepo layout
+
+Bun workspaces: `apps/*`、`packages/*`、`plugins/*`。
+
+- `packages/scene-schema` — 版本化场景契约 + 校验 + 迁移。
+- `packages/world-kernel` — 世界内核，零 UI / Three / DOM 依赖。
+- `packages/storage-contracts` — 仓储接口（内核与数据库之间唯一的缝）。
+- `packages/storage-memory` — 内存实现，浏览器演示与测试用。
+- `apps/studio` — Solid 工作台，只消费内核的 `FrameDelta`，不自己推演状态。
+
+包之间用 `@twin-platform/*` 互相引用。根 `tsconfig.json` 里配了 `paths`，
+所以即便不装软链（Windows 侧 IDE、CI）也能解析；新增包要同步登记 `paths`
+和根 `package.json` 的 `typecheck:packages`。
+
+## Commands
+
+```bash
+bun install          # 在 WSL 里执行（会重建 workspace 软链）
+bun run test         # bun test packages —— 包的单元测试
+bun run typecheck    # Studio + 全部包
+bun run dev          # Studio 开发服务器
+```
+
+包的测试用 `bun:test`（`import { test, expect } from "bun:test"`），
+放在 `src/*.test.ts`，被各包 tsconfig 的 `exclude` 排除在类型检查之外
+（仓库还没装 `bun-types`）。`apps/studio` 的组件测试仍然走 vitest。
+
+## Determinism rules (world-kernel)
+
+改动 `packages/world-kernel` 前先读这几条，违反任一条都会让回放与方案对比失效：
+
+1. 时间只走固定步长（`step(dt)` / `advance(realDelta)`），不允许把真实帧间隔直接当 `dt`。
+2. 随机只来自注入的 `ctx.rng`，内核里禁止 `Math.random()`、`Date.now()`。
+3. 遍历顺序固定：实体按场景顺序，行为按注册顺序；顺序即契约。
+4. 新增状态要进 `WorldSnapshot`（含 `rngState`），否则 `restore()` 后重放会分叉。
+5. 改了行为就补一条确定性测试：同种子两次运行比对指纹（`world.test.ts` 里的 `fingerprint()`）。

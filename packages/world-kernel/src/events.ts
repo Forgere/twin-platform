@@ -1,0 +1,90 @@
+import type { TwinValue } from '@twin-platform/scene-schema';
+
+/**
+ * 不可变事件日志——"后台记录"。
+ *
+ * 事件是真相：状态可以由事件重放出来，反过来不行。因此
+ * - `sequence` 严格单调、从 1 开始，是回放和断点续算的唯一游标；
+ * - `occurredAt` 记仿真时间（不是 `Date.now()`），保证可重放；
+ * - 日志有界：长时间运行不能让内存无限涨，超限丢最旧的并计数。
+ */
+
+export interface WorldEvent {
+  sequence: number;
+  /** 仿真时间（秒）。 */
+  occurredAt: number;
+  type: string;
+  entityId?: string;
+  /** 给人看的一句话。 */
+  detail?: string;
+  /** 给机器看的结构化数据，直接进 `twin_events` 的 jsonb。 */
+  payload?: Record<string, TwinValue>;
+}
+
+export type WorldEventInput = Omit<WorldEvent, 'sequence' | 'occurredAt'>;
+
+export class EventLog {
+  private readonly events: WorldEvent[] = [];
+  private next = 1;
+  private flushed = 0;
+  private droppedCount = 0;
+
+  constructor(private readonly capacity = 4096) {
+    if (capacity <= 0) throw new Error('事件日志容量必须是正数。');
+  }
+
+  /** 下一个将被使用的 sequence。 */
+  get nextSequence(): number {
+    return this.next;
+  }
+
+  /** 因容量限制被丢弃的旧事件数量。 */
+  get dropped(): number {
+    return this.droppedCount;
+  }
+
+  append(input: WorldEventInput, occurredAt: number): WorldEvent {
+    const event: WorldEvent = { sequence: this.next, occurredAt, ...input };
+    this.next += 1;
+    this.events.push(event);
+    while (this.events.length > this.capacity) {
+      this.events.shift();
+      this.droppedCount += 1;
+      this.flushed = Math.max(0, this.flushed - 1);
+    }
+    return event;
+  }
+
+  /** 全部在内存中的事件（受容量限制）。 */
+  all(): readonly WorldEvent[] {
+    return this.events;
+  }
+
+  /** 取 sequence 严格大于 `sequence` 的事件。 */
+  since(sequence: number): WorldEvent[] {
+    return this.events.filter((event) => event.sequence > sequence);
+  }
+
+  /** 取最后 n 条。 */
+  latest(count: number): WorldEvent[] {
+    return this.events.slice(Math.max(0, this.events.length - count));
+  }
+
+  /**
+   * 取出并确认"尚未落库"的事件。仓储 Adapter 每帧或每批调用一次，
+   * 成功写入后再丢弃，避免丢事件。
+   */
+  takePending(): WorldEvent[] {
+    const pending = this.since(this.flushed);
+    const last = pending[pending.length - 1];
+    this.flushed = last ? last.sequence : this.flushed;
+    return pending;
+  }
+
+  clear(): void {
+    this.events.length = 0;
+    this.next = 1;
+    this.flushed = 0;
+    this.droppedCount = 0;
+  }
+}

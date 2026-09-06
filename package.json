@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "bun run --filter @twin-platform/studio dev",
     "build": "bun run --filter @twin-platform/studio build",
-    "typecheck": "bun run --filter @twin-platform/studio typecheck && bun ./apps/studio/node_modules/typescript/bin/tsc --noEmit -p packages/scene-schema/tsconfig.json && bun ./apps/studio/node_modules/typescript/bin/tsc --noEmit -p packages/world-kernel/tsconfig.json"
+    "test": "bun test packages",
+    "typecheck": "bun run --filter @twin-platform/studio typecheck && bun run typecheck:packages",
+    "typecheck:packages": "bun x tsc --noEmit -p packages/scene-schema/tsconfig.json && bun x tsc --noEmit -p packages/world-kernel/tsconfig.json && bun x tsc --noEmit -p packages/storage-contracts/tsconfig.json && bun x tsc --noEmit -p packages/storage-memory/tsconfig.json"
   }
 }
