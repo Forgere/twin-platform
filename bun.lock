@@ -4,6 +4,10 @@
   "workspaces": {
     "": {
       "name": "twin-platform",
+    },
+    "apps/studio": {
+      "name": "@twin-platform/studio",
+      "version": "0.0.0",
       "dependencies": {
         "@solidjs/meta": "^1.0.0-next.2",
         "@solidjs/router": "^2.0.0-next.21",
@@ -25,6 +29,17 @@
         "typescript": "^5.9.2",
         "vite": "^8.1.5",
         "vitest": "^4.0.0",
+      },
+    },
+    "packages/scene-schema": {
+      "name": "@twin-platform/scene-schema",
+      "version": "0.1.0",
+    },
+    "packages/world-kernel": {
+      "name": "@twin-platform/world-kernel",
+      "version": "0.1.0",
+      "dependencies": {
+        "@twin-platform/scene-schema": "workspace:*",
       },
     },
   },
@@ -282,6 +297,12 @@
     "@testing-library/jest-dom": ["@testing-library/jest-dom@6.10.0", "", { "dependencies": { "@adobe/css-tools": "4.5.0", "aria-query": "5.3.2", "css.escape": "1.5.1", "dom-accessibility-api": "0.6.3", "picocolors": "1.1.1", "redent": "3.0.0" }, "peerDependencies": { "@testing-library/dom": "10.4.1" } }, "sha512-HQwu0KaB2zyT0iLzBL+8CLyZDL3KlZlZJ+2iyc9uCUnlJVskJU/UlPuVCyIPhtukjPQdT2QNoR5nCP5FqTmmDQ=="],
 
     "@tweenjs/tween.js": ["@tweenjs/tween.js@23.1.3", "", {}, "sha512-vJmvvwFxYuGnF2axRtPYocag6Clbb5YS7kLL+SO/TeVFzHqDIWrNKYtcsPMibjDx9O+bu+psAy9NKfWklassUA=="],
+
+    "@twin-platform/scene-schema": ["@twin-platform/scene-schema@workspace:packages/scene-schema"],
+
+    "@twin-platform/studio": ["@twin-platform/studio@workspace:apps/studio"],
+
+    "@twin-platform/world-kernel": ["@twin-platform/world-kernel@workspace:packages/world-kernel"],
 
     "@tybys/wasm-util": ["@tybys/wasm-util@0.10.3", "", { "dependencies": { "tslib": "2.8.1" } }, "sha512-F3fo1MYrRJYL3zER0OUOmkutjr1Vp23m7OsSgp7nq4SP6OqX6C/56XFIPAl5bt3zaBRjmW7SGz3u/6LwFpYcOg=="],
 

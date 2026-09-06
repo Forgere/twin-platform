@@ -1,0 +1,39 @@
+{
+  "name": "@twin-platform/studio",
+  "version": "0.0.0",
+  "description": "",
+  "type": "module",
+  "packageManager": "bun@1.3.12",
+  "scripts": {
+    "start": "vite",
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "serve": "vite preview",
+    "test": "vitest",
+    "lint": "oxlint src"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@solidjs/diagnostics": "^2.0.0-rc.6",
+    "@solidjs/testing-library": "^1.0.0-beta.3",
+    "@solidjs/vite-plugin": "^3.0.0-next.38",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@types/three": "^0.185.4",
+    "eslint-plugin-solid": "~0.17.0",
+    "filesystem-routing": "0.2.1",
+    "jsdom": "^25.0.1",
+    "oxlint": "~1.79.0",
+    "typescript": "^5.9.2",
+    "vite": "^8.1.5",
+    "vitest": "^4.0.0"
+  },
+  "dependencies": {
+    "@solidjs/meta": "^1.0.0-next.2",
+    "@solidjs/router": "^2.0.0-next.21",
+    "@solidjs/web": "^2.0.0-rc.6",
+    "camera-controls": "^3.1.2",
+    "solid-js": "^2.0.0-rc.6",
+    "three": "^0.185.1"
+  }
+}
