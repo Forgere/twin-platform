@@ -1,0 +1,12 @@
+{
+  "name": "@twin-platform/analytics-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "typecheck": "tsc --noEmit -p tsconfig.json" },
+  "dependencies": {
+    "@twin-platform/plugin-sdk": "workspace:*",
+    "@twin-platform/world-kernel": "workspace:*"
+  }
+}

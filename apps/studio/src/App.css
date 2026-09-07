@@ -57,4 +57,37 @@ button:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 2px; }
 .data-source-result p { margin: 0; }
 .data-source-issues { margin: 7px 0 0; padding-left: 18px; color: #fca5a5; }
 
+/* 插件状态 */
+.plugin-list { display: grid; gap: 10px; }
+.plugin-card { padding: 12px; border: 1px solid #1e3854; border-radius: 10px; background: #0d1c30; }
+.plugin-card.ok { border-color: #1f6f4a; }
+.plugin-card.bad { border-color: #b4543f; }
+.plugin-card header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.plugin-card strong { color: #f8fafc; }
+.plugin-version { color: #7f95ad; font-size: 0.78rem; }
+.plugin-state { margin: 4px 0 8px; color: #94a3b8; font-size: 0.8rem; text-transform: capitalize; }
+.capability-tags { display: flex; flex-wrap: wrap; gap: 5px; margin: 0; padding: 0; list-style: none; }
+.capability-tags li { padding: 2px 8px; border: 1px solid #315170; border-radius: 999px; color: #b9d9f5; font-size: 0.72rem; }
+.plugin-contrib { margin: 9px 0 0; color: #7f95ad; font-size: 0.76rem; }
+.plugin-errors { margin-top: 10px; padding: 9px 11px; border: 1px solid #b4543f; border-radius: 8px; background: #1a1414; color: #fca5a5; font-size: 0.78rem; }
+
+/* 指标看板 */
+.metric-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.metric-card { padding: 12px; border: 1px solid #1e3854; border-radius: 10px; background: #0d1c30; display: grid; gap: 3px; }
+.metric-value { color: #f8fafc; font-size: 1.5rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.metric-label { color: #7f95ad; font-size: 0.74rem; }
+.metric-rows { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.metric-rows li { display: flex; align-items: baseline; gap: 8px; padding: 7px 9px; border: 1px solid #1e3854; border-radius: 8px; background: #0d1c30; font-size: 0.8rem; }
+.metric-rows li > span:first-child { color: #e2e8f0; }
+.metric-rows li > span:nth-child(2) { margin-left: auto; color: #f8fafc; font-variant-numeric: tabular-nums; }
+.metric-rows h3, .metrics-panel h3, section > h3 { margin: 14px 0 8px; color: #b9d9f5; font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; }
+.up { color: #4ade80 !important; }
+.down { color: #fca5a5 !important; }
+.muted { color: #7f95ad !important; }
+
+/* 方案对比 */
+.compare-form { display: grid; gap: 9px; }
+.compare-form label { display: grid; gap: 4px; color: #94a3b8; font-size: 0.78rem; }
+.compare-form input { border: 1px solid #315170; border-radius: 8px; padding: 7px 9px; background: #091627; color: #dbeafe; font: inherit; }
+
 @media (max-width: 780px) { .studio-shell { padding: 16px; } .studio-heading { align-items: flex-start; flex-direction: column; gap: 14px; } .studio-grid { grid-template-columns: 1fr; } .viewport { height: 55vh; min-height: 360px; } }

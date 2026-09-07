@@ -28,6 +28,10 @@ Bun workspaces: `apps/*`、`packages/*`、`plugins/*`。
 
 - `packages/scene-schema` — 版本化场景契约 + 校验 + 迁移。
 - `packages/world-kernel` — 世界内核，零 UI / Three / DOM 依赖。
+- `packages/plugin-sdk` — 插件 manifest、能力、生命周期与故障隔离（`SafeBehavior`）。
+- `packages/analytics-core` — 窗口聚合、规则与产线指标（纯函数，确定性）。
+- `packages/plugins-logistics` — 输送线领域插件（设备工厂 / 行为 / 模板 / 指标）。领域插件统一放在 `packages/plugins-<domain>/`，由 `plugin-sdk` 暴露能力，不修改 `world-kernel`。
+- `packages/scenario-compare` — 从历史快照分叉两条仿真路径并比对结构化结果。
 - `packages/storage-contracts` — 仓储接口（内核与数据库之间唯一的缝）。
 - `packages/storage-memory` — 内存实现，浏览器演示与测试用。
 - `packages/storage-postgres` — PostgreSQL 实现 + `migrations/`。
@@ -71,3 +75,9 @@ bun run dev          # Studio 开发服务器
 4. `SessionRecorder` 只搬运（事件/快照/状态投影/指标），不得写回世界状态。
 5. 外部数据源必须可重放：实现 `rewind()`，禁止读挂钟或 `Math.random()`。
 6. 新增 Storage Adapter 必须接入 `storage-testkit` 的契约测试。
+
+## Plugin & analytics determinism
+
+- `plugins-*` 行为必须只用注入的 `ctx.rng`，禁止 `Math.random()` / `Date.now()`，否则方案对比（`scenario-compare`）会分叉。
+- `analytics-core` 的窗口/指标是纯函数：同一事件流必须得到逐位一致的结果；边界用半开区间 `[start, end)`，`until` 只定义桶网格、事件不向外延伸（到边界即 clamp）。
+- `scenario-compare` 从同一快照 `restore()` 出两条世界再各自推进；任何"行为里偷偷读挂钟"都会让 `metricDeltas` 不可复现。

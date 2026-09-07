@@ -1,0 +1,20 @@
+{
+  "name": "@twin-platform/scenario-compare",
+  "version": "0.1.0",
+  "type": "module",
+  "module": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@twin-platform/analytics-core": "workspace:*",
+    "@twin-platform/scene-schema": "workspace:*",
+    "@twin-platform/world-kernel": "workspace:*"
+  },
+  "devDependencies": {
+    "@twin-platform/plugins-logistics": "workspace:*"
+  }
+}

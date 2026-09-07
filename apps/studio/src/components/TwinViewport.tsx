@@ -1,17 +1,21 @@
 import { createSignal, For, onCleanup, Show } from 'solid-js';
 import type { WorldEvent } from '@twin-platform/world-kernel';
-import { demoScene } from '../scene/demoScene';
+import type { LineMetrics } from '@twin-platform/analytics-core';
 import { StudioSession } from '../scene/studioSession';
 import { TwinSceneController, type TwinEntityView } from '../scene/TwinSceneController';
 import DataSourcePanel from './DataSourcePanel';
 import EventLogPanel from './EventLogPanel';
 import TimelineBar from './TimelineBar';
+import PluginsPanel from './PluginsPanel';
+import MetricsPanel from './MetricsPanel';
+import ScenarioComparePanel from './ScenarioComparePanel';
 
 /**
  * Studio 主视口。
  *
  * 只做三件事：把三维视口挂上去、把命令转给控制器与相机、把世界状态显示出来。
- * 世界怎么推演、事件怎么落库、时间轴怎么重算，全在各包里，这里一行都不写。
+ * 世界怎么推演、事件怎么落库、时间轴怎么重算、指标怎么算、方案怎么比，
+ * 全在各包里，这里一行都不写。
  */
 export default function TwinViewport() {
   const session = new StudioSession();
@@ -27,9 +31,10 @@ export default function TwinViewport() {
     events: WorldEvent[];
     stored: number;
   }>({ time: 0, duration: 0, playing: true, speed: 1, events: [], stored: 0 });
+  const [metrics, setMetrics] = createSignal<LineMetrics>(session.metrics());
 
   const mountViewport = (host: HTMLDivElement) => {
-    controller = new TwinSceneController(host, setSelected, { scene: demoScene, controller: session.controller });
+    controller = new TwinSceneController(host, setSelected, { scene: session.world.scene, controller: session.controller });
     setEntities(controller.entities);
   };
 
@@ -44,6 +49,7 @@ export default function TwinViewport() {
       events: session.recentEvents(8),
       stored: await session.storedEventCount(),
     });
+    setMetrics(session.metrics());
   };
   const timer = setInterval(() => void refresh(), 120);
 
@@ -58,7 +64,7 @@ export default function TwinViewport() {
         <div>
           <p class="eyebrow">TWIN PLATFORM / STUDIO</p>
           <h1>物流产线概览</h1>
-          <p>原生 Three.js 视口 · SolidJS 工作台 · world-kernel 驱动 · 可回放</p>
+          <p>插件驱动 · world-kernel 仿真 · analytics-core 指标 · 可回放 · 可方案对比</p>
         </div>
         <div class="scene-status" aria-label="场景状态">
           <span class="status-dot" />
@@ -127,6 +133,10 @@ export default function TwinViewport() {
               )}
             </Show>
           </section>
+
+          <PluginsPanel host={session.host} />
+          <MetricsPanel metrics={metrics()} />
+          <ScenarioComparePanel onCompare={(forkAt, horizon, zoneB) => session.compare(forkAt, horizon, zoneB)} />
 
           <DataSourcePanel
             onLoad={(text) => {
