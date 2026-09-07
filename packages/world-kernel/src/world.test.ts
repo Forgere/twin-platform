@@ -315,4 +315,16 @@ describe('行为插件', () => {
     // 1.2 m/s × 1/60 s = 0.02，再加上行为推进的 2 米。
     expect(world.getEntity('belt-01')?.transform.position[0]).toBeCloseTo(2.02, 6);
   });
+
+  test('addBehavior 让插件在世界建好之后再挂载，且按追加顺序执行', () => {
+    const world = new TwinWorld(makeScene(), { behaviors: [{ id: 'core', step: () => {} }] });
+    const order: string[] = [];
+    world.addBehavior({ id: 'plugin-a', step: () => order.push('a') });
+    world.addBehavior({ id: 'plugin-b', step: () => order.push('b') });
+    world.step(1 / 60);
+
+    expect(world.listBehaviors().map((behavior) => behavior.id)).toEqual(['core', 'plugin-a', 'plugin-b']);
+    expect(order).toEqual(['a', 'b']);
+    expect(() => world.addBehavior({ id: 'plugin-a', step: () => {} })).toThrow(/已注册/);
+  });
 });

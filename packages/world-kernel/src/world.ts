@@ -168,6 +168,27 @@ export class TwinWorld {
   }
 
   // ---------------------------------------------------------------------------
+  // 行为插件挂载
+  // ---------------------------------------------------------------------------
+
+  /**
+   * 追加一个行为插件（供 `plugin-sdk` 在内核之外安装插件）。
+   *
+   * 只能追加、顺序即契约：`behaviors` 数组里的顺序决定每步的执行顺序，
+   * 因此插件顺序变了，仿真结果就变了，回放必须用同一套安装顺序（见插件锁）。
+   */
+  addBehavior(behavior: WorldBehavior): void {
+    if (this.behaviors.some((existing) => existing.id === behavior.id)) {
+      throw new Error(`行为 ${behavior.id} 已注册。`);
+    }
+    this.behaviors.push(behavior);
+  }
+
+  listBehaviors(): readonly WorldBehavior[] {
+    return [...this.behaviors];
+  }
+
+  // ---------------------------------------------------------------------------
   // 事件
   // ---------------------------------------------------------------------------
 
