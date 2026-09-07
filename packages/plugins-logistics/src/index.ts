@@ -2,7 +2,7 @@ import type { PluginInstance, SceneTemplateDescriptor, TwinPlugin } from '@twin-
 import { PLUGIN_SDK_VERSION } from '@twin-platform/plugin-sdk';
 import { createLogisticsBehavior } from './behavior';
 import { lineMetricsDescriptors } from './metrics';
-import { lineTemplate } from './template';
+import { lineTemplate, factoryTemplate } from './template';
 
 /**
  * `logistics` 插件：把"输送线"这门领域语义装进世界，而不改一行内核。
@@ -18,20 +18,24 @@ export const logisticsPlugin: TwinPlugin = {
     id: 'logistics',
     version: '0.1.0',
     sdkVersion: '^0.1.0',
-    name: '物流输送线',
-    description: '输送线、检测、缓存的领域语义：包裹流转事件 + 设备忙闲状态 + 产线指标。',
+    name: '物流（输送线 · 工厂）',
+    description: '输送线、检测、缓存、分拣的领域语义：包裹流转事件 + 设备忙闲状态 + 产线/工厂指标。含 logistics-line 与 logistics-factory 两个场景模板。',
     capabilities: ['behavior', 'analytics', 'scene-template'],
   },
   activate(): PluginInstance {
     return {
       behaviors: [createLogisticsBehavior()],
       metrics: lineMetricsDescriptors,
-      templates: [lineTemplate as unknown as SceneTemplateDescriptor],
+      templates: [
+        lineTemplate as unknown as SceneTemplateDescriptor,
+        factoryTemplate as unknown as SceneTemplateDescriptor,
+      ],
     };
   },
 };
 
 export { createLogisticsBehavior } from './behavior';
 export { buildLineScene, lineTemplate, type LineTemplateParams } from './template';
+export { buildFactoryScene, factoryTemplate, type FactoryTemplateParams } from './template';
 export { lineMetricsDescriptors } from './metrics';
 export { bufferRack, conveyorSegment, inspectionStation, parcel } from './devices';

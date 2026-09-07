@@ -22,7 +22,7 @@ describe('logistics 插件', () => {
     expect(host.behaviors).toHaveLength(1);
     expect(host.behaviors[0]?.id).toBe('logistics-flow');
     expect(host.metrics.map((metric) => metric.id)).toEqual(['throughput', 'busy-duration']);
-    expect(host.templates.map((template) => template.id)).toEqual(['logistics-line']);
+    expect(host.templates.map((template) => template.id)).toEqual(['logistics-line', 'logistics-factory']);
   });
 
   test('行为驱动包裹流转：开局进入 + 绕圈出/进', () => {

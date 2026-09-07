@@ -6,7 +6,14 @@ import { entityLabel } from './demoScene';
 
 CameraControls.install({ THREE });
 
-export type CameraPreset = 'overview' | 'line';
+export type CameraPreset =
+  | 'overview'
+  | 'infeed'
+  | 'inspection'
+  | 'sorter'
+  | 'packaging'
+  | 'outfeed'
+  | 'external';
 
 export interface TwinEntityView {
   id: string;
@@ -51,17 +58,17 @@ export class TwinSceneController {
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.setClearColor('#07111f');
+    this.renderer.setClearColor('#F5F2EB');
     this.renderer.shadowMap.enabled = true;
     this.host.append(this.renderer.domElement);
-    this.camera.position.set(10, 8, 12);
+    this.camera.position.set(16, 12, 22);
     this.controls = new CameraControls(this.camera, this.renderer.domElement);
     this.controls.smoothTime = 0.32;
     this.controls.draggingSmoothTime = 0.08;
     this.controls.minDistance = 4;
-    this.controls.maxDistance = 32;
+    this.controls.maxDistance = 48;
     this.controls.maxPolarAngle = Math.PI * 0.47;
-    this.controls.setTarget(0, 0.5, 0, false);
+    this.controls.setTarget(1, 0.5, 0, false);
     this.buildEnvironment(options.scene);
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(this.host);
@@ -78,8 +85,8 @@ export class TwinSceneController {
   selectEntity(id: string): void {
     for (const [entityId, mesh] of this.entityMeshes) {
       const material = mesh.material as THREE.MeshStandardMaterial;
-      material.emissive.set(entityId === id ? '#e0f2fe' : '#000000');
-      material.emissiveIntensity = entityId === id ? 0.45 : 0;
+      material.emissive.set(entityId === id ? '#F4A261' : '#000000');
+      material.emissiveIntensity = entityId === id ? 0.5 : 0;
     }
     this.onSelect(this.entities.find((entity) => entity.id === id));
   }
@@ -92,11 +99,29 @@ export class TwinSceneController {
   }
 
   setCameraPreset(preset: CameraPreset): void {
-    if (preset === 'overview') {
-      void this.controls.setLookAt(10, 8, 12, 0, 0.5, 0, true);
-      return;
+    switch (preset) {
+      case 'overview':
+        void this.controls.setLookAt(16, 12, 22, 1, 0.5, 0, true);
+        return;
+      case 'infeed':
+        void this.controls.setLookAt(-14, 6, 11, -14, 0.6, 0, true);
+        return;
+      case 'inspection':
+        void this.controls.setLookAt(-5, 5, 10, 0, 0.9, 0, true);
+        return;
+      case 'sorter':
+        void this.controls.setLookAt(1.5, 5, 9, 1.5, 0.6, 0, true);
+        return;
+      case 'packaging':
+        void this.controls.setLookAt(12, 5, 9, 12, 1, 0, true);
+        return;
+      case 'outfeed':
+        void this.controls.setLookAt(16, 5, 9, 14, 0.6, 0, true);
+        return;
+      case 'external':
+        void this.controls.setLookAt(24, 9, 0, 16, 0.6, 0, true);
+        return;
     }
-    void this.controls.setLookAt(0, 4.8, 13, 0, 0.7, 0, true);
   }
 
   dispose(): void {
@@ -113,15 +138,21 @@ export class TwinSceneController {
   }
 
   private buildEnvironment(scene: TwinScene): void {
-    this.scene.background = new THREE.Color('#07111f');
-    const grid = new THREE.GridHelper(18, 18, '#334155', '#172338');
+    this.scene.background = new THREE.Color('#F5F2EB');
+    const grid = new THREE.GridHelper(40, 40, '#D8D0C2', '#E8E4DC');
     this.scene.add(grid);
-    this.scene.add(new THREE.HemisphereLight('#c7e5ff', '#0b1324', 2.2));
-    const key = new THREE.DirectionalLight('#ffffff', 2.8);
-    key.position.set(5, 9, 7);
+    this.scene.add(new THREE.HemisphereLight('#FFF4E6', '#E8E4DC', 1.7));
+    const key = new THREE.DirectionalLight('#FFF4E6', 2.4);
+    key.position.set(6, 12, 9);
     key.castShadow = true;
     this.scene.add(key);
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(18, 18), new THREE.MeshStandardMaterial({ color: '#0c1a2d', roughness: 0.94 }));
+    const fill = new THREE.DirectionalLight('#ffffff', 0.6);
+    fill.position.set(-8, 6, -6);
+    this.scene.add(fill);
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(40, 40),
+      new THREE.MeshStandardMaterial({ color: '#EFEAE0', roughness: 0.96 }),
+    );
     floor.rotateX(-Math.PI / 2);
     floor.receiveShadow = true;
     this.scene.add(floor);
@@ -133,7 +164,7 @@ export class TwinSceneController {
   private ensureMesh(id: string): THREE.Mesh {
     const existing = this.entityMeshes.get(id);
     if (existing) return existing;
-    return this.addMesh(id, DEFAULT_SIZE, '#f472b6', { position: [0, 1, 0] });
+    return this.addMesh(id, DEFAULT_SIZE, '#C4B5E0', { position: [0, 1, 0] });
   }
 
   private addMesh(
