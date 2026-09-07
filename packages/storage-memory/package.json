@@ -8,6 +8,7 @@
   "dependencies": {
     "@twin-platform/scene-schema": "workspace:*",
     "@twin-platform/storage-contracts": "workspace:*",
+    "@twin-platform/storage-testkit": "workspace:*",
     "@twin-platform/world-kernel": "workspace:*"
   }
 }

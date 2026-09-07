@@ -35,6 +35,13 @@ export interface TwinWorldOptions {
   step?: number;
   /** 内存事件日志容量。 */
   eventLogSize?: number;
+  /**
+   * 单次 `advance` 最多补多少步（默认 8）。
+   *
+   * 交互演示下卡顿后补太多步会雪崩；但回放要跑到 10×、100×，一帧就得吃掉几十步。
+   * 所以回放场景（`replay-core`）会显式调大这个值——步长本身没变，确定性不受影响。
+   */
+  maxStepsPerAdvance?: number;
   mode?: DataMode;
   behaviors?: readonly WorldBehavior[];
 }
@@ -88,7 +95,10 @@ export class TwinWorld {
 
   constructor(scene: TwinScene, options: TwinWorldOptions = {}) {
     this.scene = scene;
-    this.clock = new FixedStepClock({ step: options.step ?? DEFAULT_STEP });
+    this.clock = new FixedStepClock({
+      step: options.step ?? DEFAULT_STEP,
+      maxStepsPerAdvance: options.maxStepsPerAdvance ?? 8,
+    });
     this.log = new EventLog(options.eventLogSize ?? 4096);
     this.behaviors = [...(options.behaviors ?? [])];
     this.seedValue = options.seed ?? 1;
@@ -141,15 +151,20 @@ export class TwinWorld {
 
   /** 手动推进一个固定步长。测试与确定性仿真回放用这个，不要用 `advance`。 */
   step(dt: number = this.clock.step): FrameDelta {
-    if (!Number.isFinite(dt) || dt <= 0) throw new Error('dt 必须是正数。');
-    this.currentTime += dt;
-    this.stepCountValue += 1;
-
-    this.advanceSimMotion(dt);
-    this.applyExternalFeed();
-    for (const behavior of this.behaviors) behavior.step(this.context(dt));
-
+    this.stepOnce(dt);
     return this.flushFrame();
+  }
+
+  /**
+   * 一次推进 `count` 个固定步长，只返回最后一帧的差量。
+   *
+   * 高倍速回放时渲染 Adapter 本来就不需要中间帧，但世界事件一条都不能少——
+   * 这里跳过的是"差量的合并与传输"，不是世界推进。
+   */
+  runSteps(count: number): FrameDelta {
+    if (!Number.isInteger(count) || count < 0) throw new Error('步数必须是非负整数。');
+    for (let i = 0; i < count; i += 1) this.stepOnce(this.clock.step);
+    return count === 0 ? this.emptyFrame() : this.flushFrame();
   }
 
   // ---------------------------------------------------------------------------
@@ -304,6 +319,21 @@ export class TwinWorld {
     }
   }
 
+  /**
+   * 恢复快照并把事件日志游标对齐到快照的 sequence——回放与分叉的标准入口。
+   *
+   * 与 `restore` 的差别：`restore` 只搬状态，事件日志继续往后编号；重算会让同一条
+   * 事件以"未来的编号"再写一遍。分叉必须调用这个方法，再配合
+   * `EventRepository.truncateAfter`，事件流才不会出现重复或空洞。
+   */
+  restoreFrom(snapshot: WorldSnapshot): void {
+    this.restore(snapshot);
+    this.log.resetTo(snapshot.sequence);
+    this.dirty.clear();
+    this.added.clear();
+    this.removed.clear();
+  }
+
   /** 回到 t=0。不传 seed 则重放同一集，传了就换一集但依然可复现。 */
   reset(seed?: number): void {
     this.seedValue = seed ?? this.seedValue;
@@ -331,6 +361,17 @@ export class TwinWorld {
       const state = this.entities.get(id);
       if (state) state.dataSource = source;
     }
+  }
+
+  /** 推进一个固定步长的全部工作，不含差量刷新（`runSteps` 只在最后刷一次）。 */
+  private stepOnce(dt: number): void {
+    if (!Number.isFinite(dt) || dt <= 0) throw new Error('dt 必须是正数。');
+    this.currentTime += dt;
+    this.stepCountValue += 1;
+
+    this.advanceSimMotion(dt);
+    this.applyExternalFeed();
+    for (const behavior of this.behaviors) behavior.step(this.context(dt));
   }
 
   private require(id: string): WorldEntityState {

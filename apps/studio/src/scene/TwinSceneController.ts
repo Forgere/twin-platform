@@ -1,7 +1,8 @@
 import CameraControls from 'camera-controls';
+import type { ReplayController } from '@twin-platform/replay-core';
+import type { TwinScene, TwinVector3 } from '@twin-platform/world-kernel';
 import * as THREE from 'three';
-import { TwinWorld } from '@twin-platform/world-kernel';
-import { demoScene, entityLabel } from './demoScene';
+import { entityLabel } from './demoScene';
 
 CameraControls.install({ THREE });
 
@@ -13,15 +14,20 @@ export interface TwinEntityView {
   kind: string;
 }
 
+export interface TwinSceneControllerOptions {
+  scene: TwinScene;
+  /** 时间轴控制器：渲染层的推进完全由它决定，视口自己不推演状态。 */
+  controller: ReplayController;
+}
+
 const DEFAULT_COLOR = '#94a3b8';
+const DEFAULT_SIZE: TwinVector3 = [0.7, 0.7, 0.7];
 
 export class TwinSceneController {
   /** 侧边栏列出的可选实体（物料这类动态实体不进列表）。 */
-  readonly entities: TwinEntityView[] = demoScene.entities
-    .filter((entity) => entity.kind !== 'parcel')
-    .map((entity) => ({ id: entity.id, kind: entity.kind, label: entityLabel(entity.config?.label, entity.id) }));
+  readonly entities: TwinEntityView[];
 
-  private readonly world = new TwinWorld(demoScene, { seed: 20240906 });
+  private readonly controller: ReplayController;
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(42, 1, 0.1, 200);
   private readonly clock = new THREE.Clock();
@@ -33,7 +39,16 @@ export class TwinSceneController {
   private readonly controls: CameraControls;
   private frameId: number | undefined;
 
-  constructor(private readonly host: HTMLElement, private readonly onSelect: (entity: TwinEntityView | undefined) => void) {
+  constructor(
+    private readonly host: HTMLElement,
+    private readonly onSelect: (entity: TwinEntityView | undefined) => void,
+    options: TwinSceneControllerOptions,
+  ) {
+    this.controller = options.controller;
+    this.entities = options.scene.entities
+      .filter((entity) => entity.kind !== 'parcel')
+      .map((entity) => ({ id: entity.id, kind: entity.kind, label: entityLabel(entity.config?.label, entity.id) }));
+
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setClearColor('#07111f');
@@ -47,7 +62,7 @@ export class TwinSceneController {
     this.controls.maxDistance = 32;
     this.controls.maxPolarAngle = Math.PI * 0.47;
     this.controls.setTarget(0, 0.5, 0, false);
-    this.buildScene();
+    this.buildEnvironment(options.scene);
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(this.host);
     this.renderer.domElement.addEventListener('pointerdown', this.pick);
@@ -57,7 +72,7 @@ export class TwinSceneController {
 
   /** 仿真时间（秒），供 HUD 显示。 */
   get simTime(): number {
-    return this.world.time;
+    return this.controller.time;
   }
 
   selectEntity(id: string): void {
@@ -97,7 +112,7 @@ export class TwinSceneController {
     this.renderer.domElement.remove();
   }
 
-  private buildScene(): void {
+  private buildEnvironment(scene: TwinScene): void {
     this.scene.background = new THREE.Color('#07111f');
     const grid = new THREE.GridHelper(18, 18, '#334155', '#172338');
     this.scene.add(grid);
@@ -111,29 +126,50 @@ export class TwinSceneController {
     floor.receiveShadow = true;
     this.scene.add(floor);
 
-    for (const entity of demoScene.entities) {
-      const size = entity.visual?.size ?? [1, 1, 1];
-      const mesh = new THREE.Mesh(
-        new THREE.BoxGeometry(size[0], size[1], size[2]),
-        new THREE.MeshStandardMaterial({ color: entity.visual?.color ?? DEFAULT_COLOR, metalness: 0.2, roughness: 0.44 }),
-      );
-      mesh.position.set(...entity.transform.position);
-      mesh.rotation.y = entity.transform.rotation?.[1] ?? 0;
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      mesh.userData.entityId = entity.id;
-      this.entityMeshes.set(entity.id, mesh);
-      this.scene.add(mesh);
-    }
+    for (const entity of scene.entities) this.addMesh(entity.id, entity.visual?.size ?? DEFAULT_SIZE, entity.visual?.color ?? DEFAULT_COLOR, entity.transform);
+  }
+
+  /** 外部数据源可能带来场景里没有的实体，运行时补一个盒子，别让它消失。 */
+  private ensureMesh(id: string): THREE.Mesh {
+    const existing = this.entityMeshes.get(id);
+    if (existing) return existing;
+    return this.addMesh(id, DEFAULT_SIZE, '#f472b6', { position: [0, 1, 0] });
+  }
+
+  private addMesh(
+    id: string,
+    size: TwinVector3,
+    color: string,
+    transform: { position: TwinVector3; rotation?: TwinVector3 },
+  ): THREE.Mesh {
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(size[0], size[1], size[2]),
+      new THREE.MeshStandardMaterial({ color, metalness: 0.2, roughness: 0.44 }),
+    );
+    mesh.position.set(...transform.position);
+    mesh.rotation.y = transform.rotation?.[1] ?? 0;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.userData.entityId = id;
+    this.entityMeshes.set(id, mesh);
+    this.scene.add(mesh);
+    return mesh;
   }
 
   /** 渲染层只消费帧差量：内核算什么这里就画什么，绝不自己推演状态。 */
-  private applyFrame(delta: ReturnType<TwinWorld['advance']>): void {
+  private applyFrame(delta: ReturnType<ReplayController['advance']>): void {
+    for (const id of delta.added) this.ensureMesh(id);
     for (const change of delta.changed) {
-      const mesh = this.entityMeshes.get(change.id);
+      const mesh = change.transform ? (this.entityMeshes.get(change.id) ?? this.ensureMesh(change.id)) : undefined;
       if (!mesh || !change.transform) continue;
       mesh.position.set(...change.transform.position);
       mesh.rotation.y = change.transform.rotation?.[1] ?? 0;
+    }
+    for (const id of delta.removed) {
+      const mesh = this.entityMeshes.get(id);
+      if (!mesh) continue;
+      this.scene.remove(mesh);
+      this.entityMeshes.delete(id);
     }
   }
 
@@ -161,7 +197,7 @@ export class TwinSceneController {
   private renderFrame = (): void => {
     this.frameId = requestAnimationFrame(this.renderFrame);
     const delta = this.clock.getDelta();
-    this.applyFrame(this.world.advance(delta));
+    this.applyFrame(this.controller.advance(delta));
     this.controls.update(delta);
     this.renderer.render(this.scene, this.camera);
   };

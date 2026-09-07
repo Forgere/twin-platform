@@ -30,4 +30,31 @@ button:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 2px; }
 .entity-detail strong { color: #f8fafc; }
 .entity-detail span, .entity-detail p { margin: 0; color: #94a3b8; font-size: 0.9rem; }
 .entity-detail button { margin-top: 4px; }
+/* 时间轴：播放控制 + 拖拽定位 */
+.timeline { padding: 12px 15px; border-top: 1px solid #1e3854; background: #0d1c30; display: grid; gap: 10px; }
+.timeline-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.timeline-controls button { padding: 7px 12px; font-size: 0.85rem; }
+.speed-select { display: flex; align-items: center; gap: 7px; margin-left: auto; color: #94a3b8; font-size: 0.85rem; }
+.speed-select select { border: 1px solid #315170; border-radius: 8px; padding: 6px 8px; background: #11263d; color: #dbeafe; font: inherit; }
+.timeline-range { width: 100%; accent-color: #38bdf8; }
+.timeline-readout { margin: 0; color: #7f95ad; font-size: 0.76rem; }
+
+/* 事件流 */
+.event-log ul { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.event-log li { display: flex; align-items: baseline; gap: 8px; padding: 7px 9px; border: 1px solid #1e3854; border-radius: 8px; background: #0d1c30; font-size: 0.8rem; }
+.event-seq { color: #38bdf8; font-variant-numeric: tabular-nums; }
+.event-type { color: #e2e8f0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.event-meta { margin-left: auto; flex: none; color: #7f95ad; font-variant-numeric: tabular-nums; }
+.event-log-meta, .event-empty { margin: 0 0 10px; color: #7f95ad; font-size: 0.78rem; }
+.event-empty { margin: 0; }
+
+/* 外部数据源 */
+.data-source textarea { width: 100%; padding: 9px 10px; border: 1px solid #315170; border-radius: 8px; background: #091627; color: #dbeafe; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.76rem; resize: vertical; }
+.data-source .button-row { margin-top: 9px; }
+.data-source-mode { margin: 0 0 10px; color: #94a3b8; font-size: 0.8rem; }
+.data-source-mode strong { color: #38bdf8; }
+.data-source-result { margin-top: 11px; color: #94a3b8; font-size: 0.78rem; }
+.data-source-result p { margin: 0; }
+.data-source-issues { margin: 7px 0 0; padding-left: 18px; color: #fca5a5; }
+
 @media (max-width: 780px) { .studio-shell { padding: 16px; } .studio-heading { align-items: flex-start; flex-direction: column; gap: 14px; } .studio-grid { grid-template-columns: 1fr; } .viewport { height: 55vh; min-height: 360px; } }

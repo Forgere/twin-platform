@@ -87,4 +87,18 @@ export class EventLog {
     this.flushed = 0;
     this.droppedCount = 0;
   }
+
+  /**
+   * 把游标直接挪到 `sequence`，后续事件从这里继续编号。
+   *
+   * 回放分叉用：世界恢复到某个快照后，事件流必须回到快照当时的 sequence，
+   * 否则重算产生的事件会带着"未来"的编号写库，破坏严格单调。
+   */
+  resetTo(sequence: number): void {
+    if (!Number.isInteger(sequence) || sequence < 1) throw new Error('sequence 必须是不小于 1 的整数。');
+    this.events.length = 0;
+    this.next = sequence;
+    this.flushed = sequence - 1;
+    this.droppedCount = 0;
+  }
 }

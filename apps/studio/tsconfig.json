@@ -13,6 +13,13 @@
     "moduleResolution": "bundler",
     "noEmit": true,
 
+    // 与根 tsconfig 同一套 paths：Windows 侧 IDE 与 CI 没跑 `bun install`
+    // 建软链时也要能解析 workspace 包。
+    "baseUrl": ".",
+    "paths": {
+      "@twin-platform/*": ["../../packages/*/src/index.ts"]
+    },
+
     // Type Checking & Safety
     "strict": true,
     "skipLibCheck": true,

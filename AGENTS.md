@@ -30,6 +30,10 @@ Bun workspaces: `apps/*`、`packages/*`、`plugins/*`。
 - `packages/world-kernel` — 世界内核，零 UI / Three / DOM 依赖。
 - `packages/storage-contracts` — 仓储接口（内核与数据库之间唯一的缝）。
 - `packages/storage-memory` — 内存实现，浏览器演示与测试用。
+- `packages/storage-postgres` — PostgreSQL 实现 + `migrations/`。
+- `packages/storage-testkit` — 各 Adapter 共用的仓储契约测试。
+- `packages/replay-core` — 会话录制（`SessionRecorder`）+ 确定性时间轴（`ReplayController`）。
+- `packages/data-source-csv` — CSV 外部数据源 Adapter。
 - `apps/studio` — Solid 工作台，只消费内核的 `FrameDelta`，不自己推演状态。
 
 包之间用 `@twin-platform/*` 互相引用。根 `tsconfig.json` 里配了 `paths`，
@@ -58,3 +62,12 @@ bun run dev          # Studio 开发服务器
 3. 遍历顺序固定：实体按场景顺序，行为按注册顺序；顺序即契约。
 4. 新增状态要进 `WorldSnapshot`（含 `rngState`），否则 `restore()` 后重放会分叉。
 5. 改了行为就补一条确定性测试：同种子两次运行比对指纹（`world.test.ts` 里的 `fingerprint()`）。
+
+## Replay rules (replay-core)
+
+1. 倍速只改变"一帧吃几个步长"，步长本身不变；1× 与 50× 必须得到同一指纹。
+2. `seek(t)` 靠重算：恢复最近快照 → 截断之后事件 → 按固定步长推到 t，不做插值。
+3. 往回跳是分叉：`events.truncateAfter` 之后，旧时间线的事件不得再出现在查询里。
+4. `SessionRecorder` 只搬运（事件/快照/状态投影/指标），不得写回世界状态。
+5. 外部数据源必须可重放：实现 `rewind()`，禁止读挂钟或 `Math.random()`。
+6. 新增 Storage Adapter 必须接入 `storage-testkit` 的契约测试。
