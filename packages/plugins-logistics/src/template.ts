@@ -3,6 +3,7 @@ import type { TwinEntity, TwinScene, TwinVector3 } from '@twin-platform/scene-sc
 import {
   asrsRack,
   bufferRack,
+  conveyorCorner,
   conveyorSegment,
   inspectionStation,
   liftTransfer,
@@ -321,6 +322,20 @@ export const centerTemplate: SceneTemplateDescriptor<CenterTemplateParams> = {
     beltX('belt-back-2', -2, -16, -6, '回程段 2');
     beltZ('belt-turn-l', -16, -5.3, 2, '左转载段');
 
+    // 90° 转角模块：直行皮带按"拐角处让出半带宽"的约定铺，转角模块正好补上
+    // 拐角缺口，输送线在这真正拐弯。台面比皮带高 1cm（buildCorner 里），免 z-fighting。
+    const corner = (id: string, xAt: number, zAt: number, color = CENTER.belt): void => {
+      entities.push(
+        conveyorCorner(id, [x(xAt), BELT_Y, z(zAt)], { label: '转角', color, size: [1.4, 0.6, 1.4] }),
+      );
+    };
+    corner('corner-1', 16, 0);
+    corner('corner-2', 16, -6);
+    corner('corner-3', -16, -6);
+    corner('corner-4', -16, 2);
+    corner('corner-5', -12, 2);
+    corner('corner-6', -12, 0);
+
     // 主环线折线：从直段中间起笔，首尾同点，拐角才会被倒圆。
     const mainCorners: TwinVector3[] = [
       [x(-8), DECK_Y, z(0)],
@@ -376,6 +391,12 @@ export const centerTemplate: SceneTemplateDescriptor<CenterTemplateParams> = {
       }),
     );
 
+    // 分流支线四个转角
+    corner('corner-d1', 5, 0);
+    corner('corner-d2', transferX, -2.5);
+    corner('corner-d3', 3, -2.5);
+    corner('corner-d4', 3, 0);
+
     // ── 质检与拒收 ──
     entities.push(inspectionStation('scan-01', [x(-8.5), 0, z(0)], 1.8));
     entities.push(inspectionStation('scan-02', [x(6.5), 0, z(0)], 1.8));
@@ -419,6 +440,12 @@ export const centerTemplate: SceneTemplateDescriptor<CenterTemplateParams> = {
         [x(inX), DECK_Y, z(2.6)],
         [x(inX), DECK_Y, z(0)],
       ];
+
+      // 出入库环线四个转角
+      corner(`corner-io-${aisleX}-1`, aisleX, 0);
+      corner(`corner-io-${aisleX}-2`, aisleX, 2.6);
+      corner(`corner-io-${aisleX}-3`, inX, 2.6);
+      corner(`corner-io-${aisleX}-4`, inX, 0);
       for (let i = 0; i < asrsCount; i += 1) {
         entities.push(
           parcel(`asrs-${aisleX}-cargo-${i + 1}`, splitClosedLoop(ioCorners, i / asrsCount), 0.9 + i * 0.12, {

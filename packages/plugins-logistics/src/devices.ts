@@ -39,6 +39,28 @@ export function inspectionStation(id: string, position: TwinVector3, zoneHalfWid
   };
 }
 
+export interface CornerOptions {
+  label?: string;
+  color?: string;
+  size?: TwinVector3;
+}
+
+/**
+ * 90° 转角输送模块：方形台面，把两条相互垂直的输送线接到一起，货物在此转向。
+ * 与普通输送线一样只作"输送面 + 设备占位"，真正的运动由路径（cornerRadius）完成。
+ * 台面略高于直行皮带以避免 z-fighting（见 entityMeshes 的 buildCorner）。
+ */
+export function conveyorCorner(id: string, position: TwinVector3, options: CornerOptions = {}): TwinEntity {
+  return {
+    id,
+    kind: 'transport',
+    transform: { position },
+    capabilities: ['move'],
+    visual: { kind: 'box', color: options.color ?? '#22c55e', size: options.size ?? [1.4, 0.6, 1.4] },
+    config: { label: options.label ?? id, corner: true },
+  };
+}
+
 /** 缓存货架：能存料，没有覆盖区（不占中心线）。 */
 export function bufferRack(id: string, position: TwinVector3): TwinEntity {
   return {

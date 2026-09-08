@@ -174,17 +174,22 @@ describe('顶升移栽机分流', () => {
     });
 
     let maxY = 0;
+    let cargoMaxY = 0;
     let busySeen = false;
     for (let i = 0; i < 60 * 30; i += 1) {
       world.step(1 / 60);
       const cassette = world.getEntity('transfer-1-cassette');
       if (cassette) maxY = Math.max(maxY, cassette.transform.position[1]);
+      const cargo = world.getEntity('divert-cargo-1');
+      if (cargo) cargoMaxY = Math.max(cargoMaxY, cargo.transform.position[1]);
       const transfer = world.getEntity('transfer-1');
       if (transfer?.status === 'busy') busySeen = true;
     }
 
     // 托举座在某时刻被抬离原位（y 高于静止位 0.6）
     expect(maxY).toBeGreaterThan(0.6 + 0.1);
+    // 被分流的货随托举座一起抬离台面（货底基准 1.2 + 抬升量），不再浮在 1.2
+    expect(cargoMaxY).toBeGreaterThan(1.2 + 0.05);
     // 移栽机对指定货变 busy
     expect(busySeen).toBe(true);
     // 分流事件确实触发
@@ -203,6 +208,28 @@ describe('顶升移栽机分流', () => {
         return Math.abs(point[0] - bx) <= sx / 2 + 1e-6 && Math.abs(point[2] - bz) <= sz / 2 + 1e-6;
       });
       expect(covered, `divert 点 ${point.join(',')} 没有输送面`).toBe(true);
+    }
+  });
+});
+
+describe('90° 转角模块', () => {
+  it('主环线/分流支线/立库环线的每个拐角都有转角皮带，且台面高度与输送线齐平', () => {
+    const scene = buildCenterScene({ parcels: 8, asrsParcels: 2, externalLanes: 2 });
+    const corners = scene.entities.filter((e) => (e.config as { corner?: boolean })?.corner === true);
+    // 主环线 6 + 分流支线 4 + 两条立库环线各 4 = 18
+    expect(corners.length).toBe(18);
+    // 转角台面高度和普通输送线一致（y = BELT_Y = 0.6）
+    for (const c of corners) expect(c.transform.position[1]).toBeCloseTo(0.6, 5);
+
+    // 主环线 6 个拐角点下方都有转角模块
+    const expected = [
+      [16, 0], [16, -6], [-16, -6], [-16, 2], [-12, 2], [-12, 0],
+    ];
+    for (const [cx, cz] of expected) {
+      const has = corners.some(
+        (c) => Math.abs(c.transform.position[0] - cx) < 1e-6 && Math.abs(c.transform.position[2] - cz) < 1e-6,
+      );
+      expect(has, `拐角 (${cx},${cz}) 缺转角模块`).toBe(true);
     }
   });
 });

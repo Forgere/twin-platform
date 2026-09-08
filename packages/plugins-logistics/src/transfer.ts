@@ -81,6 +81,17 @@ export function createTransferBehavior(config: TransferBehaviorConfig = {}): Wor
           ctx.setTransform(cassette.id, { position: [ux, uy + next * liftHeight, uz] });
         }
 
+        // 被分流的货随托举座一起抬离台面（货底 = 路径基准高 + 抬升量），
+        // 否则货还停在 1.2、cassette 却升上去，看着像货穿过机器。
+        if (diverting) {
+          const divertParcel = ctx.entity(diverting);
+          if (divertParcel) {
+            const baseY = ((divertParcel as { motion?: { points?: number[][] } }).motion?.points?.[0]?.[1] as number) ?? 1.2;
+            const [px, , pz] = divertParcel.transform.position;
+            ctx.setTransform(divertParcel.id, { position: [px, baseY + next * liftHeight, pz] });
+          }
+        }
+
         ctx.setStatus(unit.id, next > 0.5 ? 'busy' : 'idle');
 
         // 每次"顶到位"只发一次，落到原位后重新武装。
