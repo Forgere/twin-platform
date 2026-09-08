@@ -367,6 +367,97 @@ function buildPallet(size: TwinVector3, color: string): THREE.Group {
   return group;
 }
 
+/**
+ * 顶升移栽机：inline 串在输送线里的分流转接台。
+ * 滚筒台面（轴沿 Z，和两侧皮带同向）+ 两侧侧板 + 四根支腿 + 中央顶升气缸，
+ * 入料角挂一只光电眼、立柱顶一盏状态灯。滚筒缝隙里藏的托举座由 `transfer-cycle` 抬升。
+ */
+function buildTransfer(size: TwinVector3, color: string, baseY: number): THREE.Group {
+  const group = new THREE.Group();
+  const [width, height, depth] = size;
+  const groundY = -baseY;
+  const deckTop = groundY + height; // 台面顶（世界 y = baseY + height）
+
+  // 底板
+  group.add(at(boxMesh(width * 0.98, 0.08, depth * 0.94, FRAME_DARK, { roughness: 0.7 }), 0, groundY + 0.04, 0));
+
+  // 四根支腿到地面
+  const legTop = groundY + 0.18;
+  const legHeight = Math.max(0.08, legTop - groundY);
+  const legCenterY = (legTop + groundY) / 2;
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      group.add(at(cylinderMesh(0.05, legHeight, FRAME_DARK, 8, { roughness: 0.7 }), sx * (width / 2 - 0.2), legCenterY, sz * (depth / 2 - 0.15)));
+    }
+  }
+
+  // 两侧侧板
+  for (const side of [-1, 1]) {
+    group.add(at(boxMesh(width * 0.98, 0.2, 0.06, METAL, { roughness: 0.5, metalness: 0.4 }), 0, groundY + 0.16, side * (depth / 2 - 0.03)));
+  }
+
+  // 一排滚筒（小件不投影，省开销）
+  const rollerRadius = 0.05;
+  const rollerCount = Math.max(2, Math.round(width / 0.32));
+  for (let i = 0; i <= rollerCount; i += 1) {
+    const x = -width / 2 + 0.12 + (i / rollerCount) * (width - 0.24);
+    const roller = cylinderMesh(rollerRadius, depth * 0.9, METAL, 10, { roughness: 0.35, metalness: 0.45 });
+    roller.castShadow = false;
+    roller.rotation.x = Math.PI / 2;
+    group.add(at(roller, x, groundY + 0.24, 0));
+  }
+
+  // 中央顶升气缸
+  group.add(at(cylinderMesh(0.12, 0.3, FRAME_DARK, 12, { roughness: 0.5, metalness: 0.4 }), 0, groundY + 0.2, 0));
+
+  // 入料角光电眼（红）
+  group.add(
+    at(
+      boxMesh(0.09, 0.09, 0.09, '#FF5252', { emissive: '#FF5252', emissiveIntensity: 0.6 }),
+      -width / 2 + 0.12,
+      groundY + 0.22,
+      0,
+    ),
+  );
+
+  // 立柱 + 状态灯
+  group.add(at(boxMesh(0.05, 0.42, 0.05, FRAME_DARK, { roughness: 0.6 }), -width / 2 + 0.12, groundY + 0.32, depth / 2 - 0.1));
+  group.add(at(sphereMesh(0.06, color, { emissive: color, emissiveIntensity: 0.9 }), -width / 2 + 0.12, groundY + 0.56, depth / 2 - 0.1));
+
+  return group;
+}
+
+/**
+ * 托举座（cassette）：滚筒缝隙里那组横向传动轴 + 驱动轮，平时缩在台面以下，
+ * 由 `transfer-cycle` 顶起几厘米把货抬离滚筒、横向送出去。本身是浮动子实体，
+ * 世界位姿每步由行为改写，模型只在本地原点附近造型即可。
+ */
+function buildCassette(size: TwinVector3, color: string): THREE.Group {
+  const group = new THREE.Group();
+  const [width, height, depth] = size;
+
+  // 横向传动轴（沿 Z 横跨皮带）
+  const axle = cylinderMesh(0.05, depth * 0.92, FRAME_DARK, 10, { roughness: 0.4, metalness: 0.5 });
+  axle.rotation.x = Math.PI / 2;
+  group.add(at(axle, 0, 0.07, 0));
+
+  // 驱动轮（沿 X，把货横推出去）
+  for (const sz of [-1, 1]) {
+    for (const sx of [-1, 1]) {
+      const wheel = cylinderMesh(0.07, 0.05, METAL, 12, { roughness: 0.4, metalness: 0.5 });
+      wheel.rotation.z = Math.PI / 2;
+      group.add(at(wheel, sx * (width / 2 - 0.16), 0.07, sz * (depth / 2 - 0.18)));
+    }
+  }
+
+  // 两侧导轨
+  for (const side of [-1, 1]) {
+    group.add(at(boxMesh(width * 0.9, 0.04, 0.05, color, { roughness: 0.5 }), 0, 0.02, side * (depth / 2 - 0.05)));
+  }
+
+  return group;
+}
+
 /** 按实体类型生成模型；未知类型退回货箱，保证外部数据源补出来的实体不会消失。 */
 export function buildEntityMesh(entity: EntityMeshInput): THREE.Group {
   const size = entity.visual?.size ?? [0.7, 0.7, 0.7];
@@ -390,6 +481,10 @@ export function buildEntityMesh(entity: EntityMeshInput): THREE.Group {
       return buildFork(size, color);
     case 'pallet':
       return buildPallet(size, color);
+    case 'transfer':
+      return buildTransfer(size, color, baseY);
+    case 'cassette':
+      return buildCassette(size, color);
     default:
       return buildCargo(size, color);
   }

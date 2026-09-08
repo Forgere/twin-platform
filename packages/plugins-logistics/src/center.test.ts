@@ -74,7 +74,8 @@ describe('智能物流中心模板', () => {
   });
 
   it('每条物料路径的每一个拐点下面都有输送线托着（不脱线）', () => {
-    const belts = entities.filter((e) => e.kind === 'transport');
+    // 移栽机本体也是一段 inline 输送面，拐角顶点可能落在它上面，故一并计入。
+    const belts = entities.filter((e) => e.kind === 'transport' || e.kind === 'transfer');
     for (const mover of entities.filter((e) => e.motion)) {
       for (const point of mover.motion!.points) {
         const covered = belts.some((belt) => {
@@ -150,5 +151,58 @@ describe('堆垛机存取循环', () => {
         .join('|');
     };
     expect(pose()).toBe(pose());
+  });
+});
+
+describe('顶升移栽机分流', () => {
+  it('场景里有一台移栽机本体 + 一个托举座子实体', () => {
+    const scene = buildCenterScene({ parcels: 8, asrsParcels: 2, externalLanes: 2 });
+    expect(scene.entities.filter((e) => e.id === 'transfer-1' && e.kind === 'transfer').length).toBe(1);
+    expect(scene.entities.filter((e) => e.id === 'transfer-1-cassette' && e.kind === 'cassette').length).toBe(1);
+    // 移栽机声明了要分流的物料
+    const transfer = scene.entities.find((e) => e.id === 'transfer-1');
+    expect((transfer?.config as { divertIds?: string[] })?.divertIds).toContain('divert-cargo-1');
+  });
+
+  it('分流物料经过移栽机时被顶起、触发 transfer:divert 事件，且全程不脱线', () => {
+    const host = new PluginHost();
+    host.install(logisticsPlugin);
+    const world = new TwinWorld(buildCenterScene({ parcels: 4, asrsParcels: 1, externalLanes: 1 }), {
+      seed: 20240906,
+      maxStepsPerAdvance: 600,
+      behaviors: host.behaviors,
+    });
+
+    let maxY = 0;
+    let busySeen = false;
+    for (let i = 0; i < 60 * 30; i += 1) {
+      world.step(1 / 60);
+      const cassette = world.getEntity('transfer-1-cassette');
+      if (cassette) maxY = Math.max(maxY, cassette.transform.position[1]);
+      const transfer = world.getEntity('transfer-1');
+      if (transfer?.status === 'busy') busySeen = true;
+    }
+
+    // 托举座在某时刻被抬离原位（y 高于静止位 0.6）
+    expect(maxY).toBeGreaterThan(0.6 + 0.1);
+    // 移栽机对指定货变 busy
+    expect(busySeen).toBe(true);
+    // 分流事件确实触发
+    expect(world.getEventLog().some((event) => event.type === 'transfer:divert')).toBe(true);
+  });
+
+  it('分流物料路径每一拐点都有输送面托着', () => {
+    const scene = buildCenterScene({ parcels: 4, asrsParcels: 1, externalLanes: 1 });
+    const divert = scene.entities.find((e) => e.id === 'divert-cargo-1');
+    expect(divert?.motion).toBeTruthy();
+    const surfaces = scene.entities.filter((e) => e.kind === 'transport' || e.kind === 'transfer');
+    for (const point of divert!.motion!.points) {
+      const covered = surfaces.some((belt) => {
+        const [sx, , sz] = belt.visual?.size ?? [0, 0, 0];
+        const [bx, , bz] = belt.transform.position;
+        return Math.abs(point[0] - bx) <= sx / 2 + 1e-6 && Math.abs(point[2] - bz) <= sz / 2 + 1e-6;
+      });
+      expect(covered, `divert 点 ${point.join(',')} 没有输送面`).toBe(true);
+    }
   });
 });

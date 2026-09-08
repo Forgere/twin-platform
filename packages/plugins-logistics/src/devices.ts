@@ -195,3 +195,62 @@ export function pallet(id: string, position: TwinVector3, color?: string, label?
     config: { label: label ?? id },
   };
 }
+
+export interface LiftTransferOptions {
+  label?: string;
+  color?: string;
+  /** 台面尺寸（沿 X 长、沿 Z 宽）。宽度要和接入的输送线一致，货物才滚得过去。 */
+  size?: TwinVector3;
+  /** 托举高度（米）：把货物顶离滚筒，好让横向传动轴送出去。 */
+  liftHeight?: number;
+  /**
+   * 会在此处被**横向分流**的物料 id；不在表里的货物直着滚过去，不顶升。
+   * 由场景模板声明——它同时生成路径和移栽机，所以知道谁该拐弯。
+   */
+  divertIds?: string[];
+  /** 顶升 / 下降耗时（秒）。 */
+  upTime?: number;
+  downTime?: number;
+}
+
+/**
+ * 顶升移栽机（分流转接台）。
+ *
+ * 真机怎么干活，这里就怎么建模：
+ * - 台面与所接入的输送线**同宽**，串在线里，货物直接滚上来；
+ * - 一排滚筒（轴垂直于流向）把货物继续往前推，跟两侧皮带一模一样；
+ * - 滚筒缝隙里藏着一 cassette 小传动轴（带驱动轮），缩在滚筒线以下；
+ * - 要分流的货来了，cassette 顶起几厘米把货抬离滚筒，传动轴转起来把货
+ *   **横向**送出去，然后缩回，下一个货继续直着滚过去。
+ *
+ * cassette 是独立实体（`liftTransferCassette`）：渲染层只认 position，
+ * "顶升"这种相对位移必须靠子实体表达（和堆垛机拆门架/载货台/货叉同理）。
+ */
+export function liftTransfer(id: string, position: TwinVector3, options: LiftTransferOptions = {}): TwinEntity {
+  return {
+    id,
+    kind: 'transfer',
+    transform: { position },
+    capabilities: ['transfer', 'lift'],
+    visual: { kind: 'box', color: options.color ?? '#C4B5E0', size: options.size ?? [1.6, 0.6, 1.4] },
+    config: {
+      label: options.label ?? id,
+      liftHeight: options.liftHeight ?? 0.13,
+      divertIds: options.divertIds ?? [],
+      upTime: options.upTime ?? 0.18,
+      downTime: options.downTime ?? 0.18,
+    },
+  };
+}
+
+/** 顶升移栽机的托举座：滚筒缝隙里那组小传动轴 + 驱动轮，由 `transfer-cycle` 抬升。 */
+export function liftTransferCassette(id: string, position: TwinVector3, color?: string, label?: string): TwinEntity {
+  return {
+    id,
+    kind: 'cassette',
+    transform: { position },
+    capabilities: ['cassette'],
+    visual: { kind: 'box', color: color ?? '#F4A261', size: [1.3, 0.14, 1.1] },
+    config: { label: label ?? id },
+  };
+}

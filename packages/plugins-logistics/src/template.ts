@@ -5,6 +5,8 @@ import {
   bufferRack,
   conveyorSegment,
   inspectionStation,
+  liftTransfer,
+  liftTransferCassette,
   pallet,
   parcel,
   stackerCarriage,
@@ -310,7 +312,9 @@ export const centerTemplate: SceneTemplateDescriptor<CenterTemplateParams> = {
     beltX('belt-main-1', -11.3, -5, 0, '主输送段 1');
     beltX('belt-main-2', -5, 0, 0, '主输送段 2');
     beltX('sorter-1', 0, 3, 0, '分拣台', CENTER.sorter);
-    beltX('belt-main-3', 3, 10, 0, '主输送段 3');
+    beltX('belt-main-3', 3, 7.2, 0, '主输送段 3');
+    // 主输送段 3 中段让出 1.6m 给顶升移栽机（inline）：3..7.2 皮带 → 移栽机 7.2..8.8 → 8.8..10 皮带。
+    beltX('belt-main-3b', 8.8, 10, 0, '主输送段 3-出库侧');
     beltX('belt-main-4', 10, 16, 0, '出库段');
     beltZ('belt-turn-r', 16, -0.7, -6, '右转载段');
     beltX('belt-back-1', 15.3, -2, -6, '回程段 1');
@@ -337,6 +341,40 @@ export const centerTemplate: SceneTemplateDescriptor<CenterTemplateParams> = {
         }),
       );
     }
+
+    // ── 顶升移栽机 + 分流支线 ──
+    // 主输送段 3 中段嵌一台顶升移栽机（inline），直行货直接滚过去；
+    // 指定货 divert-cargo-1 到跟前会被提前顶起、横向送进南侧支线绕一圈再汇回主线。
+    // 支线四边都铺皮带，货物不会脱线；移栽机本体也当作输送面，拐角顶点落在它上面。
+    const transferX = 8;
+    beltZ('belt-branch-a', transferX, -0.7, -2.5, '分流支线（南行）', CENTER.belt);
+    beltX('belt-branch-b', 3, transferX, -2.5, '分流支线（西行）', CENTER.belt);
+    beltZ('belt-branch-c', 3, -0.7, -2.5, '分流支线（北行）', CENTER.belt);
+
+    entities.push(
+      liftTransfer('transfer-1', [x(transferX), BELT_Y, z(0)], {
+        label: '顶升移栽机 1',
+        color: CENTER.sorter,
+        divertIds: ['divert-cargo-1'],
+        liftHeight: 0.13,
+      }),
+    );
+    entities.push(liftTransferCassette('transfer-1-cassette', [x(transferX), BELT_Y, z(0)], CENTER.pack, '移栽托举座'));
+
+    const divertCorners: TwinVector3[] = [
+      [x(5), DECK_Y, z(0)],
+      [x(transferX), DECK_Y, z(0)],
+      [x(transferX), DECK_Y, z(-2.5)],
+      [x(3), DECK_Y, z(-2.5)],
+      [x(3), DECK_Y, z(0)],
+    ];
+    entities.push(
+      parcel('divert-cargo-1', splitClosedLoop(divertCorners, 0.15), 1.3, {
+        label: '分流物料 1',
+        color: CENTER.cargo[2],
+        cornerRadius: 0.4 * s,
+      }),
+    );
 
     // ── 质检与拒收 ──
     entities.push(inspectionStation('scan-01', [x(-8.5), 0, z(0)], 1.8));

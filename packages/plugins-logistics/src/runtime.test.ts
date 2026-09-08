@@ -16,7 +16,7 @@ interface BeltBox {
 
 function beltBoxes(entities: TwinEntity[]): BeltBox[] {
   return entities
-    .filter((entity) => entity.kind === 'transport')
+    .filter((entity) => entity.kind === 'transport' || entity.kind === 'transfer')
     .map((entity) => {
       const [sx, , sz] = entity.visual?.size ?? [0, 0, 0];
       const [bx, , bz] = entity.transform.position;
