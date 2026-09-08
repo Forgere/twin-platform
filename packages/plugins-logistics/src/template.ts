@@ -115,10 +115,12 @@ export const factoryTemplate: SceneTemplateDescriptor<FactoryTemplateParams> = {
       withColor(bufferRack('reject-rack-2', [x(5), 1, 3]), PASTEL.reject),
       conveyorSegment('sorter-1', [x(1.5), 0.6, 0], { label: '分拣台', color: PASTEL.conveyor }),
       withColor(bufferRack('pack-01', [x(12), 1, 0]), PASTEL.pack),
+      // 外部车道沿 Z 铺设（长边给 Z），间距 4 > 长度 3.2，彼此不重叠。
       ...Array.from({ length: lanes }, (_, i) =>
         conveyorSegment(`ext-${i + 1}`, [x(16), 0.6, -6 + i * 4], {
           label: `外部车道 ${i + 1}`,
           color: PASTEL.external,
+          size: [1.4, 0.6, 3.2],
         }),
       ),
     ];
@@ -138,15 +140,15 @@ export const factoryTemplate: SceneTemplateDescriptor<FactoryTemplateParams> = {
         }),
       );
     }
-    // 外部车道各自的短往返路径（沿 z 上下往复）。
+    // 外部车道各自的短往返路径（沿 z 在车道内上下往复）。
     for (let i = 0; i < lanes; i += 1) {
       const z = -6 + i * 4;
       entities.push(
         parcel(
           `ext-cargo-${i + 1}`,
           [
-            [x(16), yLine, z - 3],
-            [x(16), yLine, z + 3],
+            [x(16), yLine, z - 1.4],
+            [x(16), yLine, z + 1.4],
           ],
           1.1 + i * 0.1,
           { label: `外部物料 ${i + 1}`, color: PASTEL.cargo[(i + 2) % PASTEL.cargo.length] },

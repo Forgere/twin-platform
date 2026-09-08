@@ -3,6 +3,7 @@ import type { ReplayController } from '@twin-platform/replay-core';
 import type { TwinScene, TwinVector3 } from '@twin-platform/world-kernel';
 import * as THREE from 'three';
 import { entityLabel } from './demoScene';
+import { buildEntityMesh, collectMaterials, disposeObject, type EntityMeshInput } from './entityMeshes';
 
 CameraControls.install({ THREE });
 
@@ -27,8 +28,9 @@ export interface TwinSceneControllerOptions {
   controller: ReplayController;
 }
 
-const DEFAULT_COLOR = '#94a3b8';
 const DEFAULT_SIZE: TwinVector3 = [0.7, 0.7, 0.7];
+/** 选中高亮色（暖橘，和奶油色场景对比足够）。 */
+const HIGHLIGHT = '#F4A261';
 
 export class TwinSceneController {
   /** 侧边栏列出的可选实体（物料这类动态实体不进列表）。 */
@@ -40,7 +42,7 @@ export class TwinSceneController {
   private readonly clock = new THREE.Clock();
   private readonly raycaster = new THREE.Raycaster();
   private readonly pointer = new THREE.Vector2();
-  private readonly entityMeshes = new Map<string, THREE.Mesh>();
+  private readonly entityMeshes = new Map<string, THREE.Object3D>();
   private readonly resizeObserver: ResizeObserver;
   private readonly renderer: THREE.WebGLRenderer;
   private readonly controls: CameraControls;
@@ -83,10 +85,18 @@ export class TwinSceneController {
   }
 
   selectEntity(id: string): void {
-    for (const [entityId, mesh] of this.entityMeshes) {
-      const material = mesh.material as THREE.MeshStandardMaterial;
-      material.emissive.set(entityId === id ? '#F4A261' : '#000000');
-      material.emissiveIntensity = entityId === id ? 0.5 : 0;
+    // 模型是组合体，高亮要改到每个子材质；取消选中时还原各自的原始自发光
+    // （检测光幕与状态灯本身就有自发光，不能被抹成黑色）。
+    for (const [entityId, object] of this.entityMeshes) {
+      for (const material of collectMaterials(object)) {
+        if (entityId === id) {
+          material.emissive.set(HIGHLIGHT);
+          material.emissiveIntensity = 0.55;
+        } else {
+          material.emissive.setHex(Number(material.userData.baseEmissive ?? 0));
+          material.emissiveIntensity = Number(material.userData.baseEmissiveIntensity ?? 0);
+        }
+      }
     }
     this.onSelect(this.entities.find((entity) => entity.id === id));
   }
@@ -129,10 +139,7 @@ export class TwinSceneController {
     this.resizeObserver.disconnect();
     this.renderer.domElement.removeEventListener('pointerdown', this.pick);
     this.controls.dispose();
-    for (const mesh of this.entityMeshes.values()) {
-      mesh.geometry.dispose();
-      (mesh.material as THREE.Material).dispose();
-    }
+    for (const object of this.entityMeshes.values()) disposeObject(object);
     this.renderer.dispose();
     this.renderer.domElement.remove();
   }
@@ -157,34 +164,36 @@ export class TwinSceneController {
     floor.receiveShadow = true;
     this.scene.add(floor);
 
-    for (const entity of scene.entities) this.addMesh(entity.id, entity.visual?.size ?? DEFAULT_SIZE, entity.visual?.color ?? DEFAULT_COLOR, entity.transform);
+    for (const entity of scene.entities) this.addEntity(entity);
   }
 
-  /** 外部数据源可能带来场景里没有的实体，运行时补一个盒子，别让它消失。 */
-  private ensureMesh(id: string): THREE.Mesh {
+  /** 外部数据源可能带来场景里没有的实体，运行时补一个货箱，别让它消失。 */
+  private ensureMesh(id: string): THREE.Object3D {
     const existing = this.entityMeshes.get(id);
     if (existing) return existing;
-    return this.addMesh(id, DEFAULT_SIZE, '#C4B5E0', { position: [0, 1, 0] });
+    return this.addEntity({
+      id,
+      kind: 'parcel',
+      visual: { kind: 'box', color: '#C4B5E0', size: DEFAULT_SIZE },
+      transform: { position: [0, 1, 0] },
+    });
   }
 
-  private addMesh(
-    id: string,
-    size: TwinVector3,
-    color: string,
-    transform: { position: TwinVector3; rotation?: TwinVector3 },
-  ): THREE.Mesh {
-    const mesh = new THREE.Mesh(
-      new THREE.BoxGeometry(size[0], size[1], size[2]),
-      new THREE.MeshStandardMaterial({ color, metalness: 0.2, roughness: 0.44 }),
-    );
-    mesh.position.set(...transform.position);
-    mesh.rotation.y = transform.rotation?.[1] ?? 0;
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    mesh.userData.entityId = id;
-    this.entityMeshes.set(id, mesh);
-    this.scene.add(mesh);
-    return mesh;
+  /** 按实体声明生成模型并挂进场景；造型全部在 `entityMeshes.ts` 里组合。 */
+  private addEntity(entity: EntityMeshInput): THREE.Object3D {
+    const object = buildEntityMesh(entity);
+    object.position.set(...entity.transform.position);
+    // 叠加而不是覆盖：输送段可能已经在模型工厂里转过 90°（沿 Z 铺设）。
+    object.rotation.y += entity.transform.rotation?.[1] ?? 0;
+    object.userData.entityId = entity.id;
+    // 记下原始自发光，取消选中时才能还原（光幕/状态灯原本就发光）。
+    for (const material of collectMaterials(object)) {
+      material.userData.baseEmissive = material.emissive.getHex();
+      material.userData.baseEmissiveIntensity = material.emissiveIntensity;
+    }
+    this.entityMeshes.set(entity.id, object);
+    this.scene.add(object);
+    return object;
   }
 
   /** 渲染层只消费帧差量：内核算什么这里就画什么，绝不自己推演状态。 */
@@ -211,11 +220,23 @@ export class TwinSceneController {
     this.raycaster.setFromCamera(this.pointer, this.camera);
     const selectable = this.entities
       .map((entity) => this.entityMeshes.get(entity.id))
-      .filter((mesh): mesh is THREE.Mesh => mesh !== undefined);
-    const hit = this.raycaster.intersectObjects(selectable, false)[0];
-    const id = hit?.object.userData.entityId as string | undefined;
+      .filter((object): object is THREE.Object3D => object !== undefined);
+    // 递归拾取：命中的是子网格，要往上找到挂着 entityId 的那一层。
+    const hit = this.raycaster.intersectObjects(selectable, true)[0];
+    const id = this.entityIdOf(hit?.object);
     if (id) this.selectEntity(id);
   };
+
+  /** 沿父链找最近的 entityId（组合模型挂在 Group 上）。 */
+  private entityIdOf(object: THREE.Object3D | undefined): string | undefined {
+    let current: THREE.Object3D | null = object ?? null;
+    while (current) {
+      const id = current.userData?.entityId;
+      if (typeof id === 'string') return id;
+      current = current.parent;
+    }
+    return undefined;
+  }
 
   private resize(): void {
     const { width, height } = this.host.getBoundingClientRect();
