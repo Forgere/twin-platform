@@ -3,6 +3,7 @@ import type { WorldEvent } from '@twin-platform/world-kernel';
 import type { LineMetrics } from '@twin-platform/analytics-core';
 import { StudioSession, type StudioTelemetry } from '../scene/studioSession';
 import { TwinSceneController, type CameraPreset, type TwinEntityView } from '../scene/TwinSceneController';
+import type { ThemeName } from '../scene/theme';
 import DataSourcePanel from './DataSourcePanel';
 import EventLogPanel from './EventLogPanel';
 import TimelineBar from './TimelineBar';
@@ -58,6 +59,7 @@ export default function TwinViewport() {
   const [tab, setTab] = createSignal<InspectorTab>('entity');
   const [filter, setFilter] = createSignal<EntityFilter>('device');
   const [hud, setHud] = createSignal(true);
+  const [theme, setTheme] = createSignal<ThemeName>('pastel');
   const [view, setView] = createSignal<{
     time: number;
     duration: number;
@@ -80,6 +82,7 @@ export default function TwinViewport() {
       { scene: session.world.scene, controller: session.controller },
     );
     setEntities(controller.entities);
+    setTheme(controller.themeName);
   };
 
   // 面板按固定频率采样，而不是每帧刷新：UI 不需要 60Hz 的事件流，
@@ -125,6 +128,19 @@ export default function TwinViewport() {
           title="显示 / 隐藏画布浮层"
         >
           {hud() ? '🫥 隐藏浮层' : '📡 显示浮层'}
+        </button>
+        <button
+          type="button"
+          class="theme-toggle"
+          aria-pressed={theme() === 'industrial'}
+          onClick={() => {
+            const next: ThemeName = theme() === 'pastel' ? 'industrial' : 'pastel';
+            controller?.setTheme(next);
+            setTheme(next);
+          }}
+          title="切换设备主题：玩具工厂 / 工业涂装"
+        >
+          {theme() === 'pastel' ? '🎨 玩具工厂' : '🏭 工业涂装'}
         </button>
       </header>
 
@@ -278,6 +294,9 @@ export default function TwinViewport() {
                       <strong>{entity().label}</strong>
                       <span>
                         {entity().kind} · {entity().id}
+                      </span>
+                      <span class="code-path">
+                        渲染来源：{controller ? controller.codePath(entity().id) : '—'}
                       </span>
                       <button type="button" onClick={() => controller?.focusEntity(entity().id)}>
                         聚焦此实体

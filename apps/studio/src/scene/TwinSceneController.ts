@@ -1,9 +1,17 @@
 import CameraControls from 'camera-controls';
 import type { ReplayController } from '@twin-platform/replay-core';
-import type { TwinScene, TwinVector3 } from '@twin-platform/world-kernel';
+import type { TwinScene, TwinVector3, FrameDelta } from '@twin-platform/world-kernel';
 import * as THREE from 'three';
 import { entityLabel } from './demoScene';
-import { buildEntityMesh, collectMaterials, disposeObject, type EntityMeshInput } from './entityMeshes';
+import {
+  buildEntityMesh,
+  collectMaterials,
+  disposeObject,
+  type EntityMeshInput,
+  type EntityAnim,
+} from './entityMeshes';
+import { CargoPool } from './CargoPool';
+import { getActiveTheme, setActiveTheme, themeByName, cargoColorFor, type ThemeName } from './theme';
 
 CameraControls.install({ THREE });
 
@@ -32,6 +40,13 @@ export interface TwinSceneControllerOptions {
 const DEFAULT_SIZE: TwinVector3 = [0.7, 0.7, 0.7];
 /** 选中高亮色（暖橘，和奶油色场景对比足够）。 */
 const HIGHLIGHT = '#F4A261';
+/** 滚筒滚动角速度（rad/s），仅播放时转。 */
+const ROLLER_SPIN = 3.0;
+
+/** 物料类实体：走实例化池，不走逐实体 Group。 */
+function isCargoKind(kind: string): boolean {
+  return kind === 'parcel' || kind === 'pallet';
+}
 
 export class TwinSceneController {
   /**
@@ -44,12 +59,21 @@ export class TwinSceneController {
   readonly entities: TwinEntityView[];
 
   private readonly controller: ReplayController;
+  private readonly worldScene: TwinScene;
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(42, 1, 0.1, 200);
   private readonly clock = new THREE.Clock();
   private readonly raycaster = new THREE.Raycaster();
   private readonly pointer = new THREE.Vector2();
   private readonly entityMeshes = new Map<string, THREE.Object3D>();
+  /** 物料（parcel/pallet）走实例化池，省 draw call。 */
+  private readonly cargoPool: CargoPool;
+  /** 物料尺寸：帧差量里不带 size，靠实体声明记住，write 时复用。 */
+  private readonly entitySizes = new Map<string, TwinVector3>();
+  /** 皮带箭头流动时间（秒），暂停即停——视觉跟随仿真。 */
+  private beltTime = 0;
+  private selectionHelper: THREE.Object3D | undefined;
+  private selectedId: string | undefined;
   private readonly resizeObserver: ResizeObserver;
   private readonly renderer: THREE.WebGLRenderer;
   private readonly controls: CameraControls;
@@ -61,6 +85,7 @@ export class TwinSceneController {
     options: TwinSceneControllerOptions,
   ) {
     this.controller = options.controller;
+    this.worldScene = options.scene;
     this.entities = options.scene.entities.map((entity) => ({
       id: entity.id,
       kind: entity.kind,
@@ -80,7 +105,11 @@ export class TwinSceneController {
     this.controls.maxDistance = 90;
     this.controls.maxPolarAngle = Math.PI * 0.47;
     this.controls.setTarget(4, 1, 4, false);
-    this.buildEnvironment(options.scene);
+
+    this.cargoPool = new CargoPool();
+    this.scene.add(this.cargoPool.mesh);
+
+    this.buildEnvironment(this.worldScene);
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(this.host);
     this.renderer.domElement.addEventListener('pointerdown', this.pick);
@@ -93,9 +122,26 @@ export class TwinSceneController {
     return this.controller.time;
   }
 
+  /** 当前主题名，供 UI 同步按钮态。 */
+  get themeName(): ThemeName {
+    return getActiveTheme().name;
+  }
+
+  /** 点中实体后，回答"它由哪段代码渲染"——模型溯源，调试用。 */
+  codePath(id: string): string {
+    if (this.cargoPool.has(id)) return 'CargoPool.ts (instanced, capacity 2048)';
+    const object = this.entityMeshes.get(id);
+    return (object?.userData.codePath as string | undefined) ?? 'unknown';
+  }
+
+  /** 切主题：换 DeviceTheme 对象 + 整场重建（圆角/颜色/材质都来自主题）。 */
+  setTheme(name: ThemeName): void {
+    setActiveTheme(themeByName(name));
+    this.rebuildEntities();
+  }
+
   selectEntity(id: string): void {
-    // 模型是组合体，高亮要改到每个子材质；取消选中时还原各自的原始自发光
-    // （检测光幕与状态灯本身就有自发光，不能被抹成黑色）。
+    // 设备：保留自发光高亮（状态灯自发光会被还原到 baseEmissive）。
     for (const [entityId, object] of this.entityMeshes) {
       for (const material of collectMaterials(object)) {
         if (entityId === id) {
@@ -105,6 +151,25 @@ export class TwinSceneController {
           material.emissive.setHex(Number(material.userData.baseEmissive ?? 0));
           material.emissiveIntensity = Number(material.userData.baseEmissiveIntensity ?? 0);
         }
+      }
+    }
+    // 选中框：设备用 BoxHelper 包模型，货物用 Box3Helper 包实例。
+    this.removeSelectionHelper();
+    this.selectedId = id;
+    if (this.cargoPool.has(id)) {
+      const matrix = this.cargoPool.matrixOf(id);
+      if (matrix) {
+        const box = new THREE.Box3().setFromMatrix4(matrix);
+        const helper = new THREE.Box3Helper(box, new THREE.Color(HIGHLIGHT));
+        this.selectionHelper = helper;
+        this.scene.add(helper);
+      }
+    } else {
+      const object = this.entityMeshes.get(id);
+      if (object) {
+        const helper = new THREE.BoxHelper(object, HIGHLIGHT);
+        this.selectionHelper = helper;
+        this.scene.add(helper);
       }
     }
     this.onSelect(this.entities.find((entity) => entity.id === id));
@@ -151,7 +216,9 @@ export class TwinSceneController {
     this.resizeObserver.disconnect();
     this.renderer.domElement.removeEventListener('pointerdown', this.pick);
     this.controls.dispose();
+    this.removeSelectionHelper();
     for (const object of this.entityMeshes.values()) disposeObject(object);
+    this.cargoPool.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();
   }
@@ -183,20 +250,28 @@ export class TwinSceneController {
     for (const entity of scene.entities) this.addEntity(entity);
   }
 
-  /** 外部数据源可能带来场景里没有的实体，运行时补一个货箱，别让它消失。 */
-  private ensureMesh(id: string): THREE.Object3D {
-    const existing = this.entityMeshes.get(id);
-    if (existing) return existing;
-    return this.addEntity({
-      id,
-      kind: 'parcel',
-      visual: { kind: 'box', color: '#C4B5E0', size: DEFAULT_SIZE },
-      transform: { position: [0, 1, 0] },
-    });
+  /** 切主题后重建：卸掉设备网格 + 清空货池，再按新主题重新生成。 */
+  private rebuildEntities(): void {
+    for (const object of this.entityMeshes.values()) {
+      this.scene.remove(object);
+      disposeObject(object);
+    }
+    this.entityMeshes.clear();
+    this.entitySizes.clear();
+    this.cargoPool.clear();
+    this.removeSelectionHelper();
+    this.selectedId = undefined;
+    for (const entity of this.worldScene.entities) this.addEntity(entity);
   }
 
-  /** 按实体声明生成模型并挂进场景；造型全部在 `entityMeshes.ts` 里组合。 */
-  private addEntity(entity: EntityMeshInput): THREE.Object3D {
+  /** 按实体声明生成模型并挂进场景；物料走 CargoPool，其余造型在 entityMeshes.ts 组合。 */
+  private addEntity(entity: EntityMeshInput): THREE.Object3D | undefined {
+    if (isCargoKind(entity.kind)) {
+      const size = entity.visual?.size ?? DEFAULT_SIZE;
+      this.entitySizes.set(entity.id, size);
+      this.cargoPool.alloc(entity.id, entity.transform.position, size, this.cargoColor(entity.id));
+      return undefined;
+    }
     const object = buildEntityMesh(entity);
     object.position.set(...entity.transform.position);
     // 叠加而不是覆盖：输送段可能已经在模型工厂里转过 90°（沿 Z 铺设）。
@@ -212,21 +287,103 @@ export class TwinSceneController {
     return object;
   }
 
+  /** 外部数据源可能带来场景里没有的实体，运行时补一个货箱，别让它消失。 */
+  private ensureMesh(id: string): THREE.Object3D | undefined {
+    if (this.entityMeshes.has(id)) return this.entityMeshes.get(id);
+    if (this.cargoPool.has(id)) return undefined;
+    // 未知 id：历史上兜底成 parcel，这里同样塞进实例化池（不建 Group）。
+    this.entitySizes.set(id, DEFAULT_SIZE);
+    this.cargoPool.alloc(id, [0, 1, 0], DEFAULT_SIZE, this.cargoColor(id));
+    return undefined;
+  }
+
+  private cargoColor(id: string): THREE.Color {
+    return new THREE.Color(cargoColorFor(getActiveTheme(), id));
+  }
+
   /** 渲染层只消费帧差量：内核算什么这里就画什么，绝不自己推演状态。 */
-  private applyFrame(delta: ReturnType<ReplayController['advance']>): void {
+  private applyFrame(delta: FrameDelta): void {
     for (const id of delta.added) this.ensureMesh(id);
+
     for (const change of delta.changed) {
-      const mesh = change.transform ? (this.entityMeshes.get(change.id) ?? this.ensureMesh(change.id)) : undefined;
-      if (!mesh || !change.transform) continue;
-      mesh.position.set(...change.transform.position);
-      mesh.rotation.y = change.transform.rotation?.[1] ?? 0;
+      const id = change.id;
+      // 物料：走实例化池，按位姿 + 背压染色。
+      if (this.cargoPool.has(id)) {
+        const position = change.transform?.position;
+        if (!position) continue;
+        const size = this.entitySizes.get(id) ?? DEFAULT_SIZE;
+        const stuck = change.attrs?.stuck === true || change.attrs?.backpressure === true;
+        this.cargoPool.write(id, position, change.transform?.rotation?.[1] ?? 0, size, this.cargoColor(id), stuck);
+        continue;
+      }
+      const mesh = this.entityMeshes.get(id);
+      if (!mesh) continue;
+      if (change.transform) {
+        mesh.position.set(...change.transform.position);
+        mesh.rotation.y = change.transform.rotation?.[1] ?? 0;
+      }
+      // 内核发来的状态 / 属性驱动模型动画（状态灯、缓存货位……）。
+      this.applyState(mesh, change.status, change.attrs);
     }
+
     for (const id of delta.removed) {
+      if (this.cargoPool.has(id)) {
+        this.cargoPool.free(id);
+        if (this.selectedId === id) this.removeSelectionHelper();
+        continue;
+      }
       const mesh = this.entityMeshes.get(id);
       if (!mesh) continue;
       this.scene.remove(mesh);
+      disposeObject(mesh);
       this.entityMeshes.delete(id);
+      if (this.selectedId === id) this.removeSelectionHelper();
     }
+  }
+
+  /** 把内核 status / attrs 落到具体模型的动画句柄上。 */
+  private applyState(mesh: THREE.Object3D, status: string | undefined, attrs: Record<string, unknown> | undefined): void {
+    const anim = mesh.userData.anim as EntityAnim | undefined;
+    if (!anim) return;
+    const theme = getActiveTheme();
+    // 状态灯：idle↔active 变色（busy/passed/error 等都算 active）。
+    if (anim.statusLight) {
+      const active = status !== undefined && status !== 'idle';
+      const color = active ? theme.lightActive : theme.lightIdle;
+      anim.statusLight.color.set(color);
+      anim.statusLight.emissive.set(color);
+    }
+    // 缓存货架：按 attrs.fill（0..1）点亮前 N 个货位。
+    if (anim.bufferSlots && attrs) {
+      const fill = Number(attrs.fill ?? 0);
+      const lit = Math.round(Math.min(Math.max(fill, 0), 1) * anim.bufferSlots.length);
+      anim.bufferSlots.forEach((slot, index) => {
+        slot.visible = index < lit;
+      });
+    }
+  }
+
+  /** 每渲染帧推进皮带箭头流动 + 滚筒自转（播放时）；状态由帧差量驱动，这里只做连续动效。 */
+  private animateBeltAndRollers(realDelta: number): void {
+    const playing = this.controller.playing;
+    if (playing) this.beltTime += realDelta;
+    const spin = playing ? ROLLER_SPIN * realDelta : 0;
+    for (const object of this.entityMeshes.values()) {
+      const anim = object.userData.anim as EntityAnim | undefined;
+      if (!anim) continue;
+      if (anim.belt) anim.belt.uniforms.time.value = this.beltTime;
+      if (anim.rollers && spin !== 0) {
+        for (const roller of anim.rollers) roller.rotation.y += spin;
+      }
+    }
+  }
+
+  private removeSelectionHelper(): void {
+    if (!this.selectionHelper) return;
+    this.scene.remove(this.selectionHelper);
+    this.selectionHelper.geometry.dispose();
+    (this.selectionHelper.material as THREE.Material).dispose();
+    this.selectionHelper = undefined;
   }
 
   private readonly pick = (event: PointerEvent): void => {
@@ -234,12 +391,19 @@ export class TwinSceneController {
     this.pointer.x = ((event.clientX - bounds.left) / bounds.width) * 2 - 1;
     this.pointer.y = -((event.clientY - bounds.top) / bounds.height) * 2 + 1;
     this.raycaster.setFromCamera(this.pointer, this.camera);
-    const selectable = this.entities
-      .map((entity) => this.entityMeshes.get(entity.id))
-      .filter((object): object is THREE.Object3D => object !== undefined);
-    // 递归拾取：命中的是子网格，要往上找到挂着 entityId 的那一层。
+    // 设备网格 + 实例化货池一起拾取。
+    const selectable = [
+      ...[...this.entityMeshes.values()],
+      this.cargoPool.mesh,
+    ];
     const hit = this.raycaster.intersectObjects(selectable, true)[0];
-    const id = this.entityIdOf(hit?.object);
+    if (!hit) return;
+    let id: string | undefined;
+    if (hit.object === this.cargoPool.mesh && hit.instanceId !== undefined) {
+      id = this.cargoPool.entityIdAt(hit.instanceId);
+    } else {
+      id = this.entityIdOf(hit.object);
+    }
     if (id) this.selectEntity(id);
   };
 
@@ -266,6 +430,10 @@ export class TwinSceneController {
     this.frameId = requestAnimationFrame(this.renderFrame);
     const delta = this.clock.getDelta();
     this.applyFrame(this.controller.advance(delta));
+    this.animateBeltAndRollers(delta);
+    if (this.selectionHelper && 'update' in this.selectionHelper && typeof (this.selectionHelper as { update?: unknown }).update === 'function') {
+      (this.selectionHelper as unknown as { update: () => void }).update();
+    }
     this.controls.update(delta);
     this.renderer.render(this.scene, this.camera);
   };

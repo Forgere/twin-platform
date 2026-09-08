@@ -3,6 +3,7 @@ import { PLUGIN_SDK_VERSION } from '@twin-platform/plugin-sdk';
 import { createLogisticsBehavior } from './behavior';
 import { createAsrsBehavior } from './asrs';
 import { createTransferBehavior } from './transfer';
+import { createBufferFillBehavior } from './bufferFill';
 import { lineMetricsDescriptors } from './metrics';
 import { lineTemplate, factoryTemplate, centerTemplate } from './template';
 
@@ -29,7 +30,7 @@ export const logisticsPlugin: TwinPlugin = {
   },
   activate(): PluginInstance {
     return {
-      behaviors: [createLogisticsBehavior(), createAsrsBehavior(), createTransferBehavior()],
+      behaviors: [createLogisticsBehavior(), createAsrsBehavior(), createTransferBehavior(), createBufferFillBehavior()],
       metrics: lineMetricsDescriptors,
       templates: [
         lineTemplate as unknown as SceneTemplateDescriptor,
@@ -43,6 +44,7 @@ export const logisticsPlugin: TwinPlugin = {
 export { createLogisticsBehavior } from './behavior';
 export { createAsrsBehavior } from './asrs';
 export { createTransferBehavior } from './transfer';
+export { createBufferFillBehavior, type BufferFillConfig } from './bufferFill';
 export { buildLineScene, lineTemplate, type LineTemplateParams } from './template';
 export { buildFactoryScene, factoryTemplate, type FactoryTemplateParams } from './template';
 export { buildCenterScene, centerTemplate, splitClosedLoop, type CenterTemplateParams } from './template';
