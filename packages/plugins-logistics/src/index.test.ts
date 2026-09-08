@@ -19,10 +19,14 @@ describe('logistics 插件', () => {
     const host = new PluginHost();
     const record = host.install(logisticsPlugin);
     expect(record.state).toBe('active');
-    expect(host.behaviors).toHaveLength(1);
+    expect(host.behaviors).toHaveLength(2);
     expect(host.behaviors[0]?.id).toBe('logistics-flow');
     expect(host.metrics.map((metric) => metric.id)).toEqual(['throughput', 'busy-duration']);
-    expect(host.templates.map((template) => template.id)).toEqual(['logistics-line', 'logistics-factory']);
+    expect(host.templates.map((template) => template.id)).toEqual([
+      'logistics-line',
+      'logistics-factory',
+      'logistics-center',
+    ]);
   });
 
   test('行为驱动包裹流转：开局进入 + 绕圈出/进', () => {

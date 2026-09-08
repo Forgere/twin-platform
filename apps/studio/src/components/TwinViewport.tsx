@@ -2,7 +2,7 @@ import { createSignal, For, onCleanup, Show } from 'solid-js';
 import type { WorldEvent } from '@twin-platform/world-kernel';
 import type { LineMetrics } from '@twin-platform/analytics-core';
 import { StudioSession, type StudioTelemetry } from '../scene/studioSession';
-import { TwinSceneController, type TwinEntityView } from '../scene/TwinSceneController';
+import { TwinSceneController, type CameraPreset, type TwinEntityView } from '../scene/TwinSceneController';
 import DataSourcePanel from './DataSourcePanel';
 import EventLogPanel from './EventLogPanel';
 import TimelineBar from './TimelineBar';
@@ -17,15 +17,47 @@ import ScenarioComparePanel from './ScenarioComparePanel';
  * 世界怎么推演、事件怎么落库、时间轴怎么重算、指标怎么算、方案怎么比，
  * 全在各包里，这里一行都不写。
  *
- * UI 沿用 VividFactory 的浅色马卡龙 + 玻璃拟态语言：标题卡（左下浮于画布）、
- * Sim Telemetry HUD（右上浮于画布）、相机机位条（画布下方）。
+ * 布局约束（本轮改动的重点）：
+ * - 整页锁在 100vh 内，只有视口与右侧面板内部可以滚动，页面本身不滚；
+ * - 右侧检视区是**互斥标签页**，一次只显示一个面板；实体页内设备/物料也是互斥切换；
+ * - 画布浮层（标题卡、遥测 HUD）可整体收起，把画面让给场景。
  */
+
+type InspectorTab = 'entity' | 'metrics' | 'compare' | 'data' | 'events' | 'plugins';
+type EntityFilter = 'device' | 'cargo';
+
+/** 属于"物料"的实体类型，其余都算设备。 */
+const CARGO_KINDS = new Set(['parcel', 'pallet']);
+
+const CAMERA_PRESETS: { id: CameraPreset; icon: string; label: string }[] = [
+  { id: 'overview', icon: '🌐', label: '全局' },
+  { id: 'infeed', icon: '📥', label: '入料' },
+  { id: 'inspection', icon: '🔎', label: '质检' },
+  { id: 'sorter', icon: '🔀', label: '分拣' },
+  { id: 'warehouse', icon: '🏗️', label: '立库' },
+  { id: 'aisle', icon: '🚋', label: '巷道' },
+  { id: 'outfeed', icon: '📤', label: '出库' },
+  { id: 'external', icon: '🔗', label: '外部' },
+];
+
+const TABS: { id: InspectorTab; icon: string; label: string }[] = [
+  { id: 'entity', icon: '🧩', label: '实体' },
+  { id: 'metrics', icon: '📊', label: '指标' },
+  { id: 'compare', icon: '⚖️', label: '对比' },
+  { id: 'data', icon: '📡', label: '数据' },
+  { id: 'events', icon: '📜', label: '事件' },
+  { id: 'plugins', icon: '🔌', label: '插件' },
+];
+
 export default function TwinViewport() {
   const session = new StudioSession();
   let controller: TwinSceneController | undefined;
 
   const [selected, setSelected] = createSignal<TwinEntityView>();
   const [entities, setEntities] = createSignal<TwinEntityView[]>([]);
+  const [tab, setTab] = createSignal<InspectorTab>('entity');
+  const [filter, setFilter] = createSignal<EntityFilter>('device');
+  const [hud, setHud] = createSignal(true);
   const [view, setView] = createSignal<{
     time: number;
     duration: number;
@@ -38,7 +70,15 @@ export default function TwinViewport() {
   const [telemetry, setTelemetry] = createSignal<StudioTelemetry>(session.telemetry());
 
   const mountViewport = (host: HTMLDivElement) => {
-    controller = new TwinSceneController(host, setSelected, { scene: session.world.scene, controller: session.controller });
+    controller = new TwinSceneController(
+      host,
+      (entity) => {
+        setSelected(entity);
+        // 点中场景里的东西就把实体页翻出来，不然选中了也看不见。
+        if (entity) setTab('entity');
+      },
+      { scene: session.world.scene, controller: session.controller },
+    );
     setEntities(controller.entities);
   };
 
@@ -63,107 +103,104 @@ export default function TwinViewport() {
     controller?.dispose();
   });
 
+  const visibleEntities = (): TwinEntityView[] =>
+    filter() === 'device'
+      ? entities().filter((entity) => !CARGO_KINDS.has(entity.kind))
+      : entities().filter((entity) => CARGO_KINDS.has(entity.kind));
+
   return (
     <main class="studio-shell">
-      <section class="studio-heading">
-        <div>
-          <p class="eyebrow">TWIN PLATFORM / STUDIO</p>
-          <h1>物流工厂概览</h1>
-          <p>插件驱动 · world-kernel 仿真 · analytics-core 指标 · 可回放 · 可方案对比</p>
-        </div>
+      <header class="studio-heading">
+        <p class="eyebrow">TWIN PLATFORM / STUDIO</p>
+        <h1>智能物流中心</h1>
         <div class="scene-status" aria-label="场景状态">
           <span class="status-dot" />
-          场景已加载 · 仿真 t = {view().time.toFixed(1)}s
+          仿真 t = {view().time.toFixed(1)}s · 入库 {telemetry().asrsStore} · 出库 {telemetry().asrsRetrieve}
         </div>
-      </section>
+        <button
+          type="button"
+          class="hud-toggle"
+          aria-pressed={hud()}
+          onClick={() => setHud(!hud())}
+          title="显示 / 隐藏画布浮层"
+        >
+          {hud() ? '🫥 隐藏浮层' : '📡 显示浮层'}
+        </button>
+      </header>
 
-      <section class="studio-grid">
-        <div class="viewport-panel">
+      <div class="studio-grid">
+        <section class="viewport-panel">
           <div class="viewport-frame">
             <div ref={mountViewport} class="viewport" aria-label="数字孪生三维场景" />
 
-            <div class="title-card">
-              <h1>物流工厂 🏭</h1>
-              <p>插件驱动 · world-kernel 仿真 · analytics-core 指标</p>
-            </div>
-
-            <div class="telemetry-hud" aria-label="仿真遥测">
-              <h3>📡 Sim Telemetry</h3>
-              <div class="telemetry-grid">
-                <div class="tele-cell">
-                  <span class="tele-label">在制</span>
-                  <span class="tele-value">{telemetry().active}</span>
-                </div>
-                <div class="tele-cell">
-                  <span class="tele-label">已生成</span>
-                  <span class="tele-value">{telemetry().spawned}</span>
-                </div>
-                <div class="tele-cell">
-                  <span class="tele-label">已消耗</span>
-                  <span class="tele-value">{telemetry().consumed}</span>
-                </div>
-                <div class="tele-cell">
-                  <span class="tele-label">积压</span>
-                  <span class="tele-value">{telemetry().backlog}</span>
-                </div>
+            <Show when={hud()}>
+              <div class="title-card">
+                <h2>智能物流中心 🏭</h2>
+                <p>环形输送线 · 双巷道立库 · 双堆垛机</p>
               </div>
 
-              <div class="tele-section">
-                <span class="tele-label">检测站</span>
-                <div class="tele-chips">
-                  <For each={telemetry().inspectors}>
-                    {(inspector) => (
-                      <span class={inspector.busy ? 'chip chip-busy' : 'chip chip-idle'}>
-                        {inspector.id} {inspector.busy ? '●' : '○'}
-                      </span>
-                    )}
-                  </For>
+              <div class="telemetry-hud" aria-label="仿真遥测">
+                <h3>📡 Sim Telemetry</h3>
+                <div class="telemetry-grid">
+                  <div class="tele-cell">
+                    <span class="tele-label">在制</span>
+                    <span class="tele-value">{telemetry().active}</span>
+                  </div>
+                  <div class="tele-cell">
+                    <span class="tele-label">积压</span>
+                    <span class="tele-value">{telemetry().backlog}</span>
+                  </div>
+                  <div class="tele-cell">
+                    <span class="tele-label">已生成</span>
+                    <span class="tele-value">{telemetry().spawned}</span>
+                  </div>
+                  <div class="tele-cell">
+                    <span class="tele-label">已消耗</span>
+                    <span class="tele-value">{telemetry().consumed}</span>
+                  </div>
+                </div>
+
+                <div class="tele-section">
+                  <span class="tele-label">检测站</span>
+                  <div class="tele-chips">
+                    <For each={telemetry().inspectors}>
+                      {(inspector) => (
+                        <span class={inspector.busy ? 'chip chip-busy' : 'chip chip-idle'}>
+                          {inspector.id} {inspector.busy ? '●' : '○'}
+                        </span>
+                      )}
+                    </For>
+                  </div>
+                </div>
+
+                <div class="tele-section">
+                  <span class="tele-label">堆垛机</span>
+                  <div class="tele-stackers">
+                    <For each={telemetry().stackers}>
+                      {(stacker) => (
+                        <span class="tele-stacker">
+                          <b>{stacker.label}</b>
+                          <em>
+                            z {stacker.z.toFixed(1)}m · 层 {stacker.level.toFixed(2)}m · {stacker.side} · 入库 {stacker.stores}
+                          </em>
+                        </span>
+                      )}
+                    </For>
+                  </div>
                 </div>
               </div>
-
-              <div class="tele-section">
-                <span class="tele-label">外部车道</span>
-                <span class="tele-value-sm">
-                  {telemetry().externalLanes} 条 · 在途 {telemetry().externalActive}
-                </span>
-              </div>
-
-              <div class="tele-section tele-events">
-                <span class="tele-label">最近事件</span>
-                <For each={telemetry().recent}>
-                  {(event) => (
-                    <span class="tele-event">
-                      {event.type}
-                      <em>@{event.occurredAt.toFixed(1)}s</em>
-                    </span>
-                  )}
-                </For>
-              </div>
-            </div>
+            </Show>
           </div>
 
           <div class="camera-bar" aria-label="相机机位">
-            <button type="button" onClick={() => controller?.setCameraPreset('overview')}>
-              🌐 全局
-            </button>
-            <button type="button" onClick={() => controller?.setCameraPreset('infeed')}>
-              📥 入料
-            </button>
-            <button type="button" onClick={() => controller?.setCameraPreset('inspection')}>
-              🔎 质检
-            </button>
-            <button type="button" onClick={() => controller?.setCameraPreset('sorter')}>
-              🔀 分拣
-            </button>
-            <button type="button" onClick={() => controller?.setCameraPreset('packaging')}>
-              📦 包装
-            </button>
-            <button type="button" onClick={() => controller?.setCameraPreset('outfeed')}>
-              📤 出料
-            </button>
-            <button type="button" onClick={() => controller?.setCameraPreset('external')}>
-              🔗 外部
-            </button>
+            <For each={CAMERA_PRESETS}>
+              {(preset) => (
+                <button type="button" onClick={() => controller?.setCameraPreset(preset.id)}>
+                  <span aria-hidden="true">{preset.icon}</span> {preset.label}
+                </button>
+              )}
+            </For>
+            <span class="camera-hint">拖动旋转 · 右键平移 · 滚轮缩放 · 点击可选中</span>
           </div>
 
           <TimelineBar
@@ -177,62 +214,113 @@ export default function TwinViewport() {
             onSeek={(time) => void session.controller.seek(time)}
             onStep={(steps) => session.controller.stepFrames(steps)}
           />
-          <div class="viewport-hint">拖动旋转 · 右键平移 · 滚轮缩放 · 点击设备选择</div>
-        </div>
+        </section>
 
         <aside class="inspector" aria-label="场景控制与实体详情">
-          <section>
-            <h2>🧩 实体</h2>
-            <div class="entity-list">
-              <For each={entities()}>
-                {(entity) => (
-                  <button
-                    type="button"
-                    class={selected()?.id === entity.id ? 'selected' : undefined}
-                    onClick={() => controller?.selectEntity(entity.id)}
-                  >
-                    {entity.label}
-                  </button>
-                )}
-              </For>
-            </div>
-          </section>
-
-          <section class="entity-detail" aria-live="polite">
-            <h2>🎯 当前选择</h2>
-            <Show when={selected()} fallback={<p>请选择场景中的一个实体。</p>}>
-              {(entity) => (
-                <>
-                  <strong>{entity().label}</strong>
-                  <span>{entity().kind}</span>
-                  <button type="button" onClick={() => controller?.focusEntity(entity().id)}>
-                    聚焦此设备
-                  </button>
-                </>
+          <div class="tab-bar" role="tablist" aria-label="检视面板">
+            <For each={TABS}>
+              {(item) => (
+                <button
+                  type="button"
+                  role="tab"
+                  class={tab() === item.id ? 'tab tab-active' : 'tab'}
+                  aria-selected={tab() === item.id}
+                  onClick={() => setTab(item.id)}
+                >
+                  <span aria-hidden="true">{item.icon}</span>
+                  {item.label}
+                </button>
               )}
+            </For>
+          </div>
+
+          {/* 六个面板互斥：同一时刻只有一个被渲染，不会堆成一长条。 */}
+          <div class="tab-panel">
+            <Show when={tab() === 'entity'}>
+              <div class="segmented" role="group" aria-label="实体类别">
+                <button
+                  type="button"
+                  class={filter() === 'device' ? 'seg seg-active' : 'seg'}
+                  aria-pressed={filter() === 'device'}
+                  onClick={() => setFilter('device')}
+                >
+                  设备
+                </button>
+                <button
+                  type="button"
+                  class={filter() === 'cargo' ? 'seg seg-active' : 'seg'}
+                  aria-pressed={filter() === 'cargo'}
+                  onClick={() => setFilter('cargo')}
+                >
+                  物料
+                </button>
+              </div>
+
+              <div class="entity-list">
+                <For each={visibleEntities()}>
+                  {(entity) => (
+                    <button
+                      type="button"
+                      class={selected()?.id === entity.id ? 'selected' : undefined}
+                      onClick={() => controller?.selectEntity(entity.id)}
+                    >
+                      {entity.label}
+                    </button>
+                  )}
+                </For>
+              </div>
+
+              <section class="entity-detail" aria-live="polite">
+                <h2>🎯 当前选择</h2>
+                <Show when={selected()} fallback={<p>点击场景中的设备或物料，或从上方列表选择。</p>}>
+                  {(entity) => (
+                    <>
+                      <strong>{entity().label}</strong>
+                      <span>
+                        {entity().kind} · {entity().id}
+                      </span>
+                      <button type="button" onClick={() => controller?.focusEntity(entity().id)}>
+                        聚焦此实体
+                      </button>
+                    </>
+                  )}
+                </Show>
+              </section>
             </Show>
-          </section>
 
-          <PluginsPanel host={session.host} />
-          <MetricsPanel metrics={metrics()} />
-          <ScenarioComparePanel onCompare={(forkAt, horizon, zoneB) => session.compare(forkAt, horizon, zoneB)} />
+            <Show when={tab() === 'metrics'}>
+              <MetricsPanel metrics={metrics()} />
+            </Show>
 
-          <DataSourcePanel
-            onLoad={(text) => {
-              const loaded = session.loadCsv(text);
-              void session.controller.seek(0);
-              session.controller.play();
-              return loaded;
-            }}
-            onReset={() => {
-              session.useSimulation();
-              void session.controller.seek(0);
-            }}
-          />
+            <Show when={tab() === 'compare'}>
+              <ScenarioComparePanel onCompare={(forkAt, horizon, zoneB) => session.compare(forkAt, horizon, zoneB)} />
+            </Show>
 
-          <EventLogPanel events={view().events} stored={view().stored} />
+            <Show when={tab() === 'data'}>
+              <DataSourcePanel
+                onLoad={(text) => {
+                  const loaded = session.loadCsv(text);
+                  void session.controller.seek(0);
+                  session.controller.play();
+                  return loaded;
+                }}
+                onReset={() => {
+                  session.useSimulation();
+                  void session.controller.seek(0);
+                }}
+              />
+            </Show>
+
+            <Show when={tab() === 'events'}>
+              <EventLogPanel events={view().events} stored={view().stored} />
+            </Show>
+
+            <Show when={tab() === 'plugins'}>
+              <PluginsPanel host={session.host} />
+            </Show>
+          </div>
         </aside>
-      </section>
+      </div>
     </main>
   );
 }

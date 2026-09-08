@@ -1,6 +1,9 @@
 /* ─────────────────────────────────────────────────────────────────────────
    Studio 皮肤（vivid-factory 风格：奶油浅色 + 玻璃拟态）
    设计令牌集中在 :root，便于后续统一调整。对比度按 WCAG 2.2 AA 取深色墨色。
+
+   布局硬约束：整页锁在 100vh 内，页面本身不滚动；只有三维视口和右侧检视区
+   内部允许滚动。检视区是互斥标签页，一次只显示一个面板。
    ───────────────────────────────────────────────────────────────────────── */
 :root {
   color-scheme: light;
@@ -29,77 +32,128 @@
 
 * { box-sizing: border-box; }
 
-body { margin: 0; min-width: 320px; color: var(--ink); background: linear-gradient(160deg, #fbf8f1 0%, #f5f2eb 100%); }
+body { margin: 0; min-width: 320px; color: var(--ink); background: linear-gradient(160deg, #fbf8f1 0%, #f5f2eb 100%); overflow: hidden; }
 
 button { font: inherit; color: var(--ink); }
 
-.studio-shell { min-height: 100vh; padding: 28px; }
+/* ── 一屏骨架：标题行 + 网格，整页不滚 ─────────────────────────────────── */
+.studio-shell {
+  height: 100vh;
+  height: 100dvh;
+  padding: 12px 16px 14px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 12px;
+  overflow: hidden;
+}
 
-.studio-heading { display: flex; align-items: center; justify-content: space-between; gap: 24px; max-width: 1440px; margin: 0 auto 22px; }
-.eyebrow { margin: 0 0 7px; color: var(--accent); font-size: 0.75rem; font-weight: 800; letter-spacing: 0.14em; }
-h1 { margin: 0; color: var(--ink); font-size: clamp(1.65rem, 4vw, 2.4rem); letter-spacing: -0.04em; }
-.studio-heading > div > p:last-child { margin: 8px 0 0; color: var(--ink-soft); }
-.scene-status { display: flex; align-items: center; gap: 9px; flex: none; padding: 9px 12px; border: 1px solid var(--frame); border-radius: 999px; color: var(--ink-soft); font-size: 0.86rem; background: var(--cream-card); backdrop-filter: blur(4px); }
+.studio-heading { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.eyebrow { margin: 0; color: var(--accent); font-size: 0.68rem; font-weight: 800; letter-spacing: 0.14em; }
+.studio-heading h1 { margin: 0; color: var(--ink); font-size: 1.25rem; letter-spacing: -0.03em; white-space: nowrap; }
+.scene-status { display: flex; align-items: center; gap: 9px; margin-left: auto; padding: 7px 12px; border: 1px solid var(--frame); border-radius: 999px; color: var(--ink-soft); font-size: 0.78rem; white-space: nowrap; background: var(--cream-card); backdrop-filter: blur(4px); }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #4caf7d; box-shadow: 0 0 12px #4caf7d; }
+.hud-toggle { flex: none; padding: 7px 12px; font-size: 0.78rem; }
 
-.studio-grid { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 18px; max-width: 1440px; margin: 0 auto; }
-.viewport-panel, .inspector { border: 1px solid var(--frame); border-radius: var(--radius); background: var(--cream-card); overflow: hidden; box-shadow: var(--shadow); backdrop-filter: blur(4px); }
-.viewport { height: min(68vh, 720px); min-height: 440px; cursor: crosshair; }
+.studio-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 12px;
+  min-height: 0;
+}
+
+/* ── 视口：画布吃满剩余高度，机位条与时间轴固定高度 ─────────────────────── */
+.viewport-panel {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto auto;
+  min-height: 0;
+  border: 1px solid var(--frame);
+  border-radius: var(--radius);
+  background: var(--cream-card);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(4px);
+}
+.viewport-frame { position: relative; min-height: 0; }
+.viewport { height: 100%; min-height: 0; cursor: crosshair; }
 .viewport canvas { display: block; width: 100%; height: 100%; outline: none; }
-.viewport-hint { padding: 11px 15px; border-top: 1px solid var(--frame); color: var(--ink-soft); font-size: 0.78rem; background: var(--cream-soft); }
-.inspector { padding: 18px; }
-.inspector section + section { margin-top: 24px; padding-top: 22px; border-top: 1px solid var(--frame); }
-h2 { margin: 0 0 12px; color: var(--accent); font-size: 0.82rem; letter-spacing: 0.06em; }
 
-/* 浮于画布的标题卡 + Sim Telemetry HUD（vivid-factory 招牌） */
-.viewport-frame { position: relative; }
-.title-card { position: absolute; left: 16px; top: 16px; z-index: 2; max-width: 260px; padding: 14px 18px; border: 1px solid var(--frame); border-radius: 14px; background: var(--cream-card); box-shadow: var(--shadow); backdrop-filter: blur(6px); pointer-events: none; }
-.title-card h1 { margin: 0; font-size: 1.4rem; letter-spacing: -0.03em; }
-.title-card p { margin: 6px 0 0; color: var(--ink-soft); font-size: 0.8rem; }
+/* 浮于画布的标题卡 + Sim Telemetry HUD */
+.title-card { position: absolute; left: 14px; top: 14px; z-index: 2; max-width: 220px; padding: 10px 14px; border: 1px solid var(--frame); border-radius: 14px; background: var(--cream-card); box-shadow: var(--shadow); backdrop-filter: blur(6px); pointer-events: none; }
+.title-card h2 { margin: 0; font-size: 1.05rem; letter-spacing: -0.03em; color: var(--ink); }
+.title-card p { margin: 4px 0 0; color: var(--ink-soft); font-size: 0.72rem; }
 
-.telemetry-hud { position: absolute; right: 16px; top: 16px; z-index: 2; width: 300px; max-width: calc(100% - 32px); padding: 14px 16px; border: 1px solid var(--frame); border-radius: 14px; background: var(--cream-card); box-shadow: var(--shadow); backdrop-filter: blur(6px); pointer-events: none; }
-.telemetry-hud h3 { margin: 0 0 10px; color: var(--accent); font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; }
-.telemetry-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.tele-cell { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 10px; background: var(--mint-tint); border: 1px solid var(--mint-line); }
-.tele-label { color: var(--ink-soft); font-size: 0.68rem; letter-spacing: 0.04em; }
-.tele-value { color: var(--ink); font-size: 1.2rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.telemetry-hud { position: absolute; right: 14px; top: 14px; z-index: 2; width: 252px; max-height: calc(100% - 28px); overflow: hidden; padding: 12px 14px; border: 1px solid var(--frame); border-radius: 14px; background: var(--cream-card); box-shadow: var(--shadow); backdrop-filter: blur(6px); pointer-events: none; }
+.telemetry-hud h3 { margin: 0 0 9px; color: var(--accent); font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; }
+.telemetry-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.tele-cell { display: flex; flex-direction: column; gap: 1px; padding: 6px 9px; border-radius: 10px; background: var(--mint-tint); border: 1px solid var(--mint-line); }
+.tele-label { color: var(--ink-soft); font-size: 0.66rem; letter-spacing: 0.04em; }
+.tele-value { color: var(--ink); font-size: 1.05rem; font-weight: 800; font-variant-numeric: tabular-nums; }
 .tele-value-sm { color: var(--ink); font-size: 0.85rem; }
-.tele-section { margin-top: 10px; }
-.tele-section .tele-label { display: block; margin-bottom: 5px; }
-.tele-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.chip { padding: 3px 9px; border-radius: 999px; font-size: 0.74rem; border: 1px solid var(--frame); }
+.tele-section { margin-top: 9px; }
+.tele-section .tele-label { display: block; margin-bottom: 4px; }
+.tele-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.chip { padding: 2px 8px; border-radius: 999px; font-size: 0.7rem; border: 1px solid var(--frame); }
 .chip-busy { background: var(--peach-tint); border-color: var(--peach-line); color: #b5642a; }
 .chip-idle { background: var(--sky-tint); border-color: rgba(159, 216, 240, 0.55); color: #3a6e85; }
+.tele-stackers { display: grid; gap: 4px; }
+.tele-stacker { display: grid; gap: 1px; padding: 5px 8px; border: 1px solid var(--frame); border-radius: 9px; background: var(--lavender-tint); }
+.tele-stacker b { color: var(--ink); font-size: 0.74rem; }
+.tele-stacker em { font-style: normal; color: var(--ink-soft); font-family: var(--mono); font-size: 0.66rem; }
 .tele-events { display: grid; gap: 4px; }
 .tele-event { display: flex; justify-content: space-between; gap: 8px; font-family: var(--mono); font-size: 0.7rem; color: var(--ink-soft); }
 .tele-event em { font-style: normal; color: var(--accent); }
 
-/* 相机机位条 */
-.camera-bar { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 15px; border-top: 1px solid var(--frame); background: var(--cream-soft); }
-.camera-bar button { padding: 8px 12px; font-size: 0.82rem; }
+/* 相机机位条：单行，放不下时横向滚动，不换行占高度 */
+.camera-bar { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-top: 1px solid var(--frame); background: var(--cream-soft); overflow-x: auto; scrollbar-width: thin; }
+.camera-bar button { flex: none; padding: 6px 10px; font-size: 0.76rem; white-space: nowrap; }
+.camera-hint { flex: none; margin-left: auto; padding-left: 10px; color: var(--ink-soft); font-size: 0.7rem; white-space: nowrap; }
+
+/* ── 右侧检视区：标签条固定，内容区内部滚动 ─────────────────────────────── */
+.inspector {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  border: 1px solid var(--frame);
+  border-radius: var(--radius);
+  background: var(--cream-card);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(4px);
+}
+.tab-bar { display: flex; gap: 4px; padding: 8px; border-bottom: 1px solid var(--frame); background: var(--cream-soft); overflow-x: auto; scrollbar-width: thin; }
+.tab { flex: 1 0 auto; padding: 7px 10px; font-size: 0.76rem; white-space: nowrap; border-color: transparent; background: transparent; box-shadow: none; }
+.tab:hover { background: #fffdf7; }
+.tab-active { border-color: var(--accent); background: #e6f5f1; color: var(--ink); font-weight: 700; box-shadow: 0 0 0 1px var(--accent) inset; }
+.tab-panel { min-height: 0; overflow-y: auto; padding: 14px; }
+
+.segmented { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 12px; }
+.seg { padding: 7px 10px; font-size: 0.78rem; }
+.seg-active { border-color: var(--accent); background: #e6f5f1; font-weight: 700; box-shadow: 0 0 0 1px var(--accent) inset; }
 
 .button-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 button { border: 1px solid var(--frame); border-radius: 10px; padding: 9px 10px; background: #fffdf7; color: var(--ink); cursor: pointer; box-shadow: var(--shadow-sm); transition: background 150ms ease, border-color 150ms ease, transform 150ms ease; }
 button:hover { border-color: var(--mint); background: #eef8f5; }
 button:active { transform: translateY(1px); }
 button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.entity-list { display: grid; gap: 8px; }
-.entity-list button { width: 100%; text-align: left; }
+.entity-list { display: grid; gap: 6px; }
+.entity-list button { width: 100%; text-align: left; padding: 7px 10px; font-size: 0.8rem; }
 .entity-list button.selected { border-color: var(--accent); background: #e6f5f1; color: var(--ink); box-shadow: 0 0 0 1px var(--accent) inset; }
-.entity-detail { display: grid; gap: 8px; }
+.entity-detail { display: grid; gap: 8px; margin-top: 16px; }
 .entity-detail h2 { margin-bottom: 0; }
 .entity-detail strong { color: var(--ink); }
-.entity-detail span, .entity-detail p { margin: 0; color: var(--ink-soft); font-size: 0.9rem; }
+.entity-detail span, .entity-detail p { margin: 0; color: var(--ink-soft); font-size: 0.85rem; }
 .entity-detail button { margin-top: 4px; }
 
+h2 { margin: 0 0 12px; color: var(--accent); font-size: 0.82rem; letter-spacing: 0.06em; }
+
 /* 时间轴：播放控制 + 拖拽定位 */
-.timeline { padding: 12px 15px; border-top: 1px solid var(--frame); background: var(--cream-soft); display: grid; gap: 10px; }
+.timeline { padding: 10px 12px; border-top: 1px solid var(--frame); background: var(--cream-soft); display: grid; gap: 9px; }
 .timeline-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.timeline-controls button { padding: 7px 12px; font-size: 0.85rem; }
-.speed-select { display: flex; align-items: center; gap: 7px; margin-left: auto; color: var(--ink-soft); font-size: 0.85rem; }
-.speed-select select { border: 1px solid var(--frame); border-radius: 8px; padding: 6px 8px; background: #fffdf7; color: var(--ink); font: inherit; }
+.timeline-controls button { padding: 6px 11px; font-size: 0.82rem; }
+.speed-select { display: flex; align-items: center; gap: 7px; margin-left: auto; color: var(--ink-soft); font-size: 0.82rem; }
+.speed-select select { border: 1px solid var(--frame); border-radius: 8px; padding: 5px 8px; background: #fffdf7; color: var(--ink); font: inherit; }
 .timeline-range { width: 100%; accent-color: var(--accent); }
-.timeline-readout { margin: 0; color: var(--ink-soft); font-size: 0.76rem; }
+.timeline-readout { margin: 0; color: var(--ink-soft); font-size: 0.74rem; }
 
 /* 事件流 */
 .event-log ul { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
@@ -152,10 +206,15 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .compare-form label { display: grid; gap: 4px; color: var(--ink-soft); font-size: 0.78rem; }
 .compare-form input { border: 1px solid var(--frame); border-radius: 8px; padding: 7px 9px; background: #fffdf7; color: var(--ink); font: inherit; }
 
-@media (max-width: 780px) {
-  .studio-shell { padding: 16px; }
-  .studio-heading { align-items: flex-start; flex-direction: column; gap: 14px; }
-  .studio-grid { grid-template-columns: 1fr; }
-  .viewport { height: 55vh; min-height: 360px; }
-  .telemetry-hud { width: calc(100% - 32px); }
+/* ── 断点：窄屏改为上下分栏，仍然保持一屏不整页滚动 ─────────────────────── */
+@media (max-width: 1180px) {
+  .studio-grid { grid-template-columns: minmax(0, 1fr) 300px; }
+  .telemetry-hud { width: 224px; }
+}
+@media (max-width: 960px) {
+  .studio-shell { padding: 10px; }
+  .studio-heading h1 { font-size: 1.05rem; }
+  .scene-status { font-size: 0.72rem; }
+  .studio-grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(160px, 34vh); }
+  .telemetry-hud { width: calc(100% - 28px); }
 }

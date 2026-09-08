@@ -12,7 +12,8 @@ export type CameraPreset =
   | 'infeed'
   | 'inspection'
   | 'sorter'
-  | 'packaging'
+  | 'warehouse'
+  | 'aisle'
   | 'outfeed'
   | 'external';
 
@@ -33,7 +34,13 @@ const DEFAULT_SIZE: TwinVector3 = [0.7, 0.7, 0.7];
 const HIGHLIGHT = '#F4A261';
 
 export class TwinSceneController {
-  /** 侧边栏列出的可选实体（物料这类动态实体不进列表）。 */
+  /**
+   * 场景里**全部**可选实体，含在制物料、堆垛机与货叉。
+   *
+   * 之前这里把 `parcel` 过滤掉了，结果物料既不在列表里、点击也解析不出视图，
+   * 看上去就是"货物点不中"。现在拾取与选中解析都基于这张全量表，
+   * 侧边栏要按类别显示由 UI 层自己筛。
+   */
   readonly entities: TwinEntityView[];
 
   private readonly controller: ReplayController;
@@ -54,23 +61,25 @@ export class TwinSceneController {
     options: TwinSceneControllerOptions,
   ) {
     this.controller = options.controller;
-    this.entities = options.scene.entities
-      .filter((entity) => entity.kind !== 'parcel')
-      .map((entity) => ({ id: entity.id, kind: entity.kind, label: entityLabel(entity.config?.label, entity.id) }));
+    this.entities = options.scene.entities.map((entity) => ({
+      id: entity.id,
+      kind: entity.kind,
+      label: entityLabel(entity.config?.label, entity.id),
+    }));
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setClearColor('#F5F2EB');
     this.renderer.shadowMap.enabled = true;
     this.host.append(this.renderer.domElement);
-    this.camera.position.set(16, 12, 22);
+    this.camera.position.set(20, 24, 40);
     this.controls = new CameraControls(this.camera, this.renderer.domElement);
     this.controls.smoothTime = 0.32;
     this.controls.draggingSmoothTime = 0.08;
-    this.controls.minDistance = 4;
-    this.controls.maxDistance = 48;
+    this.controls.minDistance = 3;
+    this.controls.maxDistance = 90;
     this.controls.maxPolarAngle = Math.PI * 0.47;
-    this.controls.setTarget(1, 0.5, 0, false);
+    this.controls.setTarget(4, 1, 4, false);
     this.buildEnvironment(options.scene);
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(this.host);
@@ -111,25 +120,28 @@ export class TwinSceneController {
   setCameraPreset(preset: CameraPreset): void {
     switch (preset) {
       case 'overview':
-        void this.controls.setLookAt(16, 12, 22, 1, 0.5, 0, true);
+        void this.controls.setLookAt(20, 24, 40, 4, 1, 4, true);
         return;
       case 'infeed':
-        void this.controls.setLookAt(-14, 6, 11, -14, 0.6, 0, true);
+        void this.controls.setLookAt(-20, 6.5, 13, -14, 0.8, 1, true);
         return;
       case 'inspection':
-        void this.controls.setLookAt(-5, 5, 10, 0, 0.9, 0, true);
+        void this.controls.setLookAt(-8.5, 5, 11, -8.5, 1.1, 0, true);
         return;
       case 'sorter':
-        void this.controls.setLookAt(1.5, 5, 9, 1.5, 0.6, 0, true);
+        void this.controls.setLookAt(1.5, 5, 11, 1.5, 0.9, 0, true);
         return;
-      case 'packaging':
-        void this.controls.setLookAt(12, 5, 9, 12, 1, 0, true);
+      case 'warehouse':
+        void this.controls.setLookAt(11, 13, 28, 11, 2, 8, true);
+        return;
+      case 'aisle':
+        void this.controls.setLookAt(11.5, 4.5, 17, 8, 2.4, 7, true);
         return;
       case 'outfeed':
-        void this.controls.setLookAt(16, 5, 9, 14, 0.6, 0, true);
+        void this.controls.setLookAt(19, 5, 12, 15, 0.9, 0, true);
         return;
       case 'external':
-        void this.controls.setLookAt(24, 9, 0, 16, 0.6, 0, true);
+        void this.controls.setLookAt(26, 8, 9, 20.6, 0.9, 4, true);
         return;
     }
   }
@@ -146,18 +158,22 @@ export class TwinSceneController {
 
   private buildEnvironment(scene: TwinScene): void {
     this.scene.background = new THREE.Color('#F5F2EB');
-    const grid = new THREE.GridHelper(40, 40, '#D8D0C2', '#E8E4DC');
+    const grid = new THREE.GridHelper(64, 64, '#D8D0C2', '#E8E4DC');
     this.scene.add(grid);
     this.scene.add(new THREE.HemisphereLight('#FFF4E6', '#E8E4DC', 1.7));
     const key = new THREE.DirectionalLight('#FFF4E6', 2.4);
-    key.position.set(6, 12, 9);
+    key.position.set(14, 20, 16);
     key.castShadow = true;
+    key.shadow.camera.left = -30;
+    key.shadow.camera.right = 30;
+    key.shadow.camera.top = 30;
+    key.shadow.camera.bottom = -30;
     this.scene.add(key);
     const fill = new THREE.DirectionalLight('#ffffff', 0.6);
-    fill.position.set(-8, 6, -6);
+    fill.position.set(-12, 8, -10);
     this.scene.add(fill);
     const floor = new THREE.Mesh(
-      new THREE.PlaneGeometry(40, 40),
+      new THREE.PlaneGeometry(64, 64),
       new THREE.MeshStandardMaterial({ color: '#EFEAE0', roughness: 0.96 }),
     );
     floor.rotateX(-Math.PI / 2);

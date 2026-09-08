@@ -9,6 +9,9 @@ import * as THREE from 'three';
  * - transport：皮带台面 + 两侧护栏 + 一排滚筒 + 四根支腿（分拣台再挂一根推杆）
  * - inspect：跨在皮带上方的检测拱门（立柱 + 顶梁 + 半透明光幕 + 状态灯）
  * - buffer：货架（四立柱 + 层板 + 货位 + 顶灯），包装架比拒收架装得满
+ * - asrs：高层货架（立柱分货位 + 多层纵梁 + 托盘 + 顶部天轨）
+ * - stacker：堆垛机门架（底盘 + 车轮 + 双立柱 + 天梁 + 警示灯）
+ * - carriage：载货台；fork：货叉；pallet：托盘货箱
  * - 其余（parcel）：货物方块
  *
  * 这一层只负责"长什么样"，不保存任何业务真相：尺寸取自实体声明的 `visual.size`，
@@ -149,8 +152,9 @@ function buildInspection(size: TwinVector3, color: string, baseY: number): THREE
   const groundY = -baseY;
   const postHeight = height * 0.95;
 
+  // 立柱站在皮带**外侧**（比声明宽度再外扩一点），否则会啃进护栏里。
   for (const side of [-1, 1]) {
-    const z = side * (depth / 2 - 0.08);
+    const z = side * (depth / 2 + 0.04);
     group.add(at(boxMesh(0.13, postHeight, 0.13, color, { roughness: 0.5 }), 0, groundY + postHeight / 2, z));
     const foot = boxMesh(0.26, 0.05, 0.26, FRAME_DARK, { roughness: 0.75 });
     foot.castShadow = false;
@@ -158,7 +162,7 @@ function buildInspection(size: TwinVector3, color: string, baseY: number): THREE
   }
 
   const topY = groundY + postHeight;
-  group.add(at(boxMesh(0.16, 0.16, depth, color, { roughness: 0.5 }), 0, topY + 0.08, 0));
+  group.add(at(boxMesh(0.16, 0.16, depth + 0.2, color, { roughness: 0.5 }), 0, topY + 0.08, 0));
 
   const curtain = boxMesh(width * 0.34, height * 0.6, depth * 0.86, SKY, {
     opacity: 0.26,
@@ -224,6 +228,145 @@ function buildCargo(size: TwinVector3, color: string): THREE.Group {
   return group;
 }
 
+/**
+ * 高层货架（AS/RS）：沿长边（Z）分成若干货位，多层横梁 + 部分货位有托盘。
+ * 填充与否用 (层, 位) 的确定性哈希决定 —— 不随机，刷新多少次都是同一张脸。
+ */
+function buildAsrsRack(size: TwinVector3, color: string, baseY: number): THREE.Group {
+  const group = new THREE.Group();
+  const [width, height, depth] = size;
+  const groundY = -baseY;
+  const levels = 5;
+  const bays = Math.max(3, Math.round(depth / 2.2));
+  const bayDepth = depth / bays;
+  const postX = width / 2 - 0.06;
+
+  // 立柱：每个货位分界处一对
+  for (let i = 0; i <= bays; i += 1) {
+    const z = -depth / 2 + i * bayDepth;
+    for (const sx of [-1, 1]) {
+      group.add(at(boxMesh(0.1, height, 0.1, FRAME_DARK, { roughness: 0.7 }), sx * postX, groundY + height / 2, z));
+    }
+  }
+
+  // 每层两根纵梁
+  for (let level = 0; level < levels; level += 1) {
+    const y = groundY + (height / levels) * (level + 0.5);
+    for (const sx of [-1, 1]) {
+      const beam = boxMesh(0.07, 0.08, depth * 0.98, color, { roughness: 0.6 });
+      beam.castShadow = false;
+      group.add(at(beam, sx * (postX + 0.02), y, 0));
+    }
+  }
+
+  // 货位托盘：约六成占用
+  for (let level = 0; level < levels; level += 1) {
+    const y = groundY + (height / levels) * (level + 0.5) + 0.24;
+    for (let bay = 0; bay < bays; bay += 1) {
+      if ((level * 7 + bay * 3) % 5 >= 3) continue;
+      const z = -depth / 2 + bayDepth * (bay + 0.5);
+      const pallet = boxMesh(width * 0.72, 0.4, bayDepth * 0.72, CARGO_COLORS[(level + bay) % CARGO_COLORS.length]!, {
+        roughness: 0.55,
+        metalness: 0.04,
+      });
+      pallet.castShadow = false;
+      group.add(at(pallet, 0, y, z));
+    }
+  }
+
+  // 顶部天轨（堆垛机上导轮走的那根）
+  const rail = boxMesh(width * 0.5, 0.08, depth * 0.98, FRAME_DARK, { roughness: 0.6 });
+  rail.castShadow = false;
+  group.add(at(rail, 0, groundY + height + 0.1, 0));
+
+  return group;
+}
+
+/** 堆垛机门架：底盘 + 车轮 + 双立柱 + 顶部天梁，沿 Z 方向行走。 */
+function buildStacker(size: TwinVector3, color: string, baseY: number): THREE.Group {
+  const group = new THREE.Group();
+  const [width, height, length] = size;
+  const groundY = -baseY;
+
+  const chassis = boxMesh(width * 0.95, 0.26, length * 0.94, color, { roughness: 0.5, metalness: 0.2 });
+  group.add(at(chassis, 0, groundY + 0.22, 0));
+  const cabinet = boxMesh(width * 0.45, 0.42, length * 0.3, FRAME_DARK, { roughness: 0.6 });
+  group.add(at(cabinet, -width * 0.22, groundY + 0.55, -length * 0.28));
+
+  // 车轮：圆柱轴沿 X
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      const wheel = cylinderMesh(0.13, 0.08, METAL, 12, { roughness: 0.4, metalness: 0.5 });
+      wheel.rotation.z = Math.PI / 2;
+      group.add(at(wheel, sx * (width / 2 - 0.02), groundY + 0.13, sz * (length / 2 - 0.22)));
+    }
+  }
+
+  const mastHeight = height - 0.2;
+  for (const sx of [-1, 1]) {
+    group.add(
+      at(boxMesh(0.12, mastHeight, 0.12, FRAME_DARK, { roughness: 0.55, metalness: 0.3 }), sx * (width / 2 - 0.14), groundY + 0.3 + mastHeight / 2, 0),
+    );
+  }
+  group.add(at(boxMesh(width * 0.9, 0.1, 0.14, FRAME_DARK, { roughness: 0.55 }), 0, groundY + 0.3 + mastHeight, 0));
+  group.add(at(sphereMesh(0.07, PEACH, { emissive: PEACH, emissiveIntensity: 0.9 }), 0, groundY + 0.3 + mastHeight + 0.14, 0));
+
+  return group;
+}
+
+/** 载货台：平台 + 两侧导向，随门架走 Z、随起升变 Y。 */
+function buildCarriage(size: TwinVector3, color: string): THREE.Group {
+  const group = new THREE.Group();
+  const [width, height, length] = size;
+  group.add(boxMesh(width * 0.92, height * 0.36, length * 0.96, color, { roughness: 0.5, metalness: 0.2 }));
+  for (const sx of [-1, 1]) {
+    const guide = boxMesh(0.06, height * 0.9, length * 0.96, FRAME_DARK, { roughness: 0.6 });
+    guide.castShadow = false;
+    group.add(at(guide, sx * (width / 2 - 0.04), height * 0.28, 0));
+  }
+  return group;
+}
+
+/** 货叉：背板 + 两根对称叉齿（左右都能伸，靠实体位移决定伸向哪边）。 */
+function buildFork(size: TwinVector3, color: string): THREE.Group {
+  const group = new THREE.Group();
+  const [width, height, depth] = size;
+  const back = boxMesh(0.07, height * 1.5, depth * 0.96, FRAME_DARK, { roughness: 0.6 });
+  group.add(at(back, -width / 2 + 0.04, height * 0.2, 0));
+  for (const sz of [-1, 1]) {
+    const prong = boxMesh(width * 0.92, height * 0.5, 0.09, color, { roughness: 0.45, metalness: 0.3 });
+    prong.castShadow = false;
+    group.add(at(prong, width * 0.04, 0, sz * (depth / 2 - 0.12)));
+  }
+  return group;
+}
+
+/**
+ * 托盘：底托 + 纸箱 + 封条，堆垛机取放的那一个。
+ * 整体按 size 高度居中，这样"放在台面上"就是 y = 台面 + 半高，不用在行为里补偏移。
+ */
+function buildPallet(size: TwinVector3, color: string): THREE.Group {
+  const group = new THREE.Group();
+  const [width, height, depth] = size;
+  const baseH = height * 0.2;
+  const cartonH = height * 0.72;
+  const bottom = -height / 2;
+
+  group.add(at(boxMesh(width, baseH, depth, FRAME_DARK, { roughness: 0.75 }), 0, bottom + baseH / 2, 0));
+  group.add(
+    at(
+      boxMesh(width * 0.86, cartonH, depth * 0.88, color, { roughness: 0.5, metalness: 0.04 }),
+      0,
+      bottom + baseH + cartonH / 2,
+      0,
+    ),
+  );
+  const tape = boxMesh(width * 0.3, height * 0.06, depth * 0.9, FRAME, { roughness: 0.7 });
+  tape.castShadow = false;
+  group.add(at(tape, 0, bottom + baseH + cartonH, 0));
+  return group;
+}
+
 /** 按实体类型生成模型；未知类型退回货箱，保证外部数据源补出来的实体不会消失。 */
 export function buildEntityMesh(entity: EntityMeshInput): THREE.Group {
   const size = entity.visual?.size ?? [0.7, 0.7, 0.7];
@@ -237,6 +380,16 @@ export function buildEntityMesh(entity: EntityMeshInput): THREE.Group {
       return buildInspection(size, color, baseY);
     case 'buffer':
       return buildRack(size, color, baseY, entity.id);
+    case 'asrs':
+      return buildAsrsRack(size, color, baseY);
+    case 'stacker':
+      return buildStacker(size, color, baseY);
+    case 'carriage':
+      return buildCarriage(size, color);
+    case 'fork':
+      return buildFork(size, color);
+    case 'pallet':
+      return buildPallet(size, color);
     default:
       return buildCargo(size, color);
   }

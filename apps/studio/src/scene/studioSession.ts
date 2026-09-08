@@ -4,7 +4,7 @@ import { createMemoryStorage } from '@twin-platform/storage-memory';
 import { TwinWorld, type WorldEvent } from '@twin-platform/world-kernel';
 import { lineMetrics, seriesLatest, type LineMetrics } from '@twin-platform/analytics-core';
 import { PluginHost } from '@twin-platform/plugin-sdk';
-import { buildFactoryScene, createLogisticsBehavior, logisticsPlugin } from '@twin-platform/plugins-logistics';
+import { buildCenterScene, createLogisticsBehavior, logisticsPlugin } from '@twin-platform/plugins-logistics';
 import { compareScenarios, type ScenarioDiff } from '@twin-platform/scenario-compare';
 
 /**
@@ -45,6 +45,11 @@ export interface StudioTelemetry {
   backlog: number;
   /** 检测站忙闲。 */
   inspectors: { id: string; busy: boolean }[];
+  /** 堆垛机实时状态：所在巷道位置、目标货位层、左右侧、累计入库。 */
+  stackers: { id: string; label: string; z: number; level: number; side: string; stores: number }[];
+  /** 立库累计入库 / 出库次数。 */
+  asrsStore: number;
+  asrsRetrieve: number;
   /** 外部车道条数。 */
   externalLanes: number;
   /** 外部在途物料数。 */
@@ -66,7 +71,7 @@ export class StudioSession {
     this.host.install(logisticsPlugin);
 
     // 2) 用插件模板生成场景，用插件行为驱动世界。
-    const scene = buildFactoryScene(FACTORY_PARAMS);
+    const scene = buildCenterScene(CENTER_PARAMS);
     this.world = new TwinWorld(scene, {
       seed: 20240906,
       maxStepsPerAdvance: 600,
@@ -142,6 +147,21 @@ export class StudioSession {
         const status = (last?.payload as { status?: string } | undefined)?.status;
         return { id: device.id, busy: status === 'busy' };
       });
+    const stackers = this.world.scene.entities
+      .filter((entity) => entity.kind === 'stacker')
+      .map((crane) => {
+        const mine = events.filter((event) => event.entityId === crane.id);
+        const last = [...mine].reverse().find((event) => event.type === 'asrs:store');
+        const payload = last?.payload as { column?: number; level?: number; side?: string } | undefined;
+        return {
+          id: crane.id,
+          label: typeof crane.config?.label === 'string' ? crane.config.label : crane.id,
+          z: this.world.getEntity(crane.id)?.transform.position[2] ?? 0,
+          level: payload?.level ?? 0,
+          side: payload?.side === 'near' ? '左' : payload?.side === 'far' ? '右' : '—',
+          stores: mine.filter((event) => event.type === 'asrs:store').length,
+        };
+      });
     const externalLanes = this.world.scene.entities.filter((entity) => entity.kind === 'transport' && entity.id.startsWith('ext-')).length;
     const externalActive = this.world.scene.entities.filter((entity) => entity.id.startsWith('ext-cargo')).length;
     return {
@@ -151,6 +171,9 @@ export class StudioSession {
       consumed,
       backlog,
       inspectors,
+      stackers,
+      asrsStore: events.filter((event) => event.type === 'asrs:store').length,
+      asrsRetrieve: events.filter((event) => event.type === 'asrs:retrieve').length,
       externalLanes,
       externalActive,
       recent: events.slice(-6).reverse(),
