@@ -13,6 +13,12 @@ export interface ConveyorOptions {
   label?: string;
   color?: string;
   size?: TwinVector3;
+  /**
+   * 皮带箭头流动方向：`+1` 顺 local +X，`-1` 逆行。
+   * 沿 X 铺设时 local +X = 世界 +X；沿 Z 铺设时模型会转 90°，local +X = 世界 -Z。
+   * 按物料实际行进方向填，箭头才跟 path 一致。
+   */
+  beltDirection?: 1 | -1;
 }
 
 /** 一段静态输送线（无自身运动，只作视觉与设备占位）。 */
@@ -23,7 +29,7 @@ export function conveyorSegment(id: string, position: TwinVector3, options: Conv
     transform: { position },
     capabilities: ['move'],
     visual: { kind: 'box', color: options.color ?? '#22c55e', size: options.size ?? [3, 0.6, 1.4] },
-    config: { label: options.label ?? id },
+    config: { label: options.label ?? id, beltDirection: options.beltDirection ?? 1 },
   };
 }
 

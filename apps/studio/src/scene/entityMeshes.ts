@@ -27,6 +27,12 @@ export interface EntityAnim {
   statusLight?: THREE.MeshStandardMaterial;
   /** 缓存货架预置货位（仅 buffer），按 attrs.fill 显隐。 */
   bufferSlots?: THREE.Mesh[];
+  /** 顶升链带的链轮（仅 cassette）：顶起后按出货方向自转。 */
+  sprockets?: THREE.Mesh[];
+  /** 顶升链带上的链齿（仅 cassette）：沿 local Z 循环平移，链条才像在跑。 */
+  chainTeeth?: { mesh: THREE.Mesh; halfSpan: number }[];
+  /** 出货方向：+1 沿 local +Z，-1 沿 local -Z。决定链轮转向与链齿走向。 */
+  divertSign?: number;
 }
 
 export interface EntityMeshInput {
@@ -97,18 +103,34 @@ function statusLamp(y: number, theme: DeviceTheme): THREE.Mesh {
 
 /**
  * 皮带箭头流动 shader：按 UV 滚动箭头，比贴图省事、可逐线调色。
- * `time` 由控制器在播放时累加、暂停时停——视觉与仿真一致。
+ *
+ * 两个关键约定（改之前踩过的坑）：
+ * - **滚动必须走 `vUv.x`**：皮带面是 `PlaneGeometry(长度, 宽度)`，`u` 沿长度方向、
+ *   也就是物料行进方向；拿 `vUv.y` 去滚会让箭头横穿带宽，跟 path 完全无关。
+ * - **要真透明**：`depthWrite: false` + 低背景 alpha，滚筒才透得出来；
+ *   只写个 0.85 常量等于没透明，还会把滚筒盖住。
+ *
+ * `direction` 用 local +X 定义：+1 顺着 local +X 流，-1 逆着流。
+ * 沿 Z 铺的皮带在 buildConveyor 里被转了 90°，local +X 指向世界 -Z，
+ * 所以"顺着 path 流"要按实际行进方向选 ±1（模板里用 `beltDirection` 声明）。
  */
-function beltMaterial(theme: DeviceTheme): THREE.ShaderMaterial {
+function beltMaterial(theme: DeviceTheme, direction: number, repeat: number): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
     transparent: true,
+    // 透明面别写深度，否则会把下面的滚筒挡掉、还容易和台面 z-fighting。
+    depthWrite: false,
     side: THREE.DoubleSide,
     uniforms: {
       time: { value: 0 },
       color: { value: new THREE.Color(theme.accent) },
-      arrowSpacing: { value: 1.2 },
-      arrowSpeed: { value: 0.5 },
-      arrowLength: { value: 0.35 },
+      /** 一条皮带上排几个箭头（按长度算，保证箭头间距不随段长拉伸）。 */
+      repeat: { value: repeat },
+      /** 每秒流动几个箭头周期。 */
+      speed: { value: 0.55 },
+      direction: { value: direction },
+      /** 人字形箭头的后掠量（周期占比）：0 是直条，越大越尖。 */
+      chevron: { value: 0.42 },
+      alpha: { value: 0.85 },
     },
     vertexShader: /* glsl */ `
       varying vec2 vUv;
@@ -120,23 +142,39 @@ function beltMaterial(theme: DeviceTheme): THREE.ShaderMaterial {
     fragmentShader: /* glsl */ `
       uniform float time;
       uniform vec3 color;
-      uniform float arrowSpacing;
-      uniform float arrowSpeed;
-      uniform float arrowLength;
+      uniform float repeat;
+      uniform float speed;
+      uniform float direction;
+      uniform float chevron;
+      uniform float alpha;
       varying vec2 vUv;
       void main() {
-        float speed = time * arrowSpeed;
-        float pos = mod(vUv.y - speed, arrowSpacing);
-        float arrow = smoothstep(0.0, arrowLength, pos) * smoothstep(arrowLength, 0.0, pos - arrowLength);
-        vec3 finalColor = mix(color * 0.25, color, arrow);
-        gl_FragColor = vec4(finalColor, 0.85);
+        // fwd：沿行进方向的长度坐标（0 → 1），direction 负责掉头
+        float fwd = direction >= 0.0 ? vUv.x : 1.0 - vUv.x;
+        // across：0 在带宽中心、1 在两侧边缘，用来把直条拗成人字形
+        float across = abs(vUv.y - 0.5) * 2.0;
+        float u = fwd * repeat + across * chevron - time * speed;
+        float k = fract(u);
+        // 箭头：头锐（k→1 处截断）尾渐隐，指向行进方向
+        float arrow = smoothstep(0.35, 1.0, k);
+        vec3 c = mix(color * 0.4, color, arrow);
+        // 底噪几乎全透明（露出滚筒），箭头处才提亮提实
+        gl_FragColor = vec4(c, mix(0.10, 0.85, arrow) * alpha);
       }
     `,
   });
 }
 
 /** 输送段：皮带箭头面 + 滚筒（旋转）+ 两侧低边框 + 支腿 + 来料端电机 + 状态灯。 */
-function buildConveyor(sizeX: number, sizeZ: number, color: string, baseY: number, id: string): THREE.Group {
+function buildConveyor(
+  sizeX: number,
+  sizeZ: number,
+  color: string,
+  baseY: number,
+  id: string,
+  /** 箭头流动方向：+1 顺 local +X，-1 逆行。沿 Z 铺设时 local +X 指向世界 -Z。 */
+  direction = 1,
+): THREE.Group {
   const theme = getActiveTheme();
   const group = new THREE.Group();
   group.userData.codePath = 'entityMeshes.ts:buildConveyor';
@@ -152,10 +190,15 @@ function buildConveyor(sizeX: number, sizeZ: number, color: string, baseY: numbe
   const rollerRadius = 0.05;
   const rollerCenterY = deckTop - rollerRadius;
 
-  // 皮带箭头面：盖在滚筒上方，UV.y 沿皮带长度方向滚动箭头。
-  const belt = new THREE.Mesh(new THREE.PlaneGeometry(length * 0.96, width * 0.82), beltMaterial(theme));
+  // 皮带箭头面：盖在滚筒上方，UV.x 沿皮带长度方向滚动箭头。
+  // 箭头间距按 1.1m 一个折算成 repeat，长皮带不会把箭头拉长。
+  const belt = new THREE.Mesh(
+    new THREE.PlaneGeometry(length * 0.96, width * 0.82),
+    beltMaterial(theme, direction, Math.max(1, Math.round(length / 1.1))),
+  );
   belt.rotation.x = -Math.PI / 2;
   belt.position.y = deckTop + 0.005;
+  belt.renderOrder = 2;
   belt.castShadow = false;
   belt.receiveShadow = false;
   group.add(belt);
@@ -202,7 +245,7 @@ function buildConveyor(sizeX: number, sizeZ: number, color: string, baseY: numbe
   const lamp = statusLamp(deckCenterY + 0.5, theme);
   group.add(lamp);
 
-  group.userData.anim = { kind: 'transport', belt: belt.material as THREE.ShaderMaterial, rollers, statusLight: lamp.material as THREE.MeshStandardMaterial } as EntityAnim;
+  group.userData.anim = { kind: 'transport', belt: belt.material as THREE.ShaderMaterial, rollers, rollerSign: direction, statusLight: lamp.material as THREE.MeshStandardMaterial } as EntityAnim;
   return group;
 }
 
@@ -418,7 +461,35 @@ function buildPallet(size: TwinVector3, color: string): THREE.Group {
 }
 
 /** 顶升移栽机：滚筒银行 + 侧板（出口侧留开口）+ 四角顶升气缸 + 状态灯。 */
-function buildTransfer(size: TwinVector3, color: string, baseY: number): THREE.Group {
+/**
+ * 顶升移栽机的滚筒根数。滚筒与链带共用一套节距——链带必须正好落在
+ * 两根滚筒之间的缝里，所以两个 build 函数都用下面这几个常量算 X。
+ */
+const TRANSFER_ROLLERS = 8;
+
+const transferPitch = (width: number): number => (width - 0.32) / (TRANSFER_ROLLERS - 1);
+
+/** 第 i 根滚筒中心的 X。 */
+const transferRollerX = (width: number, i: number): number => -width / 2 + 0.16 + i * transferPitch(width);
+
+/** 第 i 条链带中心的 X —— 正好在两根滚筒的缝正中。 */
+const transferStrandX = (width: number, i: number): number => -width / 2 + 0.16 + (i + 0.5) * transferPitch(width);
+
+/**
+ * 顶升移栽机机身：平常就是一段**顺流向**的滚筒输送线，货直着滚过去；
+ * 只有 declare 了 divertIds 的货来了，滚筒缝里的链带才顶起来，把它**垂直**
+ * 送出去。所以这里不再铺皮带面——主线到机身处就是断开的。
+ *
+ * @param direction 主线流向：+1 沿 local +X。
+ * @param divertSign 顶升后的出货方向：+1 沿 local +Z，-1 沿 local -Z。
+ */
+function buildTransfer(
+  size: TwinVector3,
+  color: string,
+  baseY: number,
+  direction = 1,
+  divertSign = -1,
+): THREE.Group {
   const theme = getActiveTheme();
   const group = new THREE.Group();
   group.userData.codePath = 'entityMeshes.ts:buildTransfer';
@@ -442,26 +513,27 @@ function buildTransfer(size: TwinVector3, color: string, baseY: number): THREE.G
     }
   }
 
+  // 滚筒：沿流向（local X）排布，轴垂直于流向（local Z）。货物平常就压在这排
+  // 滚筒上顺着滚过去；滚筒之间留出的缝，就是顶升链带的藏身处。
   const rollers: THREE.Mesh[] = [];
-  const rollerCount = 8;
-  for (let i = 0; i < rollerCount; i += 1) {
-    const x = -width / 2 + 0.16 + (i / (rollerCount - 1)) * (width - 0.32);
+  for (let i = 0; i < TRANSFER_ROLLERS; i += 1) {
     const roller = cyl(rollerRadius, depth * 0.82, theme.roller, 10, { roughness: 0.35, metalness: 0.45 });
     roller.castShadow = false;
     roller.rotation.x = Math.PI / 2;
-    roller.position.set(x, rollerCenterY, 0);
+    roller.position.set(transferRollerX(width, i), rollerCenterY, 0);
     rollers.push(roller);
     group.add(roller);
   }
 
-  for (const side of [-1, 1]) {
-    const plateZ = side * (depth / 2 - 0.025);
-    if (side === -1) {
-      group.add(at(rbox(width * 0.34, 0.26, 0.05, theme.metal, { roughness: 0.5, metalness: 0.4 }), -width * 0.2, deckCenterY, plateZ));
-      group.add(at(rbox(width * 0.34, 0.26, 0.05, theme.metal, { roughness: 0.5, metalness: 0.4 }), width * 0.2, deckCenterY, plateZ));
-    } else {
-      group.add(at(rbox(width * 0.96, 0.26, 0.05, theme.metal, { roughness: 0.5, metalness: 0.4 }), 0, deckCenterY, plateZ));
-    }
+  // 侧板：出货侧开长口（货才出得去），对侧整块挡料。
+  // 开口必须盖住整组链带的 X 跨度（约 1.1m），两端只留立柱。
+  const openZ = -divertSign * (depth / 2 - 0.025);
+  const solidZ = divertSign * (depth / 2 - 0.025);
+  group.add(at(rbox(width * 0.96, 0.26, 0.05, theme.metal, { roughness: 0.5, metalness: 0.4 }), 0, deckCenterY, solidZ));
+  for (const sx of [-1, 1]) {
+    group.add(
+      at(rbox(0.18, 0.26, 0.05, theme.metal, { roughness: 0.5, metalness: 0.4 }), sx * (width / 2 - 0.09), deckCenterY, openZ),
+    );
   }
 
   for (const sx of [-1, 1]) {
@@ -477,36 +549,86 @@ function buildTransfer(size: TwinVector3, color: string, baseY: number): THREE.G
     group.add(at(rbox(0.08, 0.08, 0.08, '#FF5252', { emissive: '#FF5252', emissiveIntensity: 0.6 }), -width / 2 + 0.12, deckCenterY + 0.05, sz * (depth / 2 - 0.12)));
   }
 
+  // 流向指示：挡料侧台面上两个小箭头，指的就是主线滚动方向 ——
+  // 平常（不顶升）这台机器就等同于一段顺流向的滚筒输送线。
+  const flowGeo = new THREE.ConeGeometry(0.06, 0.18, 4);
+  const flowMat = new THREE.MeshStandardMaterial({ color: theme.accent, roughness: 0.45 });
+  for (const sx of [-1, 1]) {
+    const arrow = new THREE.Mesh(flowGeo, flowMat);
+    arrow.rotation.z = direction > 0 ? -Math.PI / 2 : Math.PI / 2;
+    arrow.position.set(sx * (width / 2 - 0.32), deckTop + 0.05, divertSign * (depth / 2 - 0.12));
+    group.add(arrow);
+  }
+
   const lamp = statusLamp(deckCenterY + 0.5, theme);
   group.add(lamp);
 
-  group.userData.anim = { kind: 'transfer', rollers, statusLight: lamp.material as THREE.MeshStandardMaterial } as EntityAnim;
+  group.userData.anim = {
+    kind: 'transfer',
+    rollers,
+    rollerSign: direction,
+    statusLight: lamp.material as THREE.MeshStandardMaterial,
+  } as EntityAnim;
   return group;
 }
 
-/** 托举座（cassette）：滚筒缝隙里的横向传动轴 + 驱动轮，随行为顶升。 */
-function buildCassette(size: TwinVector3, color: string): THREE.Group {
+/**
+ * 托举座（cassette）：**坐在滚筒缝里**的那组顶升链带。
+ *
+ * 它和机身共用同一套节距，所以每条链带都正好卡在两根滚筒之间：
+ * - idle —— 链带顶低于滚筒顶，整组缩在缝里，货压在滚筒上顺流向滚过去；
+ * - 顶起 —— 整组链带抬 `liftHeight`，链带顶高过滚筒顶把货托离滚筒，
+ *   链轮转起来把他沿 local ±Z **垂直**送出去，然后落回缝里。
+ *
+ * @param divertSign 出货方向：+1 沿 local +Z，-1 沿 local -Z。
+ */
+function buildCassette(size: TwinVector3, color: string, divertSign = -1): THREE.Group {
   const theme = getActiveTheme();
   const group = new THREE.Group();
   group.userData.codePath = 'entityMeshes.ts:buildCassette';
   const [width, , depth] = size;
-  const carryY = 0.26;
 
-  const axle = cyl(0.05, depth * 0.9, theme.frameDark, 10, { roughness: 0.4, metalness: 0.5 });
-  axle.rotation.x = Math.PI / 2;
-  group.add(at(axle, 0, carryY - 0.04, 0));
+  // 链带顶：比滚筒顶（0.30）低 3.5cm，是"缩在缝里"的那个状态。
+  const chainTop = 0.265;
+  const strandLen = depth * 0.86;
+  const halfSpan = strandLen / 2;
+  const strandW = 0.06;
 
-  for (const sz of [-1, 1]) {
-    for (const sx of [-1, 1]) {
-      const wheel = cyl(0.07, 0.05, theme.metal, 12, { roughness: 0.4, metalness: 0.5 });
-      wheel.rotation.z = Math.PI / 2;
-      group.add(at(wheel, sx * (width / 2 - 0.16), carryY - 0.04, sz * (depth / 2 - 0.18)));
+  // 链带组的底板：把几条链带串成一套机构，整体压在滚筒缝下方。
+  group.add(at(rbox(width * 0.84, 0.035, strandLen * 0.9, color, { roughness: 0.5 }), 0, chainTop - 0.085, 0));
+
+  const sprockets: THREE.Mesh[] = [];
+  const chainTeeth: { mesh: THREE.Mesh; halfSpan: number }[] = [];
+  const toothGeo = new THREE.BoxGeometry(strandW * 0.9, 0.014, 0.035);
+  const toothMat = new THREE.MeshStandardMaterial({ color: theme.frameDark, roughness: 0.5, metalness: 0.35 });
+
+  // 链带只占中间几条缝（最外侧两条留空，免得蹭到侧板立柱）。
+  for (let i = 1; i < TRANSFER_ROLLERS - 2; i += 1) {
+    const x = transferStrandX(width, i);
+
+    // 链带本体：沿 local Z 铺满台面，货从进到出全程有链托着。
+    group.add(at(rbox(strandW, 0.055, strandLen, theme.frameDark, { roughness: 0.55, metalness: 0.3 }), x, chainTop - 0.0275, 0));
+
+    // 两端链轮：轴沿 local X（rotation.z = 90°），转起来链带才跑。
+    for (const sz of [-1, 1]) {
+      const sprocket = cyl(0.045, strandW * 1.6, theme.metal, 12, { roughness: 0.4, metalness: 0.5 });
+      sprocket.rotation.z = Math.PI / 2;
+      sprocket.position.set(x, chainTop - 0.045, sz * halfSpan);
+      sprockets.push(sprocket);
+      group.add(sprocket);
+    }
+
+    // 链齿：沿 local Z 均布，动画里循环平移，一眼看出链条往哪跑。
+    const toothCount = 5;
+    for (let t = 0; t < toothCount; t += 1) {
+      const tooth = new THREE.Mesh(toothGeo, toothMat);
+      tooth.position.set(x, chainTop + 0.007, -halfSpan + ((t + 0.5) / toothCount) * strandLen);
+      chainTeeth.push({ mesh: tooth, halfSpan });
+      group.add(tooth);
     }
   }
 
-  for (const side of [-1, 1]) {
-    group.add(at(rbox(width * 0.9, 0.04, 0.05, color, { roughness: 0.5 }), 0, carryY - 0.06, side * (depth / 2 - 0.05)));
-  }
+  group.userData.anim = { kind: 'cassette', sprockets, chainTeeth, divertSign } as EntityAnim;
   return group;
 }
 
@@ -569,8 +691,12 @@ export function buildEntityMesh(entity: EntityMeshInput): THREE.Group {
   const baseY = entity.transform.position[1] ?? 0;
 
   switch (entity.kind) {
-    case 'transport':
-      return buildConveyor(size[0], size[2], color, baseY, entity.id);
+    case 'transport': {
+      // 箭头方向由场景模板用 `config.beltDirection` 声明（沿行进方向为 +1）。
+      const raw = entity.config?.beltDirection;
+      const direction = typeof raw === 'number' && raw < 0 ? -1 : 1;
+      return buildConveyor(size[0], size[2], color, baseY, entity.id, direction);
+    }
     case 'inspect':
       return buildInspection(size, color, baseY);
     case 'buffer':
@@ -585,10 +711,22 @@ export function buildEntityMesh(entity: EntityMeshInput): THREE.Group {
       return buildFork(size, color);
     case 'pallet':
       return buildPallet(size, color);
-    case 'transfer':
-      return buildTransfer(size, color, baseY);
-    case 'cassette':
-      return buildCassette(size, color);
+    case 'transfer': {
+      // 流向与出货方向都由场景模板声明：主线东行为 +1，往 +Z 出货为 +1。
+      const rawDir = entity.config?.beltDirection;
+      const rawSign = entity.config?.divertSign;
+      return buildTransfer(
+        size,
+        color,
+        baseY,
+        typeof rawDir === 'number' && rawDir < 0 ? -1 : 1,
+        typeof rawSign === 'number' && rawSign > 0 ? 1 : -1,
+      );
+    }
+    case 'cassette': {
+      const rawSign = entity.config?.divertSign;
+      return buildCassette(size, color, typeof rawSign === 'number' && rawSign > 0 ? 1 : -1);
+    }
     case 'corner':
       return buildCorner(size, color, baseY);
     default:
