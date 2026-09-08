@@ -80,7 +80,9 @@ function at<T extends THREE.Object3D>(object: T, x: number, y: number, z: number
   return object;
 }
 
-/** 输送段：台面 + 护栏 + 滚筒 + 支腿；分拣台额外挂一根推杆。 */
+/** 输送段：滚筒为真正承托面 + 两侧低边框（非高护栏）+ 每 ~1.35m 支腿 + 来料端驱动电机 + 底座薄板。
+ *  结构对齐 r3f-tools 的 ConveyorBelt：滚筒顶面与台面齐平、框架是贴着滚筒底面的边梁、
+ *  电机挂在来料端、长皮带按间距多腿支撑。 */
 function buildConveyor(sizeX: number, sizeZ: number, color: string, baseY: number, id: string): THREE.Group {
   const group = new THREE.Group();
   // 皮带沿较长的那条水平边铺设：主输送段是沿 X 的长条，外部车道是沿 Z 的长条。
@@ -91,51 +93,55 @@ function buildConveyor(sizeX: number, sizeZ: number, color: string, baseY: numbe
 
   const deckHeight = 0.1;
   const deckCenterY = 0.25; // 局部坐标：台面中心（世界 y = baseY + 0.25）
+  const deckTop = deckCenterY + deckHeight / 2; // 0.30 → 世界 0.90
   const deckBottom = deckCenterY - deckHeight / 2;
+  const rollerRadius = 0.05;
+  const rollerCenterY = deckTop - rollerRadius; // 滚筒顶面与台面齐平
 
-  // 皮带台面
-  group.add(at(boxMesh(length * 0.98, deckHeight, width * 0.88, color, { roughness: 0.5 }), 0, deckCenterY, 0));
+  // 底座薄板（承载结构，落在滚筒下方）
+  group.add(at(boxMesh(length * 0.98, 0.04, width * 0.9, FRAME_DARK, { roughness: 0.7 }), 0, deckBottom - 0.02, 0));
 
-  // 两侧护栏
-  const railThickness = 0.055;
-  const railHeight = 0.11;
+  // 两侧低边框：贴着滚筒底面走，绝不高于滚筒（参考 r3f-tools 的 frame beam，而非护栏）
+  const beamH = 0.07;
   for (const side of [-1, 1]) {
     group.add(
       at(
-        boxMesh(length * 0.98, railHeight, railThickness, FRAME_DARK, { roughness: 0.55 }),
+        boxMesh(length * 0.98, beamH, 0.06, FRAME, { roughness: 0.6 }),
         0,
-        deckCenterY + deckHeight / 2 + railHeight / 2 - 0.01,
-        side * (width / 2 - railThickness / 2),
+        deckBottom - beamH / 2 + 0.02,
+        side * (width / 2 - 0.05),
       ),
     );
   }
 
-  // 一排滚筒（小件不投影，省开销）
-  const rollerRadius = 0.055;
-  const rollerCount = Math.max(2, Math.round(length / 0.34));
+  // 一排滚筒：真正承托面，轴沿 Z 横跨皮带，顶面与台面齐平
+  const rollerCount = Math.max(3, Math.round(length / 0.32));
   for (let i = 0; i <= rollerCount; i += 1) {
-    const x = -length / 2 + 0.12 + (i / rollerCount) * (length - 0.24);
-    const roller = cylinderMesh(rollerRadius, width * 0.9, METAL, 10, { roughness: 0.35, metalness: 0.45 });
+    const x = -length / 2 + 0.16 + (i / rollerCount) * (length - 0.32);
+    const roller = cylinderMesh(rollerRadius, width * 0.84, METAL, 10, { roughness: 0.35, metalness: 0.45 });
     roller.castShadow = false;
     roller.rotation.x = Math.PI / 2; // 圆柱默认沿 Y，转成沿 Z 横跨皮带
-    group.add(at(roller, x, deckBottom - rollerRadius * 0.75, 0));
+    group.add(at(roller, x, rollerCenterY, 0));
   }
 
-  // 四根支腿 + 脚垫
-  const legTop = deckBottom - 0.02;
-  const legBottom = -baseY; // 局部坐标下地面所在高度
-  const legHeight = Math.max(0.08, legTop - legBottom);
-  const legCenterY = (legTop + legBottom) / 2;
-  for (const sx of [-1, 1]) {
+  // 支腿：每 ~1.35m 一根，长皮带多腿；落到底座下方直到地面
+  const groundY = -baseY;
+  const legSpacing = 1.35;
+  const nLegs = Math.max(1, Math.round(length / legSpacing));
+  const legTopY = deckBottom - 0.02;
+  const legHeight = Math.max(0.08, legTopY - groundY);
+  const legCenterY = (legTopY + groundY) / 2;
+  for (let i = 0; i <= nLegs; i += 1) {
+    const lx = -length / 2 + (i / nLegs) * length;
     for (const sz of [-1, 1]) {
-      const legX = sx * (length / 2 - 0.28);
-      const legZ = sz * (width / 2 - 0.16);
-      group.add(at(cylinderMesh(0.05, legHeight, FRAME_DARK, 8, { roughness: 0.7 }), legX, legCenterY, legZ));
-      const foot = boxMesh(0.16, 0.04, 0.16, FRAME, { roughness: 0.8 });
-      foot.castShadow = false;
-      group.add(at(foot, legX, legBottom + 0.02, legZ));
+      group.add(at(cylinderMesh(0.045, legHeight, FRAME_DARK, 8, { roughness: 0.7 }), lx, legCenterY, sz * (width / 2 - 0.12)));
     }
   }
+
+  // 来料端驱动电机（小圆柱 + 端盖，参考 r3f-tools 的 CuteMotor）
+  const motorX = -length / 2 + 0.3;
+  group.add(at(cylinderMesh(0.06, 0.14, METAL, 12, { roughness: 0.4, metalness: 0.5 }), motorX, rollerCenterY, width / 2 + 0.04));
+  group.add(at(cylinderMesh(0.04, 0.05, FRAME_DARK, 12), motorX, rollerCenterY, width / 2 + 0.12));
 
   // 分拣台：侧面加一根推杆，和别的输送段区分开
   if (id.startsWith('sorter')) {
@@ -368,68 +374,82 @@ function buildPallet(size: TwinVector3, color: string): THREE.Group {
 }
 
 /**
- * 顶升移栽机：inline 串在输送线里的分流转接台。
- * 台面高度严格对齐普通输送线（deck 顶 = 世界 0.90），滚筒藏在台面下，
- * 直行货从上面滚过去；两侧侧板 + 中央顶升气缸 + 入料光电眼 + 状态灯。
- * 滚筒缝隙里藏的托举座（cassette 子实体）由 `transfer-cycle` 抬升。
+ * 顶升移栽机：inline 串在输送线里的分流转接台，结构对齐 r3f-tools 的 LiftTransferUnit。
+ * - 8 根滚筒银行（与主线同款，顶面与台面齐平）；
+ * - 两侧侧板，出口侧（南向，z<0）留开口，货从这里被横推出去；
+ * - 四角顶升气缸 + 伸缩导杆（把整个滚筒组顶起）；
+ * - 末端驱动电机、来料端对射光电眼、侧柱状态灯；
+ * - 控制箱落在支墩上、支墩到地面。
+ * 台面顶（世界 0.90）严格对齐普通输送线，直行货从上面平滑滚过。
  */
 function buildTransfer(size: TwinVector3, color: string, baseY: number): THREE.Group {
   const group = new THREE.Group();
-  const [width, height, depth] = size;
+  const [width, , depth] = size;
   const groundY = -baseY;
-  // 与 buildConveyor 同一套台面基准：deck 顶（本地 0.30）= 世界 0.90，和两侧皮带齐平。
   const deckHeight = 0.1;
   const deckCenterY = 0.25;
+  const deckTop = deckCenterY + deckHeight / 2;
   const deckBottom = deckCenterY - deckHeight / 2;
+  const rollerRadius = 0.05;
+  const rollerCenterY = deckTop - rollerRadius;
 
-  // 底板（托住结构，比台面低）
-  group.add(at(boxMesh(width * 0.98, 0.08, depth * 0.94, FRAME_DARK, { roughness: 0.7 }), 0, groundY + 0.04, 0));
+  // 底板
+  group.add(at(boxMesh(width * 0.98, 0.06, depth * 0.94, FRAME_DARK, { roughness: 0.7 }), 0, groundY + 0.04, 0));
 
-  // 四根支腿到地面
-  const legTop = deckBottom - 0.02;
-  const legHeight = Math.max(0.08, legTop - groundY);
-  const legCenterY = (legTop + groundY) / 2;
+  // 四角支腿到地面
+  const legTopY = deckBottom - 0.02;
+  const legHeight = Math.max(0.08, legTopY - groundY);
+  const legCenterY = (legTopY + groundY) / 2;
   for (const sx of [-1, 1]) {
     for (const sz of [-1, 1]) {
       group.add(at(cylinderMesh(0.05, legHeight, FRAME_DARK, 8, { roughness: 0.7 }), sx * (width / 2 - 0.2), legCenterY, sz * (depth / 2 - 0.15)));
     }
   }
 
-  // 两侧侧板（比护栏略高，留出移栽开口感）
-  for (const side of [-1, 1]) {
-    group.add(at(boxMesh(width * 0.98, 0.22, 0.05, METAL, { roughness: 0.5, metalness: 0.4 }), 0, deckCenterY, side * (depth / 2 - 0.03)));
-  }
-
-  // 台面（与皮带同高、同色）
-  group.add(at(boxMesh(width * 0.96, deckHeight, depth * 0.86, color, { roughness: 0.5 }), 0, deckCenterY, 0));
-
-  // 一排滚筒（轴沿 Z，平时直行货从这滚过）；缩在台面下，托举座从缝里顶上来
-  const rollerRadius = 0.05;
-  const rollerCount = Math.max(2, Math.round(width / 0.32));
-  for (let i = 0; i <= rollerCount; i += 1) {
-    const x = -width / 2 + 0.12 + (i / rollerCount) * (width - 0.24);
+  // 滚筒组（8 根，轴沿 Z，顶面与台面齐平）
+  const rollerCount = 8;
+  for (let i = 0; i < rollerCount; i += 1) {
+    const x = -width / 2 + 0.16 + (i / (rollerCount - 1)) * (width - 0.32);
     const roller = cylinderMesh(rollerRadius, depth * 0.82, METAL, 10, { roughness: 0.35, metalness: 0.45 });
     roller.castShadow = false;
     roller.rotation.x = Math.PI / 2;
-    group.add(at(roller, x, deckBottom - rollerRadius * 0.75, 0));
+    group.add(at(roller, x, rollerCenterY, 0));
   }
 
-  // 中央顶升气缸
-  group.add(at(cylinderMesh(0.1, 0.26, FRAME_DARK, 12, { roughness: 0.5, metalness: 0.4 }), 0, deckCenterY + 0.05, 0));
+  // 两侧侧板：出口侧（-Z，朝分流支线）留开口，其余侧板实封
+  for (const side of [-1, 1]) {
+    const plateZ = side * (depth / 2 - 0.025);
+    if (side === -1) {
+      group.add(at(boxMesh(width * 0.34, 0.26, 0.05, METAL, { roughness: 0.5, metalness: 0.4 }), -width * 0.2, deckCenterY, plateZ));
+      group.add(at(boxMesh(width * 0.34, 0.26, 0.05, METAL, { roughness: 0.5, metalness: 0.4 }), width * 0.2, deckCenterY, plateZ));
+    } else {
+      group.add(at(boxMesh(width * 0.96, 0.26, 0.05, METAL, { roughness: 0.5, metalness: 0.4 }), 0, deckCenterY, plateZ));
+    }
+  }
 
-  // 入料角光电眼（红）
-  group.add(
-    at(
-      boxMesh(0.09, 0.09, 0.09, '#FF5252', { emissive: '#FF5252', emissiveIntensity: 0.6 }),
-      -width / 2 + 0.12,
-      deckCenterY + 0.04,
-      0,
-    ),
-  );
+  // 四角顶升气缸 + 伸缩导杆
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      group.add(at(cylinderMesh(0.045, 0.22, FRAME_DARK, 10, { roughness: 0.5, metalness: 0.4 }), sx * (width / 2 - 0.18), deckCenterY + 0.08, sz * (depth / 2 - 0.16)));
+      group.add(at(cylinderMesh(0.025, 0.3, METAL, 8, { roughness: 0.4, metalness: 0.5 }), sx * (width / 2 - 0.18), deckCenterY + 0.2, sz * (depth / 2 - 0.16)));
+    }
+  }
 
-  // 立柱 + 状态灯
+  // 末端驱动电机（rounded box 近似：短方壳）
+  group.add(at(boxMesh(0.22, 0.18, 0.2, METAL, { roughness: 0.45, metalness: 0.4 }), width / 2 - 0.04, rollerCenterY, 0));
+
+  // 来料端对射光电眼（红，两角各一）
+  for (const sz of [-1, 1]) {
+    group.add(at(boxMesh(0.08, 0.08, 0.08, '#FF5252', { emissive: '#FF5252', emissiveIntensity: 0.6 }), -width / 2 + 0.12, deckCenterY + 0.05, sz * (depth / 2 - 0.12)));
+  }
+
+  // 侧柱 + 状态灯
   group.add(at(boxMesh(0.05, 0.42, 0.05, FRAME_DARK, { roughness: 0.6 }), -width / 2 + 0.12, deckCenterY + 0.2, depth / 2 - 0.1));
   group.add(at(sphereMesh(0.06, color, { emissive: color, emissiveIntensity: 0.9 }), -width / 2 + 0.12, deckCenterY + 0.44, depth / 2 - 0.1));
+
+  // 控制箱 + 支墩（落地）
+  group.add(at(cylinderMesh(0.04, deckCenterY - 0.18, FRAME_DARK, 8, { roughness: 0.7 }), width / 2 - 0.12, (deckCenterY - 0.18 + groundY) / 2, depth / 2 + 0.12));
+  group.add(at(boxMesh(0.2, 0.26, 0.16, FRAME_DARK, { roughness: 0.6 }), width / 2 - 0.12, deckCenterY + 0.0, depth / 2 + 0.12));
 
   return group;
 }
@@ -471,50 +491,55 @@ function buildCassette(size: TwinVector3, color: string): THREE.Group {
 }
 
 /**
- * 90°转角输送模块：方形台面把两条垂直皮带接起来，货物在此转向。
- * 台面比普通皮带厚 2cm（顶高 0.91，比皮带 0.90 高 1cm），
- * 避免和接入的直行皮带在同一高度 z-fighting；交叉滚筒暗示转向。
+ * 90°转角输送模块：把两条垂直皮带接到一起，货物在此转向。
+ * 结构对齐 r3f-tools 的 `filletPolyline` 思路——皮带在转角处弯成平滑四分之一圆弧，
+ * 这里用一排沿圆弧排布的滚筒表现"弯道皮带"，而非方台十字交叉。
+ * 台面比普通皮带高 1cm（顶世界 0.91），避免与接入皮带 z-fighting。
  */
 function buildCorner(size: TwinVector3, color: string, baseY: number): THREE.Group {
   const group = new THREE.Group();
-  const [width, height, depth] = size;
+  const [width, , depth] = size;
   const groundY = -baseY;
   const deckHeight = 0.12;
   const deckCenterY = 0.25;
+  const deckTop = deckCenterY + deckHeight / 2; // 0.31 → 世界 0.91
   const deckBottom = deckCenterY - deckHeight / 2;
+  const rollerRadius = 0.05;
+  const rollerCenterY = deckTop - rollerRadius;
 
-  // 方形台面
+  // 方形台面（补齐拐角缺口，顶比直行皮带高 1cm）
   group.add(at(boxMesh(width * 0.98, deckHeight, depth * 0.98, color, { roughness: 0.5 }), 0, deckCenterY, 0));
 
-  // 两侧包边护栏
+  // 弯道滚筒：沿四分之一圆弧排布，表现皮带在转角处弯转
+  const r = width / 2;
+  const cx = width / 2; // 圆弧外心落在转角外侧角点
+  const n = 5;
+  for (let i = 0; i < n; i += 1) {
+    const a = Math.PI + (i / (n - 1)) * (Math.PI / 2); // 从 π 扫到 3π/2，覆盖 90° 转角
+    const x = cx + r * Math.cos(a);
+    const z = cx + r * Math.sin(a);
+    const roller = cylinderMesh(rollerRadius, width * 0.5, METAL, 8, { roughness: 0.35, metalness: 0.45 });
+    roller.castShadow = false;
+    roller.rotation.x = Math.PI / 2;
+    group.add(at(roller, x, rollerCenterY, z));
+  }
+
+  // 两侧低包边
   for (const side of [-1, 1]) {
     group.add(
       at(
-        boxMesh(width * 0.98, 0.1, 0.05, FRAME_DARK, { roughness: 0.55 }),
+        boxMesh(width * 0.98, 0.08, 0.05, FRAME_DARK, { roughness: 0.55 }),
         0,
-        deckCenterY + deckHeight / 2 + 0.05,
+        deckBottom + 0.04,
         side * (depth / 2 - 0.03),
       ),
     );
   }
 
-  // 交叉滚筒（横竖各一排，暗示转向）
-  const rollerRadius = 0.05;
-  const n = 3;
-  for (let i = 0; i < n; i += 1) {
-    const o = -width / 2 + 0.3 + (i / (n - 1)) * (width - 0.6);
-    const rx = cylinderMesh(rollerRadius, depth * 0.82, METAL, 8, { roughness: 0.35, metalness: 0.45 });
-    rx.rotation.x = Math.PI / 2;
-    group.add(at(rx, o, deckBottom - rollerRadius * 0.75, 0));
-    const rz = cylinderMesh(rollerRadius, width * 0.82, METAL, 8, { roughness: 0.35, metalness: 0.45 });
-    rz.rotation.x = Math.PI / 2;
-    group.add(at(rz, 0, deckBottom - rollerRadius * 0.75, o));
-  }
-
   // 四根支腿
-  const legTop = deckBottom - 0.02;
-  const legHeight = Math.max(0.08, legTop - groundY);
-  const legCenterY = (legTop + groundY) / 2;
+  const legTopY = deckBottom - 0.02;
+  const legHeight = Math.max(0.08, legTopY - groundY);
+  const legCenterY = (legTopY + groundY) / 2;
   for (const sx of [-1, 1]) {
     for (const sz of [-1, 1]) {
       group.add(at(cylinderMesh(0.05, legHeight, FRAME_DARK, 8, { roughness: 0.7 }), sx * (width / 2 - 0.18), legCenterY, sz * (depth / 2 - 0.18)));
