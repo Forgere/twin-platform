@@ -30,7 +30,7 @@ describe('logistics 插件', () => {
   });
 
   test('行为驱动包裹流转：开局进入 + 绕圈出/进', () => {
-    const world = simulate([logisticsPlugin.activate().behaviors?.[0] as WorldBehavior], 1200);
+    const world = simulate([logisticsPlugin.activate().behaviors?.[0] as WorldBehavior], 2400);
     const events = world.getEventLog();
     const enters = events.filter((event) => event.type === 'parcel:enter');
     const exits = events.filter((event) => event.type === 'parcel:exit');
@@ -41,7 +41,7 @@ describe('logistics 插件', () => {
   });
 
   test('产线指标：吞吐为正、积压稳定为在线包裹数、检测站有忙时', () => {
-    const world = simulate([logisticsPlugin.activate().behaviors?.[0] as WorldBehavior], 1200);
+    const world = simulate([logisticsPlugin.activate().behaviors?.[0] as WorldBehavior], 2400);
     const events = world.getEventLog();
     const metrics = lineMetrics(events, {
       bucketSize: 5,
@@ -61,8 +61,8 @@ describe('logistics 插件', () => {
   });
 
   test('确定性：同种子两次仿真事件流逐条一致', () => {
-    const a = simulate([logisticsPlugin.activate().behaviors?.[0] as WorldBehavior], 1200, 7);
-    const b = simulate([logisticsPlugin.activate().behaviors?.[0] as WorldBehavior], 1200, 7);
+    const a = simulate([logisticsPlugin.activate().behaviors?.[0] as WorldBehavior], 2400, 7);
+    const b = simulate([logisticsPlugin.activate().behaviors?.[0] as WorldBehavior], 2400, 7);
     const signature = (events: { type: string; entityId?: string; occurredAt: number }[]) =>
       events.map((event) => `${event.type}|${event.entityId ?? ''}|${event.occurredAt}`).join(';');
     expect(signature(a.getEventLog())).toBe(signature(b.getEventLog()));

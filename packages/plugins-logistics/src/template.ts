@@ -27,8 +27,10 @@ export interface LineTemplateParams {
 /**
  * "一段物流输送线"场景模板：把可复用的产线片段参数化成实体列表。
  *
- * 由入料输送线、检测站、缓存货架与若干循环包裹组成。包裹速度按序号递增，
- * 因此它们绕圈时机错开——积压与吞吐会自然波动，而不是齐刷刷地一起进一起出。
+ * 由首尾闭合的环形输送线、检测站、缓存货架与若干循环包裹组成。
+ * 同一条连续皮带上的所有包裹**速度相同**（真实皮带物理）；包裹之间靠
+ * `splitClosedLoop` 把起步点错开，从而既保持间距、不会堆在一起，又不会
+ * 出现"快的从慢的身上穿过去"的超车现象。
  */
 export const lineTemplate: SceneTemplateDescriptor<LineTemplateParams> = {
   id: 'logistics-line',
@@ -37,19 +39,30 @@ export const lineTemplate: SceneTemplateDescriptor<LineTemplateParams> = {
     const count = params.parcels ?? 5;
     const length = params.length ?? 20;
     const base = params.baseSpeed ?? 1.6;
+    const w = length / 2;
+    // 闭环矩形：上行（z=0）与下行（z=DEPTH）是两条平行皮带，去/回分走两侧，
+    // 因此即便同速也不会迎面叠在一起。
+    const DEPTH = 1.4;
     const path: TwinVector3[] = [
-      [-length / 2, 1.15, 0],
-      [length / 2, 1.15, 0],
+      [-w, 1.15, 0],
+      [w, 1.15, 0],
+      [w, 1.15, DEPTH],
+      [-w, 1.15, DEPTH],
     ];
 
     const entities: TwinEntity[] = [
-      conveyorSegment('belt-in', [-length / 2 - 1.5, 0.6, 0], { label: '入料输送线' }),
+      conveyorSegment('belt-top', [0, 0.6, 0], { label: '输送线上行', size: [length, 0.6, 1.4] }),
+      conveyorSegment('belt-bottom', [0, 0.6, DEPTH], { label: '输送线下行', size: [length, 0.6, 1.4] }),
+      conveyorSegment('belt-left', [-w, 0.6, DEPTH / 2], { label: '输送线左转', size: [1.4, 0.6, DEPTH] }),
+      conveyorSegment('belt-right', [w, 0.6, DEPTH / 2], { label: '输送线右转', size: [1.4, 0.6, DEPTH] }),
       inspectionStation('scan-01', [0, 0.9, 0], 1.6),
       bufferRack('buffer-01', [length / 2 + 1.5, 1, 0]),
     ];
 
     for (let index = 0; index < count; index += 1) {
-      entities.push(parcel(`parcel-${index + 1}`, path, base + index * 0.12, { label: `在制物料 ${index + 1}` }));
+      entities.push(
+        parcel(`parcel-${index + 1}`, splitClosedLoop(path, index / count), base, { label: `在制物料 ${index + 1}` }),
+      );
     }
     return entities;
   },
@@ -139,15 +152,18 @@ export const factoryTemplate: SceneTemplateDescriptor<FactoryTemplateParams> = {
     ];
 
     // 主环线：左入料 → 右出料 → 下 → 回到左侧，构成闭环矩形。
+    // 同一条连续皮带 → 所有包裹同速（MAIN_SPEED）。靠 splitClosedLoop 把起步点
+    // 错开在环上，既不会互相超车、也不会叠在一起。
     const mainPath: TwinVector3[] = [
       [x(-14), yLine, 0],
       [x(14), yLine, 0],
       [x(14), yLine, -5],
       [x(-14), yLine, -5],
     ];
+    const MAIN_SPEED = 1.4;
     for (let i = 0; i < count; i += 1) {
       entities.push(
-        parcel(`parcel-${i + 1}`, mainPath, 1.4 + i * 0.12, {
+        parcel(`parcel-${i + 1}`, splitClosedLoop(mainPath, i / count), MAIN_SPEED, {
           label: `在制物料 ${i + 1}`,
           color: PASTEL.cargo[i % PASTEL.cargo.length],
         }),
@@ -191,6 +207,29 @@ export function buildFactoryScene(params: FactoryTemplateParams = {}): TwinScene
 const DECK_Y = 1.2;
 /** 输送线实体高度。 */
 const BELT_Y = 0.6;
+
+/**
+ * 各闭环输送线（皮带）的统一步速。
+ *
+ * 真实皮带只有"一个速度"——同一条线上所有货物靠同一速度前进，靠起步位错开
+ * 来维持间距，而不是各自不同速度。内核 `world.ts` 每个包裹按自己的
+ * `motion.speed * dt` 独立推进，**没有任何间距/碰撞逻辑**，所以一旦给同线包裹
+ * 赋不同速度，快的就会从慢的身上穿过去（"超车"）。
+ *
+ * 因此这里强制：**同一条物理皮带上的所有包裹速度相同**。
+ * - 主环线与分流支线在 `x∈[5,8], z=0` 段共用同一段皮带，所以分流物料速度必须等于主线；
+ * - 立库出入库环、外部车道各自独立皮带，可独立定速，但环内必须同速。
+ */
+const LINE_SPEED = {
+  /** 主环线步速（m/s）。 */
+  main: 1.3,
+  /** 分流支线：与主环线共用 x5..8 段皮带，必须同速。 */
+  divert: 1.3,
+  /** 立库出入库环步速。 */
+  asrs: 0.9,
+  /** 外部数字孪生车道步速。 */
+  ext: 1.0,
+} as const;
 
 const CENTER = {
   belt: '#8BD3C7',
@@ -346,9 +385,11 @@ export const centerTemplate: SceneTemplateDescriptor<CenterTemplateParams> = {
       [x(-12), DECK_Y, z(2)],
       [x(-12), DECK_Y, z(0)],
     ];
+    // 主环线是一条连续皮带 → 所有包裹同速（LINE_SPEED.main）。靠 splitClosedLoop
+    // 把起步点错开在环上不同位置来维持间距，既不会互相超车、也不会叠在一起。
     for (let i = 0; i < mainCount; i += 1) {
       entities.push(
-        parcel(`parcel-${i + 1}`, splitClosedLoop(mainCorners, i / mainCount), 1.3 + i * 0.1, {
+        parcel(`parcel-${i + 1}`, splitClosedLoop(mainCorners, i / mainCount), LINE_SPEED.main, {
           label: `在制物料 ${i + 1}`,
           color: CENTER.cargo[i % CENTER.cargo.length],
           // 圆角半径要小于拐角处皮带的覆盖半宽（0.7），倒角才不会切到没皮带的地方。
@@ -384,7 +425,7 @@ export const centerTemplate: SceneTemplateDescriptor<CenterTemplateParams> = {
       [x(3), DECK_Y, z(0)],
     ];
     entities.push(
-      parcel('divert-cargo-1', splitClosedLoop(divertCorners, 0.15), 1.3, {
+      parcel('divert-cargo-1', splitClosedLoop(divertCorners, 0.15), LINE_SPEED.divert, {
         label: '分流物料 1',
         color: CENTER.cargo[2],
         cornerRadius: 0.4 * s,
@@ -448,7 +489,7 @@ export const centerTemplate: SceneTemplateDescriptor<CenterTemplateParams> = {
       corner(`corner-io-${aisleX}-4`, inX, 0);
       for (let i = 0; i < asrsCount; i += 1) {
         entities.push(
-          parcel(`asrs-${aisleX}-cargo-${i + 1}`, splitClosedLoop(ioCorners, i / asrsCount), 0.9 + i * 0.12, {
+          parcel(`asrs-${aisleX}-cargo-${i + 1}`, splitClosedLoop(ioCorners, i / asrsCount), LINE_SPEED.asrs, {
             label: `立库物料 ${aisleX}-${i + 1}`,
             color: CENTER.cargo[(i + 1) % CENTER.cargo.length],
             cornerRadius: 0.35 * s,
@@ -504,7 +545,7 @@ export const centerTemplate: SceneTemplateDescriptor<CenterTemplateParams> = {
         [x(20.3), DECK_Y, z(zCenter + 1.3)],
       ];
       entities.push(
-        parcel(`ext-cargo-${i + 1}`, splitClosedLoop(extCorners, 0), 1.0 + i * 0.08, {
+        parcel(`ext-cargo-${i + 1}`, splitClosedLoop(extCorners, 0), LINE_SPEED.ext, {
           label: `外部物料 ${i + 1}`,
           color: CENTER.cargo[(i + 2) % CENTER.cargo.length],
           cornerRadius: 0.2 * s,

@@ -233,3 +233,53 @@ describe('90° 转角模块', () => {
     }
   });
 });
+
+describe('同线货物不互相超车（也不堆叠）', () => {
+  const scene = buildCenterScene({ parcels: 10, asrsParcels: 3, externalLanes: 4 });
+  const speedOf = (id: string): number => scene.entities.find((e) => e.id === id)!.motion!.speed;
+
+  it('同一条主环线上所有包裹速度相同', () => {
+    const main = Array.from({ length: 10 }, (_, i) => speedOf(`parcel-${i + 1}`));
+    expect(new Set(main).size).toBe(1);
+  });
+
+  it('分流物料与主线同速（共享 x5..8, z0 段皮带，否则该段会互相超车）', () => {
+    expect(speedOf('divert-cargo-1')).toBe(speedOf('parcel-1'));
+  });
+
+  it('立库出入库环、外部车道各自环内同速', () => {
+    const asrs = ['a', 'b'].flatMap((t) =>
+      Array.from({ length: 3 }, (_, i) => speedOf(`asrs-8-cargo-${i + 1}`)),
+    );
+    expect(new Set(asrs).size).toBe(1);
+    const ext = Array.from({ length: 4 }, (_, i) => speedOf(`ext-cargo-${i + 1}`));
+    expect(new Set(ext).size).toBe(1);
+  });
+
+  it('主环线运行 30s 内任意两箱最近距离始终 > 3m（不超车、不堆叠）', () => {
+    const host = new PluginHost();
+    host.install(logisticsPlugin);
+    const world = new TwinWorld(buildCenterScene({ parcels: 10, asrsParcels: 3, externalLanes: 4 }), {
+      seed: 20240906,
+      maxStepsPerAdvance: 600,
+      behaviors: host.behaviors,
+    });
+    let minDist = Infinity;
+    for (let s = 0; s < 60 * 30; s += 1) {
+      world.step(1 / 60);
+      const ps: TwinVector3[] = [];
+      for (let i = 1; i <= 10; i += 1) {
+        const e = world.getEntity(`parcel-${i}`);
+        if (e) ps.push(e.transform.position);
+      }
+      for (let a = 0; a < ps.length; a += 1) {
+        for (let b = a + 1; b < ps.length; b += 1) {
+          const d = Math.hypot(ps[a]![0] - ps[b]![0], ps[a]![1] - ps[b]![1], ps[a]![2] - ps[b]![2]);
+          if (d < minDist) minDist = d;
+        }
+      }
+    }
+    // 10 箱在 ~76m 环上均布，间距 ~7.6m；若速度不同快箱会追尾、最小间距趋近 0。
+    expect(minDist).toBeGreaterThan(3);
+  });
+});
