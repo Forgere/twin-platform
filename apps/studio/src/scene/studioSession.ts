@@ -29,8 +29,11 @@ export interface CsvLoadResult {
 
 export const SAMPLE_CSV = ['t,id,x,y,z', '0,cargo-01,-5.2,1.15,0', '1,cargo-01,-2.4,1.15,0', '2,cargo-01,0.6,1.15,0', '3,cargo-01,3.4,1.15,0', '4,cargo-01,5.2,1.15,0'].join('\n');
 
-/** 默认工厂场景参数：8 个主环线在制物料 + 4 条外部车道。 */
-const FACTORY_PARAMS = { parcels: 8, externalLanes: 4 } as const;
+/**
+ * 默认物流中心场景参数：主环线 10 个在制物料、每个立库环 3 个、4 条外部车道、2 条巷道。
+ * 注意：`compare()` 也复用同一组参数，两处必须保持一致，否则分叉对比跑的不是同一套场景。
+ */
+const CENTER_PARAMS = { parcels: 10, asrsParcels: 3, externalLanes: 4, aisles: 2 } as const;
 
 /** HUD 用的实时遥测快照（由世界事件日志派生，不在 Studio 里重算语义）。 */
 export interface StudioTelemetry {
@@ -186,7 +189,7 @@ export class StudioSession {
    */
   compare(forkAt: number, horizon: number, zoneB: number): ScenarioDiff {
     return compareScenarios({
-      scene: buildFactoryScene(FACTORY_PARAMS),
+      scene: buildCenterScene(CENTER_PARAMS),
       forkAt,
       horizon,
       variants: [

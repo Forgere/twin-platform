@@ -86,7 +86,8 @@ export function createAsrsBehavior(config: AsrsBehaviorConfig = {}): WorldBehavi
 
         const column = ((lap % columns) + columns) % columns;
         const zTarget = zMin + (column / (columns - 1)) * (zMax - zMin);
-        const levelY = levels[((lap % levels.length) + levels.length) % levels.length] ?? ioY;
+        const levelIndex = ((lap % levels.length) + levels.length) % levels.length;
+        const levelY = levels[levelIndex] ?? ioY;
         const toNear = ((lap % 2) + 2) % 2 === 0;
         const side = toNear ? -1 : 1;
         const forkX = toNear ? forkNear : forkFar;
@@ -122,14 +123,18 @@ export function createAsrsBehavior(config: AsrsBehaviorConfig = {}): WorldBehavi
         // 事件只在跨过对应拍点时发一次，用圈次幂等，不靠浮点比较。
         const pickLap = num(crane.attrs.__pickLap, -1);
         if (lap > pickLap && u >= 0.06) {
-          ctx.emit(retrieveType, { entityId: crane.id, payload: { lap, level: levelY, side: toNear ? 'near' : 'far' } });
+          // level 是"第几层"（1 起算，给人看/给 HUD 用），height 是实际货架高度（给仿真用）。
+          ctx.emit(retrieveType, {
+            entityId: crane.id,
+            payload: { lap, level: levelIndex + 1, height: levelY, side: toNear ? 'near' : 'far' },
+          });
           ctx.setAttr(crane.id, '__pickLap', lap);
         }
         const storeLap = num(crane.attrs.__storeLap, -1);
         if (lap > storeLap && u >= 0.54) {
           ctx.emit(storeType, {
             entityId: crane.id,
-            payload: { lap, column, level: levelY, side: toNear ? 'near' : 'far' },
+            payload: { lap, column, level: levelIndex + 1, height: levelY, side: toNear ? 'near' : 'far' },
           });
           ctx.setAttr(crane.id, '__storeLap', lap);
         }
