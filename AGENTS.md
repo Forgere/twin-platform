@@ -9,6 +9,15 @@ The installed packages ship agent skills that match their exact installed versio
 - `node_modules/solid-js/skills/reactivity-diagnostics/SKILL.md` — repair guide mapping every dev-mode diagnostic code (e.g. `REACTIVE_WRITE_IN_OWNED_SCOPE`, `STRICT_READ_UNTRACKED`) to its prescribed fix. Read it whenever a Solid diagnostic code appears in test output or the browser console.
 - `node_modules/@solidjs/diagnostics/skills/agent-loops/SKILL.md` — how to capture reactive evidence (which scopes re-ran and why, wasted recomputes, cost tables) and assert budgets, in tests and against live pages.
 
+## Project skills (`.agents/skills/<name>/SKILL.md` — auto-discovered)
+
+This repo ships its own skills for the logistics domain; the harness scans `.agents/skills/` and puts each `description` into the model catalog, so they fire without a restart:
+
+- `factory-scene` — 搭建 / 改造工厂产线场景：场景模板、布局铁律、行为接线、测试与阶段文档（动 `template.ts` 前读）。
+- `device-plugin` — 新增设备类型或扩展物流插件：设备工厂 + 3D 模型 + 行为 + 注册 + 测试（动 `devices.ts` / 行为文件 / manifest 前读）。
+
+新增第三个 skill：在 `.agents/skills/<name>/SKILL.md` 建文件，frontmatter 必须有 `name` 与 `description`，正文用「步骤 + 完成标准 + 参考」三段。
+
 ## Reactive diagnostics — capture evidence instead of guessing
 
 Use these whenever you are debugging reactivity (something doesn't update, updates too often, or is slow) or verifying a change didn't regress update granularity:
