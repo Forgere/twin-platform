@@ -59,14 +59,15 @@ function onBelt(boxes: BeltBox[], position: readonly number[]): boolean {
  * 光靠静态路径校验是抓不到的，所以这里直接驱动世界。
  */
 function runCenter(steps: number, sampleEvery = 30) {
-  const scene = buildCenterScene({ parcels: 10, asrsPallets: 6, externalLanes: 4, aisles: 2 });
+  // 小货物由发生器动态产出，所以间隔压到 2s，跑一小会儿线上就有货了。
+  const scene = buildCenterScene({ maxWip: 10, produceInterval: 2, highWater: 6, externalLanes: 4, aisles: 2 });
   const behaviors = (logisticsPlugin.activate().behaviors ?? []) as WorldBehavior[];
   const world = new TwinWorld(scene as never, { seed: 20240906, step: STEP, behaviors, maxStepsPerAdvance: 8 });
 
   const boxes = beltBoxes(scene.entities);
-  const parcels = scene.entities.filter((entity) => entity.kind === 'parcel');
   const offBelt: string[] = [];
   let samples = 0;
+  let parcelCount = 0;
 
   const stackers = scene.entities.filter((entity) => entity.kind === 'stacker');
   const carriages = scene.entities.filter((entity) => entity.kind === 'carriage');
@@ -79,12 +80,13 @@ function runCenter(steps: number, sampleEvery = 30) {
     world.step(STEP);
     if (i % sampleEvery !== 0) continue;
 
-    for (const parcel of parcels) {
-      const position = world.getEntity(parcel.id)?.transform.position;
-      if (!position) continue;
+    // 小货物是运行时生成的：每步从世界状态里捞，而不是查场景声明表。
+    for (const parcel of world.listEntities()) {
+      if (parcel.kind !== 'parcel') continue;
+      parcelCount += 1;
       samples += 1;
-      if (!onBelt(boxes, position)) {
-        offBelt.push(`${parcel.id}@${position.map((n) => n.toFixed(2)).join(',')}`);
+      if (!onBelt(boxes, parcel.transform.position)) {
+        offBelt.push(`${parcel.id}@${parcel.transform.position.map((n) => n.toFixed(2)).join(',')}`);
       }
     }
 
@@ -94,20 +96,21 @@ function runCenter(steps: number, sampleEvery = 30) {
     for (const entity of forks) seenX.get(entity.id)?.add(round(world.getEntity(entity.id)?.transform.position[0] ?? 0));
   }
 
-  return { world, boxes, parcels, offBelt, samples, seenZ, seenY, seenX, stackers, carriages, forks };
+  return { world, boxes, parcelCount, offBelt, samples, seenZ, seenY, seenX, stackers, carriages, forks };
 }
 
 describe('智能物流中心 · 运行时', () => {
   test('物料全程贴着皮带走，不会脱线悬空', () => {
     const run = runCenter(2400); // 40 秒
-    expect(run.parcels.length).toBeGreaterThan(0);
+    expect(run.parcelCount).toBeGreaterThan(0);
     expect(run.samples).toBeGreaterThan(0);
     // 关键回归：曾经物料路径是手写角点，很多段下面压根没皮带。
     expect(run.offBelt).toEqual([]);
   });
 
   test('堆垛机三轴都在动：门架走巷道、载货台升降、货叉伸缩', () => {
-    const run = runCenter(2400);
+    // 90 秒：足够"发生器产出 → 打包 → 托盘走到队列 → 堆垛机取货入库"走一轮。
+    const run = runCenter(60 * 90);
     expect(run.stackers.length).toBe(2);
     for (const [id, values] of run.seenZ) expect(values.size, `门架 ${id} 未沿 Z 行走`).toBeGreaterThan(3);
     for (const [id, values] of run.seenY) expect(values.size, `载货台 ${id} 未沿 Y 升降`).toBeGreaterThan(3);
@@ -115,7 +118,7 @@ describe('智能物流中心 · 运行时', () => {
   });
 
   test('立库存取事件会发，且层号是给 HUD 用的整数层数', () => {
-    // 240 秒：托盘池（每巷道 6 块）先被搬进货架，之后队列空了才开始出库。
+    // 240 秒：先由打包站攒出托盘、入库，库存到高水位后开始出库。
     const run = runCenter(60 * 240);
     const events = run.world.getEventLog();
     const stores = events.filter((event) => event.type === 'asrs:store');
@@ -133,8 +136,8 @@ describe('智能物流中心 · 运行时', () => {
   });
 
   test('托盘被搬进货架：位置落在货架占地内、且坐在声明的层高上', () => {
-    const run = runCenter(60 * 120);
-    const pallets = run.world.scene.entities.filter((entity) => entity.kind === 'pallet');
+    const run = runCenter(60 * 240);
+    const pallets = run.world.listEntities().filter((entity) => entity.kind === 'pallet');
     const racks = run.world.scene.entities.filter((entity) => entity.kind === 'asrs');
     let stored = 0;
     for (const pallet of pallets) {

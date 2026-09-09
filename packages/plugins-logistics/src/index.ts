@@ -5,6 +5,8 @@ import { createAsrsBehavior } from './asrs';
 import { createTransferBehavior } from './transfer';
 import { createBufferFillBehavior } from './bufferFill';
 import { createPackingBehavior } from './packing';
+import { createGoodsSourceBehavior } from './source';
+import { createTruckBehavior } from './truck';
 import { lineMetricsDescriptors } from './metrics';
 import { lineTemplate, factoryTemplate, centerTemplate } from './template';
 
@@ -22,16 +24,26 @@ import { lineTemplate, factoryTemplate, centerTemplate } from './template';
 export const logisticsPlugin: TwinPlugin = {
   manifest: {
     id: 'logistics',
-    version: '0.3.0',
+    version: '0.4.0',
     sdkVersion: '^0.1.0',
     name: '物流（输送线 · 工厂 · 立库）',
     description:
-      '输送线、检测、缓存、分拣、立体仓库、顶升移栽的领域语义：包裹流转事件 + 设备忙闲状态 + 堆垛机存取循环（货架先入先出库存：托盘入架/出库/回队） + 顶升分流 + 产线/工厂指标。含 logistics-line、logistics-factory、logistics-center 三个场景模板。',
+      '输送线、检测、缓存、分拣、立体仓库、顶升移栽的领域语义：包裹流转事件 + 设备忙闲状态 + 堆垛机存取循环（货架先入先出库存）+ 小货物发生器/打包站（N 合 1）/出库卡车 + 顶升分流 + 产线/工厂指标。含 logistics-line、logistics-factory、logistics-center 三个场景模板。',
     capabilities: ['behavior', 'analytics', 'scene-template'],
   },
   activate(): PluginInstance {
     return {
-      behaviors: [createLogisticsBehavior(), createAsrsBehavior(), createTransferBehavior(), createBufferFillBehavior(), createPackingBehavior()],
+      // 顺序即契约：发生器先产出 → 立库发布队列余量并接管出料带上的托盘 →
+      // 打包站按余量打包 → 卡车把出库托盘拉走。
+      behaviors: [
+        createLogisticsBehavior(),
+        createGoodsSourceBehavior(),
+        createAsrsBehavior(),
+        createPackingBehavior(),
+        createTruckBehavior(),
+        createTransferBehavior(),
+        createBufferFillBehavior(),
+      ],
       metrics: lineMetricsDescriptors,
       templates: [
         lineTemplate as unknown as SceneTemplateDescriptor,
@@ -47,6 +59,8 @@ export { createAsrsBehavior, palletPoolCapacity, type AsrsBehaviorConfig, type C
 export { createTransferBehavior } from './transfer';
 export { createBufferFillBehavior, type BufferFillConfig } from './bufferFill';
 export { createPackingBehavior, type PackingConfig } from './packing';
+export { createGoodsSourceBehavior, type GoodsSourceConfig } from './source';
+export { createTruckBehavior, type TruckConfig } from './truck';
 export { buildLineScene, lineTemplate, type LineTemplateParams } from './template';
 export { buildFactoryScene, factoryTemplate, type FactoryTemplateParams } from './template';
 export { buildCenterScene, centerTemplate, splitClosedLoop, type CenterTemplateParams } from './template';
@@ -55,12 +69,19 @@ export {
   asrsRack,
   bufferRack,
   conveyorSegment,
+  conveyorPolyline,
+  goodsSource,
   inspectionStation,
   liftTransfer,
   liftTransferCassette,
+  packingStation,
   pallet,
   parcel,
   stackerCarriage,
   stackerCrane,
   stackerFork,
+  truck,
+  type GoodsSourceOptions,
+  type PackingStationOptions,
+  type TruckOptions,
 } from './devices';

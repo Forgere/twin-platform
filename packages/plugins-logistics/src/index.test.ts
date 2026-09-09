@@ -19,9 +19,16 @@ describe('logistics 插件', () => {
     const host = new PluginHost();
     const record = host.install(logisticsPlugin);
     expect(record.state).toBe('active');
-    // logistics-flow + asrs-cycle + transfer-cycle + buffer-fill + packing 共五个行为。
-    expect(host.behaviors).toHaveLength(5);
-    expect(host.behaviors[0]?.id).toBe('logistics-flow');
+    // 顺序即契约：流转 → 发生器 → 立库 → 打包 → 卡车 → 移栽 → 缓存填充。
+    expect(host.behaviors.map((behavior) => behavior.id)).toEqual([
+      'logistics-flow',
+      'goods-source',
+      'asrs-cycle',
+      'packing',
+      'truck-cycle',
+      'transfer-cycle',
+      'buffer-fill',
+    ]);
     expect(host.metrics.map((metric) => metric.id)).toEqual(['throughput', 'busy-duration']);
     expect(host.templates.map((template) => template.id)).toEqual([
       'logistics-line',

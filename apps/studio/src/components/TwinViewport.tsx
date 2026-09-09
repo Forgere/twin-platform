@@ -148,10 +148,19 @@ export default function TwinViewport() {
     return entity && controller ? controller.describeEntity(entity.id) : [];
   };
 
-  const visibleEntities = (): TwinEntityView[] =>
-    filter() === 'device'
-      ? entities().filter((entity) => !CARGO_KINDS.has(entity.kind))
-      : entities().filter((entity) => CARGO_KINDS.has(entity.kind));
+  /**
+   * 实体列表：场景声明的 + 运行时生成出来的（发生器产的小货物、打包出的托盘…）。
+   *
+   * 读 `tick()` 是为了在采样节拍上重算——生成的实体不经过信号，
+   * 只能按节拍从世界状态里拉（和实时状态行同一个套路）。
+   */
+  const visibleEntities = (): TwinEntityView[] => {
+    tick();
+    const all = controller ? controller.listEntities() : entities();
+    return filter() === 'device'
+      ? all.filter((entity) => !CARGO_KINDS.has(entity.kind))
+      : all.filter((entity) => CARGO_KINDS.has(entity.kind));
+  };
 
   return (
     <main class="studio-shell">
@@ -194,33 +203,58 @@ export default function TwinViewport() {
             <Show when={hud()}>
               <div class="title-card">
                 <h2>智能物流中心 🏭</h2>
-                <p>环形输送线 · 双巷道立库 · 双堆垛机</p>
+                <p>小货物发生器 → 2 合 1 打包 → 立库 → 卡车运走（闭环）</p>
               </div>
 
               <div class="telemetry-hud" aria-label="仿真遥测">
                 <h3>📡 Sim Telemetry</h3>
                 <div class="telemetry-grid">
                   <div class="tele-cell">
-                    <span class="tele-label">在制</span>
+                    <span class="tele-label">在制小件</span>
                     <span class="tele-value">{telemetry().active}</span>
                   </div>
                   <div class="tele-cell">
-                    <span class="tele-label">积压</span>
-                    <span class="tele-value">{telemetry().backlog}</span>
-                  </div>
-                  <div class="tele-cell">
-                    <span class="tele-label">已生成</span>
+                    <span class="tele-label">已产出</span>
                     <span class="tele-value">{telemetry().spawned}</span>
                   </div>
                   <div class="tele-cell">
-                    <span class="tele-label">已消耗</span>
+                    <span class="tele-label">已打包</span>
+                    <span class="tele-value">{telemetry().packed}</span>
+                  </div>
+                  <div class="tele-cell">
+                    <span class="tele-label">已运走</span>
                     <span class="tele-value">{telemetry().consumed}</span>
+                  </div>
+                  <div class="tele-cell">
+                    <span class="tele-label">在制托盘</span>
+                    <span class="tele-value">{telemetry().pallets}</span>
                   </div>
                   <div class="tele-cell">
                     <span class="tele-label">立库库存</span>
                     <span class="tele-value">
                       {telemetry().stock}/{telemetry().capacity}
                     </span>
+                  </div>
+                </div>
+
+                <div class="tele-section">
+                  <span class="tele-label">卡车</span>
+                  <div class="tele-chips">
+                    <For each={telemetry().trucks}>
+                      {(truck) => (
+                        <span class="chip chip-idle">
+                          {truck.label}{' '}
+                          {truck.state === 'docked'
+                            ? `装车中 ${truck.load}`
+                            : truck.state === 'departing'
+                              ? '驶离中'
+                              : truck.state === 'away'
+                                ? '在门外'
+                                : '回场中'}
+                        </span>
+                      )}
+                    </For>
+                    <span class="chip chip-idle">已发车 {telemetry().truckTrips} 趟</span>
                   </div>
                 </div>
 

@@ -1,5 +1,6 @@
 import type { BehaviorContext, WorldBehavior, WorldEntityState } from '@twin-platform/world-kernel';
 import type { TwinVector3 } from '@twin-platform/scene-schema';
+import { approach, measurePolyline, num, numList, samplePolyline, str, toXZ, vector3, vectorList, type Polyline } from './geometry';
 
 /**
  * 堆垛机存取循环 + 货架先入先出（FIFO）库存行为。
@@ -67,6 +68,9 @@ export interface AsrsBehaviorConfig {
   retrieveType?: string;
 }
 
+/** 入库队列的一段：托盘按弧长在上面滚动。 */
+export type QueueLine = Polyline;
+
 /** 一个货位：位置 + 给人看的坐标（第几层第几列、哪一侧）。 */
 interface RackSlot {
   /** 货位键 `侧:层:列`，写进托盘 attrs.slot，也是库存的真相。 */
@@ -88,22 +92,17 @@ interface CraneLayout {
   reach: number;
   forkX: [number, number];
   slots: RackSlot[];
-  /** 入库队列中心线（XZ 折线）+ 每段长度，托盘按弧长在上面滚动。 */
-  queue: { points: [number, number][]; lengths: number[]; total: number };
+  /** 入库队列中心线：托盘按弧长在上面滚动。 */
+  queue: QueueLine;
   /** 出库接驳带上的货位（XZ）。 */
   outfeed: [number, number][];
+  /** 出库托盘从取货点走到货位的路径（XZ），空数组表示直接落位。 */
+  outbound: QueueLine;
+  /** 出库托盘去向：回收（闭环托盘池）还是被卡车拉走。 */
+  outboundMode: 'recycle' | 'shipped';
+  /** 库存高水位：到线就转去出库。 */
+  highWater: number;
 }
-
-const num = (value: unknown, fallback: number): number =>
-  typeof value === 'number' && Number.isFinite(value) ? value : fallback;
-
-const numList = (value: unknown, fallback: number[]): number[] => {
-  if (!Array.isArray(value)) return fallback;
-  const list = value.filter((item): item is number => typeof item === 'number' && Number.isFinite(item));
-  return list.length > 0 ? list : fallback;
-};
-
-const str = (value: unknown, fallback: string): string => (typeof value === 'string' ? value : fallback);
 
 const clamp01 = (value: number): number => (value < 0 ? 0 : value > 1 ? 1 : value);
 
@@ -112,32 +111,6 @@ const ramp = (u: number, from: number, to: number): number => {
   const t = clamp01((u - from) / Math.max(to - from, 1e-9));
   return t * t * (3 - 2 * t);
 };
-
-/** 朝目标推进，最多走 maxDelta（队列滚动用）。 */
-const approach = (current: number, target: number, maxDelta: number): number => {
-  const delta = target - current;
-  if (Math.abs(delta) <= maxDelta) return target;
-  return current + (delta > 0 ? maxDelta : -maxDelta);
-};
-
-/** 沿 XZ 折线按弧长取点（队列滚动用；纯函数，越界即 clamp 到两端）。 */
-function samplePolyline(points: readonly [number, number][], lengths: readonly number[], s: number): [number, number] {
-  const first = points[0];
-  const last = points[points.length - 1];
-  if (!first || !last) return [0, 0];
-  let remaining = Math.max(0, s);
-  for (let i = 0; i < lengths.length; i += 1) {
-    const length = lengths[i] ?? 0;
-    const a = points[i]!;
-    const b = points[i + 1]!;
-    if (remaining <= length || i === lengths.length - 1) {
-      const t = length <= 1e-9 ? 0 : Math.min(1, remaining / length);
-      return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
-    }
-    remaining -= length;
-  }
-  return [last[0], last[1]];
-}
 
 /** 派生实体 id：门架 `stacker-a` → 载货台 `stacker-a-carriage`。 */
 const derived = (ctx: BehaviorContext, base: string, suffix: string): WorldEntityState | undefined =>
@@ -196,24 +169,23 @@ function craneLayout(crane: CraneSpec, queuePitch: number): CraneLayout {
   // 入库队列：从堆垛机取货点（巷道口正下方）沿站台横段西行，再拐到竖段南行。
   const headX = aisleX - 0.5;
   const cornerX = stationX + 0.4;
-  const points: [number, number][] = [
+  const queue = measurePolyline([
     [headX, ioZ],
     [cornerX, ioZ],
     [stationX, ioZ - 0.4],
     [stationX, ioZ - 1.4],
-  ];
-  const lengths: number[] = [];
-  for (let i = 0; i < points.length - 1; i += 1) {
-    const a = points[i]!;
-    const b = points[i + 1]!;
-    lengths.push(Math.hypot(b[0] - a[0], b[1] - a[1]));
-  }
-  const total = lengths.reduce((sum, value) => sum + value, 0);
+  ]);
 
+  const outfeedX = num(conf.outfeedX, stationX);
   const outfeedZ = numList(conf.outfeedZ, [1.6, 0.8]);
-  const outfeed: [number, number][] = outfeedZ.map((z) => [stationX, z]);
+  const outfeed: [number, number][] = outfeedZ.map((z) => [outfeedX, z]);
 
-  return { aisleX, ioZ, ioY, cycle, phase, reach, forkX, slots, queue: { points, lengths, total }, outfeed };
+  // 出库路径：从取货点出发（默认直接落到货位，即"没有路径"）。
+  const outbound = measurePolyline(toXZ(vectorList(conf.outboundPath)));
+  const outboundMode: 'recycle' | 'shipped' = str(conf.outboundMode, 'recycle') === 'shipped' ? 'shipped' : 'recycle';
+  const highWater = num(conf.highWater, Number.POSITIVE_INFINITY);
+
+  return { aisleX, ioZ, ioY, cycle, phase, reach, forkX, slots, queue, outfeed, outbound, outboundMode, highWater };
 }
 
 /** 托盘池里能排进队列的最大块数（受队列长度限制）。场景模板靠它决定生成几块托盘。 */
@@ -262,7 +234,15 @@ export function createAsrsBehavior(config: AsrsBehaviorConfig = {}): WorldBehavi
     if (changed) ctx.setAttr(crane.id, '__order', order);
   };
 
-  /** 出库托盘离开货叉：落到出库接驳带的货位上等"外部取走"。 */
+  /**
+   * 出库托盘离开货叉：送到出库接驳带上。
+   *
+   * 两条路径：
+   * - 声明了 `outboundPath`（出库带在巷道侧）→ 托盘沿路径**自己走出去**，
+   *   位置每步由 `advanceOutbound` 推进，看起来就是出库输送机把它送走；
+   * - 没声明 → 直接落到出库货位上（出库带与站台同侧时，路径会穿过入库队列，
+   *   只能退化成落位，见 logistics-center）。
+   */
   const releaseCarriedOut = (
     ctx: BehaviorContext,
     crane: WorldEntityState,
@@ -272,18 +252,58 @@ export function createAsrsBehavior(config: AsrsBehaviorConfig = {}): WorldBehavi
   ): void => {
     for (const pallet of pallets) {
       if (pallet.attrs.state !== 'carrying-out') continue;
-      const dockIndex = num(crane.attrs.__outDock, 0) % layout.outfeed.length;
-      const dock = layout.outfeed[dockIndex] ?? [layout.aisleX, layout.ioZ];
-      ctx.setAttr(crane.id, '__outDock', num(crane.attrs.__outDock, 0) + 1);
+      const outOrder = num(crane.attrs.__outOrder, 0);
+      ctx.setAttr(crane.id, '__outOrder', outOrder + 1);
       ctx.setAttr(pallet.id, 'state', 'outbound');
+      ctx.setAttr(pallet.id, 'outOrder', outOrder);
       ctx.setAttr(pallet.id, 'outUntil', ctx.time + dwell);
       ctx.setAttr(pallet.id, 'slot', '');
+      if (layout.outbound.total > 1e-6) {
+        // 沿出库带走：outpos 是弧长，目标由"第几个出库托盘"决定（见 advanceOutbound）。
+        ctx.setAttr(pallet.id, 'outpos', 0);
+        const [px, pz] = samplePolyline(layout.outbound, 0);
+        ctx.setTransform(pallet.id, { position: [px, layout.ioY + PALLET_SEAT, pz] });
+        continue;
+      }
+      const dock = layout.outfeed[outOrder % layout.outfeed.length] ?? [layout.aisleX, layout.ioZ];
       ctx.setTransform(pallet.id, { position: [dock[0], layout.ioY + PALLET_SEAT, dock[1]] });
     }
   };
 
-  /** 出库等待结束的托盘回到入库队列尾部（= 外部补进一块新托盘）。 */
+  /**
+   * 出库托盘沿出库路径往外走（每步推进 `queueSpeed × dt`）。
+   *
+   * 走到终点就停在那儿等外部取走——`shipped` 模式下等卡车，`recycle` 模式下等
+   * `outUntil` 到点回队列。位置是"弧长 + 路径"的纯函数，快照恢复后继续走不会错位。
+   */
+  const advanceOutbound = (ctx: BehaviorContext, pallets: WorldEntityState[], layout: CraneLayout): void => {
+    if (layout.outbound.total <= 1e-6) return;
+    // 出库托盘在带上按"第几个出库"排成一列：队首走到路径终点（离卡车最近），
+    // 后面的依次退后一个节距。卡车拉走队首后，其余整体往前挪一格——
+    // 和入库队列同一套逻辑，方向相反。
+    const outbound = pallets
+      .filter((pallet) => pallet.attrs.state === 'outbound')
+      .sort((a, b) => num(a.attrs.outOrder, 0) - num(b.attrs.outOrder, 0) || (a.id < b.id ? -1 : 1));
+
+    outbound.forEach((pallet, rank) => {
+      const target = Math.max(0, layout.outbound.total - rank * queuePitch);
+      const current = num(pallet.attrs.outpos, target);
+      const next = approach(current, target, queueSpeed * ctx.dt);
+      if (next === current) return; // 已就位：不再每步刷帧差量
+      ctx.setAttr(pallet.id, 'outpos', next);
+      const [px, pz] = samplePolyline(layout.outbound, next);
+      ctx.setTransform(pallet.id, { position: [px, layout.ioY + PALLET_SEAT, pz] });
+    });
+  };
+
+  /**
+   * 出库等待结束的托盘回到入库队列尾部（= 外部补进一块新托盘）。
+   *
+   * 只用于 `recycle` 模式（托盘池闭环的演示场景）；`shipped` 模式下出库托盘
+   * 由卡车 `despawn` 掉，不会回流。
+   */
   const requeueExpired = (ctx: BehaviorContext, crane: WorldEntityState, pallets: WorldEntityState[], layout: CraneLayout): void => {
+    if (layout.outboundMode !== 'recycle') return;
     let order = num(crane.attrs.__order, 0);
     for (const pallet of pallets) {
       if (pallet.attrs.state !== 'outbound') continue;
@@ -299,7 +319,11 @@ export function createAsrsBehavior(config: AsrsBehaviorConfig = {}): WorldBehavi
 
   /**
    * 每圈一次的任务决策（FIFO）：
-   * 队列里有货且有空货位 → 入库（取队列头）；否则货架非空 → 出库（取入架序号最小）。
+   * - 队列里有货、有空货位、且库存没到高水位 → 入库（取队列头）；
+   * - 否则货架非空 → 出库（取入架序号最小）。
+   *
+   * `highWater` 让产线"边进边出"：库存到线就转去出库，而不是等货位填满
+   * 才开始往外送（真实仓库也这么干，否则卡车要等到满库才有货）。
    */
   const planTask = (ctx: BehaviorContext, crane: WorldEntityState, pallets: WorldEntityState[], layout: CraneLayout): void => {
     const stored = pallets.filter((pallet) => pallet.attrs.state === 'stored');
@@ -307,7 +331,7 @@ export function createAsrsBehavior(config: AsrsBehaviorConfig = {}): WorldBehavi
     const head = queued[0];
     const freeSlot = layout.slots.find((slot) => !stored.some((pallet) => pallet.attrs.slot === slot.key));
 
-    if (head && freeSlot) {
+    if (head && freeSlot && stored.length < layout.highWater) {
       ctx.setAttr(crane.id, '__task', 'store');
       ctx.setAttr(crane.id, '__taskPallet', head.id);
       ctx.setAttr(crane.id, '__taskSlot', freeSlot.key);
@@ -328,6 +352,41 @@ export function createAsrsBehavior(config: AsrsBehaviorConfig = {}): WorldBehavi
     ctx.setAttr(crane.id, '__taskSlot', '');
   };
 
+  /**
+   * 出料带上的托盘：沿**打包站声明的路径**（托盘自己的 `config.path`）往队列尾走，
+   * 走到头就入队。
+   *
+   * 这段刻意不用内核 motion：打包站生成的托盘如果带 motion，内核每步都会把它拉回
+   * 路径终点，和货架行为写的货位/出库带位置打架（踩过一次）。所以托盘从出生起
+   * 位姿就全程归本行为管，"conveying → queued"只是状态切换。
+   */
+  const advanceConveying = (ctx: BehaviorContext, crane: WorldEntityState, pallets: WorldEntityState[], layout: CraneLayout): void => {
+    let order = num(crane.attrs.__order, 0);
+    let changed = false;
+    for (const pallet of pallets) {
+      if (pallet.attrs.state !== 'conveying') continue;
+      const line = measurePolyline(toXZ(vectorList(pallet.config?.path)));
+      const speed = Math.max(0.05, num(pallet.config?.speed, queueSpeed));
+      const total = line.total;
+      const current = num(pallet.attrs.inpos, 0);
+      const next = total > 1e-6 ? approach(current, total, speed * ctx.dt) : total;
+
+      if (total > 1e-6 && next !== current) {
+        ctx.setAttr(pallet.id, 'inpos', next);
+        const [px, pz] = samplePolyline(line, next);
+        ctx.setTransform(pallet.id, { position: [px, layout.ioY + PALLET_SEAT, pz] });
+      }
+      if (next < total - 1e-6) continue; // 还在路上
+
+      ctx.setAttr(pallet.id, 'state', 'queued');
+      ctx.setAttr(pallet.id, 'order', order);
+      ctx.setAttr(pallet.id, 'qpos', layout.queue.total);
+      order += 1;
+      changed = true;
+    }
+    if (changed) ctx.setAttr(crane.id, '__order', order);
+  };
+
   /** 队列滚动：按 order 排队，目标弧长 = 名次 × 节距，位置沿折线插值。 */
   const rollQueue = (ctx: BehaviorContext, pallets: WorldEntityState[], layout: CraneLayout): void => {
     const queued = pallets.filter((pallet) => pallet.attrs.state === 'queued').sort(queueOrder);
@@ -338,7 +397,7 @@ export function createAsrsBehavior(config: AsrsBehaviorConfig = {}): WorldBehavi
       const moved = Math.abs(next - current) > 1e-9;
       if (moved) ctx.setAttr(pallet.id, 'qpos', next);
       if (moved || num(pallet.attrs.__qrank, -1) !== rank) {
-        const [px, pz] = samplePolyline(layout.queue.points, layout.queue.lengths, next);
+        const [px, pz] = samplePolyline(layout.queue, next);
         ctx.setTransform(pallet.id, { position: [px, layout.ioY + PALLET_SEAT, pz] });
         ctx.setAttr(pallet.id, '__qrank', rank);
       }
@@ -372,6 +431,12 @@ export function createAsrsBehavior(config: AsrsBehaviorConfig = {}): WorldBehavi
     if (str(crane.attrs.task, '') !== task) ctx.setAttr(crane.id, 'task', task);
     if (num(crane.attrs.stock, -1) !== stored.length) ctx.setAttr(crane.id, 'stock', stored.length);
     if (str(crane.attrs.nextOut, '') !== nextOut) ctx.setAttr(crane.id, 'nextOut', nextOut);
+
+    // 入库队列还剩几个位子——打包站靠它做背压（在路上的 conveying 也算占位）。
+    const capacity = Math.max(1, Math.floor(layout.queue.total / queuePitch) + 1);
+    const occupied = pallets.filter((pallet) => pallet.attrs.state === 'queued' || pallet.attrs.state === 'conveying').length;
+    const queueFree = Math.max(0, capacity - occupied);
+    if (num(crane.attrs.queueFree, -1) !== queueFree) ctx.setAttr(crane.id, 'queueFree', queueFree);
   };
 
   return {
@@ -411,6 +476,10 @@ export function createAsrsBehavior(config: AsrsBehaviorConfig = {}): WorldBehavi
           planTask(ctx, crane, pallets, layout);
           ctx.setAttr(crane.id, '__lap', lap);
         }
+
+        // 出料带上走到头的托盘入队；已在出库路径上的托盘继续往外走。
+        advanceConveying(ctx, crane, pallets, layout);
+        advanceOutbound(ctx, pallets, layout);
 
         const task = readTask(crane);
         const slot = layout.slots.find((item) => item.key === task.slotKey);

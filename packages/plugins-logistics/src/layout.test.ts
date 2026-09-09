@@ -143,3 +143,53 @@ describe('center 场景布局', () => {
     expect(missing).toEqual([]);
   });
 });
+
+/**
+ * 闭环产线的布局铁律：小货物路径、两条打包出料带、两段载货站台各自首尾相接，
+ * 但**不许叠面**；每条路径的每个拐点都必须踩在皮带上。
+ */
+describe('闭环产线布局（center 场景）', () => {
+  const scene = buildCenterScene({ maxWip: 10, produceInterval: 6, externalLanes: 4 });
+  const boxes = footprints(scene.entities);
+
+  it('小货物路径的每个拐点都踩在皮带上（不脱线）', () => {
+    const source = scene.entities.find((entity) => entity.kind === 'source')!;
+    const path = source.config?.goodsPath as [number, number, number][];
+    expect(path.length).toBeGreaterThan(2);
+    // 首尾闭合，否则 loop:'repeat' 会让小货物瞬移回起点
+    expect(path[0]).toEqual(path[path.length - 1]);
+    for (const point of path) {
+      const ok = boxes.some((b) => point[0] >= b.x0 - EPS && point[0] <= b.x1 + EPS && point[2] >= b.z0 - EPS && point[2] <= b.z1 + EPS);
+      expect(ok, `小货物拐点 (${point[0]}, ${point[2]}) 下方没有皮带`).toBe(true);
+    }
+  });
+
+  it('两条打包出料带把托盘送进各自巷道的队列尾，端点都有皮带托着', () => {
+    const packs = scene.entities.filter((entity) => entity.kind === 'pack');
+    expect(packs.length).toBe(2);
+    for (const pack of packs) {
+      const path = pack.config?.palletPath as [number, number, number][];
+      expect(path.length).toBe(4);
+      for (const point of path) {
+        const ok = boxes.some((b) => point[0] >= b.x0 - EPS && point[0] <= b.x1 + EPS && point[2] >= b.z0 - EPS && point[2] <= b.z1 + EPS);
+        expect(ok, `${pack.id} 托盘路径端点 (${point[0]}, ${point[2]}) 下方没有皮带`).toBe(true);
+      }
+    }
+  });
+
+  it('出库缓存台摆在皮带走廊里，不压任何输送线', () => {
+    const docks = scene.entities.filter((entity) => entity.id.startsWith('dock-'));
+    expect(docks.length).toBe(2);
+    for (const dock of docks) {
+      const size = dock.visual?.size ?? [0, 0, 0];
+      const px = dock.transform.position[0];
+      const pz = dock.transform.position[2];
+      const clash = boxes.filter((b) => b.owner !== dock.id).some((b) => {
+        const ox = Math.min(px + size[0] / 2, b.x1) - Math.max(px - size[0] / 2, b.x0);
+        const oz = Math.min(pz + size[2] / 2, b.z1) - Math.max(pz - size[2] / 2, b.z0);
+        return ox > EPS && oz > EPS;
+      });
+      expect(clash, `${dock.id} 和别的皮带叠面了`).toBe(false);
+    }
+  });
+});

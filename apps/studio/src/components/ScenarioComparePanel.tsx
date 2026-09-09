@@ -13,7 +13,7 @@ export default function ScenarioComparePanel(props: {
 }) {
   const [forkAt, setForkAt] = createSignal(0);
   const [horizon, setHorizon] = createSignal(20);
-  const [zoneB, setZoneB] = createSignal(0.5);
+  const [zoneB, setZoneB] = createSignal(4);
   const [diff, setDiff] = createSignal<ScenarioDiff>();
 
   const run = () => setDiff(props.onCompare(forkAt(), horizon(), zoneB()));
@@ -31,8 +31,8 @@ export default function ScenarioComparePanel(props: {
           <input type="number" min="1" step="1" value={horizon()} onInput={(event) => setHorizon(Number(event.currentTarget.value))} />
         </label>
         <label>
-          方案B检测区 (m)
-          <input type="number" min="0.1" step="0.1" value={zoneB()} onInput={(event) => setZoneB(Number(event.currentTarget.value))} />
+          方案B打包批量 (个小件/托盘)
+          <input type="number" min="1" step="1" value={zoneB()} onInput={(event) => setZoneB(Number(event.currentTarget.value))} />
         </label>
         <button type="button" onClick={run}>
           分叉对比

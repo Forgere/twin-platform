@@ -152,8 +152,11 @@ export interface ParcelOptions {
   size?: TwinVector3;
   /** 折角圆角半径：闭环路径给 0.2~0.8 才能拐出圆角，0 是尖角。 */
   cornerRadius?: number;
-  /** 路径循环方式：`'repeat'`（默认）闭环往复；`'none'` 走到终点停住，单向产线物料不回流。 */
-  loop?: 'repeat' | 'none';
+  /**
+   * 路径循环方式：`'repeat'`（默认）闭环往复；`'clamp'` / `'none'` 走到终点停住，
+   * 单向产线物料不回流（`'none'` 是口语写法，落到场景里统一成内核认识的 `'clamp'`）。
+   */
+  loop?: 'repeat' | 'clamp' | 'none';
 }
 
 /**
@@ -170,7 +173,8 @@ export function parcel(id: string, path: TwinVector3[], speed: number, options: 
     transform: { position: path[0] ?? [0, 0, 0] },
     capabilities: ['parcel'],
     visual: { kind: 'box', color: options.color ?? '#f97316', size: options.size ?? [0.6, 0.6, 0.6] },
-    motion: { points: path, speed, loop: options.loop ?? 'repeat', cornerRadius: options.cornerRadius ?? 0 },
+    // 'none' 只是"不回流"的口语说法，内核只认 clamp / repeat。
+    motion: { points: path, speed, loop: options.loop === 'none' ? 'clamp' : (options.loop ?? 'repeat'), cornerRadius: options.cornerRadius ?? 0 },
     config: { label: options.label ?? id },
   };
 }
@@ -259,9 +263,25 @@ export interface StackerCycleConfig {
   stationX?: number;
   /**
    * 出库接驳带上的货位 Z 列表（托盘出库后在这里等待被"外部取走"）。
-   * 出库接驳带沿 X = stationX 铺开，所以只需要给 Z。
+   * 出库接驳带沿 X = outfeedX 铺开，所以只需要给 Z。
    */
   outfeedZ?: number[];
+  /** 出库接驳带的 X，默认 = stationX（与入库站台同侧）。 */
+  outfeedX?: number;
+  /**
+   * 出库托盘从取货点走到出库货位的路径（世界坐标）。
+   * 不给就直接落到货位上——那看起来是瞬移，只在"出库带与站台同侧、路径会穿过
+   * 入库队列"时才这么退化（见 logistics-center）。
+   */
+  outboundPath?: TwinVector3[];
+  /**
+   * 出库托盘的去向：
+   * - `'recycle'`（默认）等一会儿回到入库队列尾——托盘池闭环，适合演示场景；
+   * - `'shipped'` 停在出库货位上等卡车拉走——真正的产线闭环（有外部消耗方）。
+   */
+  outboundMode?: 'recycle' | 'shipped';
+  /** 库存高水位：到线就转去出库（默认不限，货位填满才出库）。 */
+  highWater?: number;
 }
 
 export interface StackerOptions {
@@ -331,6 +351,150 @@ export function pallet(id: string, position: TwinVector3, options: PalletOptions
     capabilities: ['pallet'],
     visual: { kind: 'box', color: options.color ?? '#FFDAC1', size: [0.8, 0.56, 1] },
     config: { label: options.label ?? id, carrier: options.carrier ?? '' },
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 生产线：发生器 / 打包站 / 卡车
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface GoodsSourceOptions {
+  label?: string;
+  color?: string;
+  /** 产出间隔（秒）。 */
+  interval?: number;
+  /** 在制品上限（背压）：线上一超过就暂停产出，直到被消耗掉。 */
+  maxWip?: number;
+  /** 小货物沿哪条路径走（世界坐标，首尾闭合，内核按 loop:'repeat' 搬运）。 */
+  goodsPath: TwinVector3[];
+  /** 小货物速度（m/s）。 */
+  goodsSpeed?: number;
+  goodsColor?: string;
+  goodsSize?: TwinVector3;
+  /** 闭环拐角的圆角半径。 */
+  goodsCornerRadius?: number;
+  /** 小货物的能力标记，默认 `parcel`（这样流转/指标行为能直接认出来）。 */
+  goodsCapability?: string;
+}
+
+/**
+ * 小货物发生器：一处持续产出。
+ *
+ * 行为插件按 `interval` 生成实体（内核 `ctx.spawn`），小货物沿 `goodsPath`
+ * 循环前进，直到在打包站被吃掉。线上在制品达到 `maxWip` 就暂停产出——
+ * 这是最朴素也最必要的背压，否则发生器会把场景塞爆。
+ */
+export function goodsSource(id: string, position: TwinVector3, options: GoodsSourceOptions): TwinEntity {
+  return {
+    id,
+    kind: 'source',
+    transform: { position },
+    capabilities: ['source'],
+    visual: { kind: 'box', color: options.color ?? '#A7D8F0', size: [1.4, 1.6, 1.4] },
+    config: {
+      label: options.label ?? id,
+      interval: options.interval ?? 5,
+      maxWip: options.maxWip ?? 10,
+      goodsPath: options.goodsPath.map((point) => [...point]),
+      goodsSpeed: options.goodsSpeed ?? 1.1,
+      goodsColor: options.goodsColor ?? '#F4A261',
+      goodsSize: options.goodsSize ?? [0.55, 0.55, 0.55],
+      goodsCornerRadius: options.goodsCornerRadius ?? 0.4,
+      goodsCapability: options.goodsCapability ?? 'parcel',
+    },
+  };
+}
+
+export interface PackingStationOptions {
+  label?: string;
+  color?: string;
+  /** 几个小货物合成一个大货物，默认 2。 */
+  batch?: number;
+  /** 认领半径（米，只看 XZ）。 */
+  radius?: number;
+  /** 大货物（托盘）从站台出来的路径（世界坐标，走到终点停下）。 */
+  palletPath: TwinVector3[];
+  palletSpeed?: number;
+  palletSize?: TwinVector3;
+  palletColor?: string;
+  /** 产出的大货物归哪台堆垛机管（写进 config.carrier）。 */
+  carrier?: string;
+  /** 大货物的能力标记，默认 `pallet`。 */
+  palletCapability?: string;
+}
+
+/**
+ * 打包站：把 `batch` 个小货物合成 1 个大货物。
+ *
+ * 小货物被消耗（despawn）、大货物被生成（spawn），都是真事件；
+ * 大货物沿 `palletPath` 自己走到立库入库队列尾，等堆垛机取走。
+ */
+export function packingStation(id: string, position: TwinVector3, options: PackingStationOptions): TwinEntity {
+  return {
+    id,
+    kind: 'pack',
+    transform: { position },
+    capabilities: ['pack'],
+    visual: { kind: 'box', color: options.color ?? '#F7C8A0', size: [2, 1.7, 2] },
+    config: {
+      label: options.label ?? id,
+      batch: options.batch ?? 2,
+      radius: options.radius ?? 1.8,
+      palletPath: options.palletPath.map((point) => [...point]),
+      palletSpeed: options.palletSpeed ?? 0.9,
+      palletSize: options.palletSize ?? [0.8, 0.56, 1],
+      palletColor: options.palletColor ?? '#FFDAC1',
+      carrier: options.carrier ?? '',
+      palletCapability: options.palletCapability ?? 'pallet',
+    },
+  };
+}
+
+export interface TruckOptions {
+  label?: string;
+  color?: string;
+  /** 装车货位（世界坐标）：出库托盘送到这里上车。 */
+  dock: TwinVector3;
+  /** 行驶路线（dock → 门外 → …），到达终点即离场。 */
+  route: TwinVector3[];
+  speed?: number;
+  /** 一趟最多拉几个大货物。 */
+  capacity?: number;
+  /** 在货位等货的时间（秒）。 */
+  dwell?: number;
+  /** 离场后在门外待多久再回来（秒）。 */
+  awayTime?: number;
+  /** 认领半径（米）：货位附近多远内的大货物算"可以装车"。 */
+  loadRadius?: number;
+  /** 装载的货物能力标记，默认 `pallet`。 */
+  cargoCapability?: string;
+}
+
+/**
+ * 卡车：产线的**出口**（外部消耗方）。
+ *
+ * 在货位等货 → 装满（或等到 `dwell` 且至少一件）→ 沿 `route` 驶离 → 在门外等
+ * `awayTime` → 回来。装走的托盘会被真正移除（despawn），所以整条线是
+ * "产出 → 输送 → 打包 → 入库 → 出库 → 运走"的闭环，不会在场景里越堆越多。
+ */
+export function truck(id: string, position: TwinVector3, options: TruckOptions): TwinEntity {
+  return {
+    id,
+    kind: 'truck',
+    transform: { position },
+    capabilities: ['truck'],
+    visual: { kind: 'box', color: options.color ?? '#C4B5E0', size: [2.2, 2.4, 6] },
+    config: {
+      label: options.label ?? id,
+      dock: [...options.dock],
+      route: options.route.map((point) => [...point]),
+      speed: options.speed ?? 2.4,
+      capacity: options.capacity ?? 4,
+      dwell: options.dwell ?? 6,
+      awayTime: options.awayTime ?? 10,
+      loadRadius: options.loadRadius ?? 2.2,
+      cargoCapability: options.cargoCapability ?? 'pallet',
+    },
   };
 }
 

@@ -4,7 +4,17 @@ import { createMemoryStorage } from '@twin-platform/storage-memory';
 import { TwinWorld, type WorldEvent } from '@twin-platform/world-kernel';
 import { lineMetrics, seriesLatest, type LineMetrics } from '@twin-platform/analytics-core';
 import { PluginHost } from '@twin-platform/plugin-sdk';
-import { buildCenterScene, createLogisticsBehavior, logisticsPlugin } from '@twin-platform/plugins-logistics';
+import {
+  buildCenterScene,
+  createAsrsBehavior,
+  createBufferFillBehavior,
+  createGoodsSourceBehavior,
+  createLogisticsBehavior,
+  createPackingBehavior,
+  createTransferBehavior,
+  createTruckBehavior,
+  logisticsPlugin,
+} from '@twin-platform/plugins-logistics';
 import { compareScenarios, type ScenarioDiff } from '@twin-platform/scenario-compare';
 
 /**
@@ -30,20 +40,30 @@ export interface CsvLoadResult {
 export const SAMPLE_CSV = ['t,id,x,y,z', '0,cargo-01,-5.2,1.15,0', '1,cargo-01,-2.4,1.15,0', '2,cargo-01,0.6,1.15,0', '3,cargo-01,3.4,1.15,0', '4,cargo-01,5.2,1.15,0'].join('\n');
 
 /**
- * 默认物流中心场景参数：主环线 10 个在制物料、每个立库环 3 个、4 条外部车道、2 条巷道。
- * 注意：`compare()` 也复用同一组参数，两处必须保持一致，否则分叉对比跑的不是同一套场景。
+ * 默认场景参数：生产工厂闭环产线（小货物 → 打包 → 立库 → 卡车）。
+ *
+ * 注意：`compare()` 也复用同一组参数，两处必须保持一致，
+ * 否则分叉对比跑的不是同一套场景。
  */
-const CENTER_PARAMS = { parcels: 10, asrsPallets: 6, externalLanes: 4, aisles: 2 } as const;
+const CENTER_PARAMS = { produceInterval: 6, maxWip: 10, highWater: 8, aisles: 2, externalLanes: 4 } as const;
 
 /** HUD 用的实时遥测快照（由世界事件日志派生，不在 Studio 里重算语义）。 */
 export interface StudioTelemetry {
   time: number;
-  /** 当前在制物料数（parcel 实体）。 */
+  /** 当前在制小货物数（发生器产出的、还活着的）。 */
   active: number;
-  /** 累计生成（parcel:enter）。 */
+  /** 累计产出（goods:produced）。 */
   spawned: number;
-  /** 累计消耗（parcel:exit）。 */
+  /** 累计运走（goods:shipped）。 */
   consumed: number;
+  /** 累计打包次数（每次吃掉 batch 个小货物、产 1 个托盘）。 */
+  packed: number;
+  /** 当前系统里的托盘数（队列 + 货架 + 出库带）。 */
+  pallets: number;
+  /** 卡车状态：在货位等货/装车、驶离、门外、回场。一条巷道一台。 */
+  trucks: { id: string; label: string; state: string; load: number }[];
+  /** 累计发车趟数。 */
+  truckTrips: number;
   /** 当前积压（指标末桶）。 */
   backlog: number;
   /** 检测站忙闲。 */
@@ -133,8 +153,9 @@ export class StudioSession {
   metrics(): LineMetrics {
     return lineMetrics(this.world.getEventLog(), {
       bucketSize: Math.max(1 / 60, this.world.time / 20),
-      enterTypes: ['parcel:enter'],
-      exitTypes: ['parcel:exit'],
+      // 闭环产线的"进/出"就是产出与运走：积压 = 在制 + 在库，正是老板要看的数。
+      enterTypes: ['goods:produced'],
+      exitTypes: ['goods:shipped'],
       busyStatuses: ['busy'],
       downStatuses: ['down'],
       until: this.world.time,
@@ -144,9 +165,24 @@ export class StudioSession {
   /** HUD 遥测：从世界事件日志派生一组轻量快照，UI 直接展示，不在 Studio 重算语义。 */
   telemetry(): StudioTelemetry {
     const events = this.world.getEventLog();
-    const active = this.world.scene.entities.filter((entity) => entity.kind === 'parcel').length;
-    const spawned = events.filter((event) => event.type === 'parcel:enter').length;
-    const consumed = events.filter((event) => event.type === 'parcel:exit').length;
+    // 小货物与托盘都是**运行时生成**的，只能从世界状态里数（场景声明表里没有它们）。
+    const live = this.world.listEntities();
+    const active = live.filter((entity) => entity.kind === 'parcel').length;
+    const pallets = live.filter((entity) => entity.kind === 'pallet').length;
+    const spawned = events.filter((event) => event.type === 'goods:produced').length;
+    const consumed = events.filter((event) => event.type === 'goods:shipped').length;
+    const packed = events.filter((event) => event.type === 'goods:packed').length;
+    const trucks = this.world.scene.entities
+      .filter((entity) => entity.kind === 'truck')
+      .map((entity) => {
+        const attrs = this.world.getEntity(entity.id)?.attrs ?? {};
+        return {
+          id: entity.id,
+          label: typeof entity.config?.label === 'string' ? entity.config.label : entity.id,
+          state: typeof attrs.truckState === 'string' ? attrs.truckState : 'docked',
+          load: typeof attrs.load === 'number' ? attrs.load : 0,
+        };
+      });
     const backlog = seriesLatest(this.metrics().backlog);
     const inspectors = this.world.scene.entities
       .filter((entity) => entity.kind === 'inspect')
@@ -189,6 +225,10 @@ export class StudioSession {
       active,
       spawned,
       consumed,
+      packed,
+      pallets,
+      trucks,
+      truckTrips: events.filter((event) => event.type === 'truck:departed').length,
       backlog,
       inspectors,
       stackers,
@@ -204,17 +244,29 @@ export class StudioSession {
   }
 
   /**
-   * 方案分叉对比：以当前世界为基准，方案 A 用插件默认行为，
-   * 方案 B 用收窄了检测区的同一行为，输出结构化差异。
+   * 方案分叉对比：以当前世界为基准，同一套场景、同一组行为，
+   * 只把打包批量改掉（A = 2 合 1，B = 批量），输出结构化差异。
+   *
+   * 两条方案必须**跑同一组行为**——只换其中一个参数，否则比的是两个不同的产线。
    */
-  compare(forkAt: number, horizon: number, zoneB: number): ScenarioDiff {
+  compare(forkAt: number, horizon: number, batchB: number): ScenarioDiff {
+    const behaviors = (batch?: number) => [
+      createLogisticsBehavior(),
+      createGoodsSourceBehavior(),
+      createAsrsBehavior(),
+      createPackingBehavior(batch ? { batch } : {}),
+      createTruckBehavior(),
+      createTransferBehavior(),
+      createBufferFillBehavior(),
+    ];
+    const batch = Math.max(1, Math.round(batchB));
     return compareScenarios({
       scene: buildCenterScene(CENTER_PARAMS),
       forkAt,
       horizon,
       variants: [
-        { id: 'A', label: '默认检测区', behaviors: this.host.behaviors },
-        { id: 'B', label: '窄检测区', behaviors: [createLogisticsBehavior({ zoneHalfWidth: zoneB })] },
+        { id: 'A', label: '2 合 1 打包', behaviors: behaviors() },
+        { id: 'B', label: `${batch} 合 1 打包`, behaviors: behaviors(batch) },
       ],
     });
   }

@@ -53,11 +53,14 @@ function isCargoKind(kind: string): boolean {
 
 export class TwinSceneController {
   /**
-   * 场景里**全部**可选实体，含在制物料、堆垛机与货叉。
+   * 场景里**声明过**的全部实体，含在制物料、堆垛机与货叉。
    *
    * 之前这里把 `parcel` 过滤掉了，结果物料既不在列表里、点击也解析不出视图，
    * 看上去就是"货物点不中"。现在拾取与选中解析都基于这张全量表，
    * 侧边栏要按类别显示由 UI 层自己筛。
+   *
+   * 注意：**运行时生成的实体**（发生器产的小货物、打包出的托盘）不在这张表里，
+   * 它们只能从世界状态里查——用 `listEntities()` 拿"声明 + 运行时"的合并视图。
    */
   readonly entities: TwinEntityView[];
 
@@ -134,6 +137,30 @@ export class TwinSceneController {
   }
 
   /**
+   * 可选实体：场景声明的 + 运行时生成出来的。
+   *
+   * 生产线里"小货物发生器持续产出"意味着实体集合每时每刻都在变，
+   * 场景声明表是静态的，所以这里按需合并一次——列表、拾取、选中解析共用它。
+   */
+  listEntities(): TwinEntityView[] {
+    const seen = new Set<string>();
+    const out: TwinEntityView[] = [];
+    for (const entity of this.entities) {
+      seen.add(entity.id);
+      out.push(entity);
+    }
+    for (const state of this.controller.world.listEntities()) {
+      if (seen.has(state.id)) continue;
+      out.push({
+        id: state.id,
+        kind: state.kind,
+        label: entityLabel(state.config?.label, state.id),
+      });
+    }
+    return out;
+  }
+
+  /**
    * 选中实体的**实时状态**（只读世界状态，不在渲染层推演）。
    *
    * 托盘货位 / 货架占用 / 堆垛机任务都写在实体 attrs 里，翻译成人话的那部分
@@ -190,7 +217,14 @@ export class TwinSceneController {
         this.scene.add(helper);
       }
     }
-    this.onSelect(this.entities.find((entity) => entity.id === id));
+    // 运行时生成的实体不在场景声明表里，退回世界状态里查一次。
+    const known = this.entities.find((entity) => entity.id === id);
+    if (known) {
+      this.onSelect(known);
+      return;
+    }
+    const state = this.controller.world.getEntity(id);
+    this.onSelect(state ? { id: state.id, kind: state.kind, label: entityLabel(state.config?.label, state.id) } : undefined);
   }
 
   focusEntity(id: string): void {
@@ -366,13 +400,44 @@ export class TwinSceneController {
     return object;
   }
 
-  /** 外部数据源可能带来场景里没有的实体，运行时补一个货箱，别让它消失。 */
+  /**
+   * 运行时冒出来的实体（外部数据源补的货、发生器产出的小货物、打包出的托盘、
+   * 入场的卡车）在这里补模型：能查到世界状态就按**声明**建，
+   * 查不到才退回默认方块——否则生成的货物会以错误尺寸/类型出现。
+   */
   private ensureMesh(id: string): THREE.Object3D | undefined {
     if (this.entityMeshes.has(id)) return this.entityMeshes.get(id);
     if (this.cargoPool.has(id)) return undefined;
-    // 未知 id：历史上兜底成 parcel，这里同样塞进实例化池（不建 Group）。
-    this.entitySizes.set(id, DEFAULT_SIZE);
-    this.cargoPool.alloc(id, [0, 1, 0], DEFAULT_SIZE, this.cargoColor(id));
+
+    const state = this.controller.world.getEntity(id);
+    const size = state?.visual?.size ?? DEFAULT_SIZE;
+    const color = state?.visual?.color ? new THREE.Color(state.visual.color) : this.cargoColor(id);
+
+    if (state && !isCargoKind(state.kind)) {
+      // 设备类（卡车、站台…）：按声明组合模型，和场景里的设备走同一条路径。
+      const object = buildEntityMesh({
+        id: state.id,
+        kind: state.kind,
+        visual: state.visual,
+        transform: { position: [...state.transform.position], rotation: state.transform.rotation ? [...state.transform.rotation] : undefined },
+        capabilities: state.capabilities,
+        config: state.config,
+      });
+      object.position.set(...state.transform.position);
+      object.rotation.y += state.transform.rotation?.[1] ?? 0;
+      object.userData.entityId = state.id;
+      object.userData.baseY = state.transform.position[1] ?? 0;
+      for (const material of collectMaterials(object)) {
+        material.userData.baseEmissive = material.emissive.getHex();
+        material.userData.baseEmissiveIntensity = material.emissiveIntensity;
+      }
+      this.entityMeshes.set(state.id, object);
+      this.scene.add(object);
+      return object;
+    }
+
+    this.entitySizes.set(id, size);
+    this.cargoPool.alloc(id, state?.transform.position ?? [0, 1, 0], size, color);
     return undefined;
   }
 

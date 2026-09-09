@@ -328,3 +328,124 @@ describe('行为插件', () => {
     expect(() => world.addBehavior({ id: 'plugin-a', step: () => {} })).toThrow(/已注册/);
   });
 });
+
+/**
+ * 生产线的两条基本语义：**一处持续产出**（小货物发生器）与**一处持续消耗**
+ * （打包站吃掉小货物、卡车拉走大货物）。内核只给通用能力，语义在插件里。
+ */
+describe('行为生成 / 销毁实体', () => {
+  /** 每 20 步产出一个货物，id 由步数派生——确定性来自"时间 → id"，不靠随机。 */
+  const spawner: WorldBehavior = {
+    id: 'test:spawner',
+    step(ctx) {
+      const tick = Math.round(ctx.time / ctx.dt);
+      if (tick % 20 !== 0) return;
+      const id = `goods-${String(tick).padStart(4, '0')}`;
+      if (ctx.entity(id)) return;
+      ctx.spawn({
+        id,
+        kind: 'parcel',
+        transform: { position: [tick * 0.1, 1, 0] },
+        capabilities: ['parcel'],
+        visual: { kind: 'box', color: '#ff8800', size: [0.5, 0.5, 0.5] },
+        config: { label: '小货物' },
+        attrs: { born: ctx.time },
+      });
+      ctx.emit('goods:produced', { entityId: id });
+    },
+  };
+
+  /** 每 40 步吃掉最老的一个货物（模拟"2 个小货物打包成 1 个大货物"）。 */
+  const consumer: WorldBehavior = {
+    id: 'test:consumer',
+    step(ctx) {
+      const tick = Math.round(ctx.time / ctx.dt);
+      if (tick % 40 !== 0) return;
+      const oldest = ctx.entities
+        .filter((entity) => entity.capabilities.includes('parcel'))
+        .sort((a, b) => (a.id < b.id ? -1 : 1))[0];
+      if (!oldest) return;
+      ctx.despawn(oldest.id);
+      ctx.emit('goods:consumed', { entityId: oldest.id });
+    },
+  };
+
+  const makeFactory = (): TwinWorld => new TwinWorld(makeScene(), { seed: 3, behaviors: [spawner, consumer] });
+
+  test('spawn 出的实体进世界、发事件，despawn 后从世界消失', () => {
+    const world = makeFactory();
+    // 步内时间先推进再跑行为，所以 tick = 步数：100 步 = tick 100。
+    // 产出在 20/40/60/80/100，消耗在 40/80（每次吃掉最老的一个）。
+    run(world, 100);
+
+    const produced = world.getEventLog().filter((event) => event.type === 'goods:produced');
+    const consumed = world.getEventLog().filter((event) => event.type === 'goods:consumed');
+    expect(produced.length).toBe(5);
+    expect(consumed.length).toBe(2);
+
+    const alive = world.listEntities().filter((entity) => entity.kind === 'parcel');
+    expect(alive.length).toBe(3);
+    // 被消耗掉的那两个确实不在了
+    for (const event of consumed) expect(world.getEntity(event.entityId as string)).toBeUndefined();
+  });
+
+  test('生成出来的实体保留声明（能力 / 外观 / 配置），快照恢复后还在', () => {
+    const world = makeFactory();
+    run(world, 60); // tick 60：活着 goods-0040 / goods-0060
+    const id = 'goods-0060';
+    const before = world.getEntity(id);
+    expect(before?.capabilities).toEqual(['parcel']);
+    expect(before?.visual?.color).toBe('#ff8800');
+    expect(before?.config.label).toBe('小货物');
+
+    const snapshot = world.snapshot();
+    const restored = new TwinWorld(makeScene(), { seed: 3, behaviors: [spawner, consumer] });
+    restored.restore(snapshot);
+
+    const after = restored.getEntity(id);
+    expect(after?.capabilities).toEqual(['parcel']);
+    expect(after?.visual?.size).toEqual([0.5, 0.5, 0.5]);
+    expect(after?.config.label).toBe('小货物');
+    expect(after?.attrs.born).toBeCloseTo(before!.attrs.born as number, 9);
+    expect(after?.transform.position).toEqual(before!.transform.position);
+  });
+
+  test('快照恢复后继续跑，和一路跑到底逐位一致', () => {
+    const straight = makeFactory();
+    run(straight, 90);
+    const snapshot = straight.snapshot();
+    run(straight, 90);
+
+    const restored = makeFactory();
+    run(restored, 90);
+    restored.restore(snapshot);
+    run(restored, 90);
+
+    expect(fingerprint(restored)).toBe(fingerprint(straight));
+  });
+
+  test('往回跳时，消失的实体会出现在差量 removed 里（不留幽灵）', () => {
+    const world = makeFactory();
+    run(world, 60); // tick 60：快照里只有 goods-0040 / goods-0060
+    const early = world.snapshot();
+    run(world, 140); // tick 200：期间又产出 0080..0200
+
+    expect(world.getEntity('goods-0200')).toBeDefined();
+    world.restore(early);
+    expect(world.getEntity('goods-0200')).toBeUndefined();
+
+    const frame = world.step(1 / 60);
+    // 差量必须告诉渲染层"这些实体没了"，否则场景里会留着上一时间线的货物
+    expect(frame.removed).toContain('goods-0200');
+    expect(frame.removed).toContain('goods-0120');
+    // 快照里存在、但恢复前已被消耗的两个，则要作为 added 回来
+    expect(frame.added).toEqual(expect.arrayContaining(['goods-0040', 'goods-0060']));
+  });
+
+  test('spawn 重复 id 抛错（契约违例交给宿主隔离）', () => {
+    const world = new TwinWorld(makeScene(), {
+      behaviors: [{ id: 'bad', step: (ctx) => ctx.spawn({ id: 'belt-01', kind: 'parcel', transform: { position: [0, 0, 0] }, capabilities: [] }) }],
+    });
+    expect(() => world.step(1 / 60)).toThrow(/已存在/);
+  });
+});

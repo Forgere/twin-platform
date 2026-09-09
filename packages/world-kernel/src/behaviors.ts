@@ -1,4 +1,4 @@
-import type { TwinTransform, TwinValue } from '@twin-platform/scene-schema';
+import type { TwinEntity, TwinTransform, TwinValue } from '@twin-platform/scene-schema';
 import type { WorldEntityState } from './entities';
 import type { WorldEvent } from './events';
 import type { Rng } from './rng';
@@ -35,6 +35,22 @@ export interface BehaviorContext {
   setTransform(id: string, transform: TwinTransform): void;
   /** 沿实体自身路径推进一段距离，返回是否成功（无路径或找不到实体返回 false）。 */
   move(id: string, distanceDelta: number): boolean;
+  /**
+   * 生成一个实体（小货物发生器产出小货物、打包站产出托盘、卡车入场…）。
+   *
+   * 约束：**id 必须由行为按确定性规则派生**（计数器放在 attrs 里，随快照恢复），
+   * 否则回放与方案分叉会生成出不同的世界。本步生成的实体不在 `ctx.entities` 里，
+   * 下一步才会出现——所以"生成完立刻读写它"要等下一拍。
+   * id 已存在则抛错（这是契约违例，宿主会隔离掉这个行为）。
+   */
+  spawn(entity: TwinEntity): void;
+  /**
+   * 移除实体（被打包消耗掉的小货物、被卡车拉走的大货物）。
+   *
+   * 返回是否真的移除了；不存在返回 false，不抛错——消费端经常在"可能已经没了"
+   * 的时序下调用。
+   */
+  despawn(id: string): boolean;
   emit(type: string, options?: BehaviorEmitOptions): WorldEvent;
 }
 

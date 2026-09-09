@@ -82,6 +82,8 @@ export class TwinWorld {
   private readonly log: EventLog;
   private readonly behaviors: WorldBehavior[];
   private readonly entities = new Map<string, WorldEntityState>();
+  /** 场景里声明过的实体 id：快照只给"运行时生成"的实体带完整声明。 */
+  private readonly sceneIds = new Set<string>();
   private readonly fed = new Map<string, ExternalEntityState>();
   private readonly overrides = new Map<string, EntityDataSource>();
   private rng: Rng;
@@ -300,7 +302,8 @@ export class TwinWorld {
       seed: this.seedValue,
       rngState: this.rng.getState(),
       mode: this.dataMode,
-      entities: [...this.entities.values()].map(toSnapshotEntity),
+      // 场景里声明的实体可以从 scene 重建，只有运行时生成的才需要带声明。
+      entities: [...this.entities.values()].map((state) => toSnapshotEntity(state, !this.sceneIds.has(state.id))),
     };
   }
 
@@ -312,24 +315,24 @@ export class TwinWorld {
     this.rng = createRng(snapshot.seed);
     this.rng.setState(snapshot.rngState);
 
+    // 记下"恢复前有哪些实体"。往回跳时渲染层必须收到"谁不见了 / 谁又回来了"，
+    // 否则场景里会留着上一条时间线的幽灵实体——运行时生成的小货物尤其明显。
+    const before = new Set(this.entities.keys());
+
     const kept = new Set(snapshot.entities.map((entity) => entity.id));
-    for (const id of [...this.entities.keys()]) if (!kept.has(id)) this.entities.delete(id);
+    for (const id of before) {
+      if (kept.has(id)) continue;
+      this.entities.delete(id);
+      this.removed.add(id);
+      this.dirty.delete(id);
+    }
 
     for (const record of snapshot.entities) {
-      const state = this.entities.get(record.id);
+      let state = this.entities.get(record.id);
       if (!state) {
-        this.entities.set(record.id, {
-          id: record.id,
-          kind: record.kind,
-          capabilities: [],
-          baseTransform: { ...record.transform, position: [...record.transform.position] },
-          transform: { ...record.transform, position: [...record.transform.position] },
-          attrs: { ...record.attrs },
-          config: {},
-          status: record.status,
-          dataSource: record.dataSource,
-        });
-        continue;
+        state = this.createRestoredState(record);
+        this.entities.set(record.id, state);
+        this.added.add(record.id);
       }
       state.transform = { ...record.transform, position: [...record.transform.position] };
       state.attrs = { ...record.attrs };
@@ -338,6 +341,32 @@ export class TwinWorld {
       if (state.motion && record.motionDistance !== undefined) state.motion.distance = record.motionDistance;
       this.dirty.add(record.id);
     }
+  }
+
+  /**
+   * 重建一个"恢复前不存在"的实体。
+   *
+   * 运行时生成的实体在快照里带着完整声明（capabilities / visual / config / motion），
+   * 按声明重建即可；老快照或外部数据源补出来的实体没有声明，只能退化成裸状态，
+   * 靠后续帧差量把状态补齐。
+   */
+  private createRestoredState(record: WorldSnapshotEntity): WorldEntityState {
+    if (record.declaration) {
+      const state = createEntityState(record.declaration, buildMotionState);
+      state.dataSource = record.dataSource;
+      return state;
+    }
+    return {
+      id: record.id,
+      kind: record.kind,
+      capabilities: [],
+      baseTransform: { ...record.transform, position: [...record.transform.position] },
+      transform: { ...record.transform, position: [...record.transform.position] },
+      attrs: { ...record.attrs },
+      config: {},
+      status: record.status,
+      dataSource: record.dataSource,
+    };
   }
 
   /**
@@ -350,9 +379,8 @@ export class TwinWorld {
   restoreFrom(snapshot: WorldSnapshot): void {
     this.restore(snapshot);
     this.log.resetTo(snapshot.sequence);
-    this.dirty.clear();
-    this.added.clear();
-    this.removed.clear();
+    // 注意：**不清** dirty / added / removed。restore 算出来的增删差量正是渲染层
+    // 清理"上一条时间线残留"的依据；清掉它，回跳之后场景里就会留着幽灵实体。
   }
 
   /** 回到 t=0。不传 seed 则重放同一集，传了就换一集但依然可复现。 */
@@ -377,7 +405,11 @@ export class TwinWorld {
 
   private rebuild(): void {
     this.entities.clear();
-    for (const entity of this.scene.entities) this.entities.set(entity.id, createEntityState(entity, buildMotionState));
+    this.sceneIds.clear();
+    for (const entity of this.scene.entities) {
+      this.sceneIds.add(entity.id);
+      this.entities.set(entity.id, createEntityState(entity, buildMotionState));
+    }
     for (const [id, source] of this.overrides) {
       const state = this.entities.get(id);
       if (state) state.dataSource = source;
@@ -499,6 +531,10 @@ export class TwinWorld {
       setStatus: (id, status) => this.setStatus(id, status),
       setTransform: (id, transform) => this.setTransform(id, transform),
       move: (id, distanceDelta) => this.move(id, distanceDelta),
+      spawn: (entity) => {
+        this.addEntity(entity);
+      },
+      despawn: (id) => this.removeEntity(id),
       emit: (type, options) => this.dispatch(type, options ?? {}),
     };
   }

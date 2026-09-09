@@ -78,19 +78,26 @@ describe('splitClosedLoop', () => {
 });
 
 describe('智能物流中心模板', () => {
-  const scene = buildCenterScene({ parcels: 10, asrsPallets: 6, externalLanes: 4 });
+  const scene = buildCenterScene({ maxWip: 10, produceInterval: 6, externalLanes: 4 });
   const entities = scene.entities;
 
-  it('场景里有立库与堆垛机，每条巷道一组托盘', () => {
+  it('闭环产线的四个环节都在场景里：发生器 / 打包站 / 立库 / 卡车', () => {
+    expect(entities.filter((e) => e.kind === 'source').length).toBe(1);
+    expect(entities.filter((e) => e.kind === 'pack').length).toBe(2);
     expect(entities.filter((e) => e.kind === 'asrs').length).toBe(4);
     expect(entities.filter((e) => e.kind === 'stacker').length).toBe(2);
     expect(entities.filter((e) => e.kind === 'carriage').length).toBe(2);
     expect(entities.filter((e) => e.kind === 'fork').length).toBe(2);
-    // 托盘是货架上的存货单位：两条巷道各 6 块，各自归属一台堆垛机。
-    const pallets = entities.filter((e) => e.kind === 'pallet');
-    expect(pallets.length).toBe(12);
-    for (const pallet of pallets) expect(typeof pallet.config?.carrier).toBe('string');
-    expect(new Set(pallets.map((p) => p.config?.carrier))).toEqual(new Set(['stacker-a', 'stacker-b']));
+    expect(entities.filter((e) => e.kind === 'truck').length).toBe(2);
+    // 大货物（托盘）不再预置：全部由打包站产出，所以场景里一块托盘都没有。
+    expect(entities.filter((e) => e.kind === 'pallet').length).toBe(0);
+    for (const station of entities.filter((e) => e.kind === 'pack')) {
+      expect(station.config?.batch).toBe(2);
+      expect(typeof station.config?.carrier).toBe('string');
+    }
+    expect(new Set(entities.filter((e) => e.kind === 'pack').map((e) => e.config?.carrier))).toEqual(
+      new Set(['stacker-a', 'stacker-b']),
+    );
   });
 
   it('货架声明了货位几何（层高与列数），堆垛机用同一份数据', () => {
@@ -107,61 +114,68 @@ describe('智能物流中心模板', () => {
     expect(Array.isArray(crane?.config?.outfeedZ)).toBe(true);
   });
 
-  it('每条物料路径都首尾闭合，不会瞬移', () => {
-    // 立库的货现在是托盘（不走路径），环线上的包裹只剩主环线 + 分流物料。
-    const movers = entities.filter((e) => e.motion);
-    expect(movers.length).toBe(11);
-    for (const mover of movers) {
-      expect(closed(mover.motion!.points)).toBe(true);
-    }
-  });
-
-  it('物料起步位置彼此错开，不会叠在一点', () => {
-    const starts = entities
-      .filter((e) => e.id.startsWith('parcel-'))
-      .map((e) => e.transform.position.join(','));
-    expect(new Set(starts).size).toBe(starts.length);
+  it('小货物路径首尾闭合，不会瞬移', () => {
+    // 小货物由发生器动态产出（不走场景声明的 motion），路径写在发生器的 config 里。
+    const source = entities.find((e) => e.kind === 'source')!;
+    const path = source.config?.goodsPath as [number, number, number][];
+    expect(path.length).toBeGreaterThan(2);
+    expect(closed(path)).toBe(true);
   });
 
   it('每条物料路径的每一个拐点下面都有输送线托着（不脱线）', () => {
     // 移栽机本体也是一段 inline 输送面；折线皮带按段拆开，拐角顶点才可能落在它上面。
     const surfaces = beltSurfaces(entities);
-    for (const mover of entities.filter((e) => e.motion)) {
-      for (const point of mover.motion!.points) {
+    const paths: { id: string; points: [number, number, number][] }[] = [
+      { id: 'source-1.goodsPath', points: entities.find((e) => e.kind === 'source')!.config?.goodsPath as never },
+      ...entities
+        .filter((e) => e.kind === 'pack')
+        .map((e) => ({ id: `${e.id}.palletPath`, points: e.config?.palletPath as never })),
+      ...entities.filter((e) => e.motion).map((e) => ({ id: e.id, points: e.motion!.points as never })),
+    ];
+    for (const path of paths) {
+      for (const point of path.points) {
         const covered = surfaces.some(
           (b) => point[0] >= b.x0 - 1e-6 && point[0] <= b.x1 + 1e-6 && point[2] >= b.z0 - 1e-6 && point[2] <= b.z1 + 1e-6,
         );
-        expect(covered, `${mover.id} 的点 ${point.join(',')} 没有皮带`).toBe(true);
+        expect(covered, `${path.id} 的点 ${point.join(',')} 没有皮带`).toBe(true);
       }
     }
   });
 
   it('物料高度贴着输送线台面', () => {
-    for (const mover of entities.filter((e) => e.motion)) {
-      for (const point of mover.motion!.points) expect(point[1]).toBeCloseTo(1.2, 6);
+    for (const entity of entities.filter((e) => e.motion)) {
+      for (const point of entity.motion!.points) expect(point[1]).toBeCloseTo(1.2, 6);
+    }
+    for (const entity of entities.filter((e) => e.kind === 'source' || e.kind === 'pack')) {
+      const path = (entity.config?.goodsPath ?? entity.config?.palletPath) as [number, number, number][];
+      for (const point of path) expect(point[1]).toBeCloseTo(1.2, 6);
     }
   });
 
-  it('参数可伸缩：巷道数与托盘池大小生效', () => {
-    const one = centerTemplate.build({ aisles: 1, asrsPallets: 4 });
+  it('参数可伸缩：巷道数、在制品上限与高水位生效', () => {
+    const one = centerTemplate.build({ aisles: 1, maxWip: 4, highWater: 3 });
     expect(one.filter((e) => e.kind === 'asrs').length).toBe(2);
     expect(one.filter((e) => e.kind === 'stacker').length).toBe(1);
-    expect(one.filter((e) => e.kind === 'pallet').length).toBe(4);
-    // 托盘池不能超过入库队列能排下的块数，否则会叠在队列尾。
-    const many = centerTemplate.build({ aisles: 1, asrsPallets: 99 });
-    expect(many.filter((e) => e.kind === 'pallet').length).toBe(6);
+    expect(one.filter((e) => e.kind === 'pack').length).toBe(1);
+    expect(one.filter((e) => e.kind === 'truck').length).toBe(1);
+    expect(one.find((e) => e.kind === 'source')?.config?.maxWip).toBe(4);
+    expect(one.find((e) => e.id === 'stacker-a')?.config?.highWater).toBe(3);
   });
 });
 
 describe('堆垛机存取循环', () => {
   it('门架沿巷道走、载货台升降、货叉伸缩，并发存取事件', () => {
-    // 60s 足够走完"入库两块 → 队列空 → 出库一块"（A 巷道一个循环 14s）。
-    const world = simulate(buildCenterScene({ parcels: 4, asrsPallets: 2, externalLanes: 2 }), 60 * 60);
+    // 打包间隔压到 1s、在制品放宽：30s 内就能攒出托盘并走完"入库 → 出库"。
+    const world = simulate(
+      buildCenterScene({ maxWip: 8, produceInterval: 1, highWater: 4, externalLanes: 2 }),
+      60 * 120,
+    );
     const crane = world.getEntity('stacker-a');
     const carriage = world.getEntity('stacker-a-carriage');
     const fork = world.getEntity('stacker-a-fork');
-    const pallet = world.getEntity('asrs-8-pallet-1');
-    expect(crane && carriage && fork && pallet).toBeTruthy();
+    expect(crane && carriage && fork).toBeTruthy();
+    // 托盘是打包站产出的：跑一会儿必然有一块在系统里（或已经被卡车运走）
+    expect(world.listEntities().some((entity) => entity.kind === 'pallet') || world.getEventLog().some((e) => e.type === 'goods:shipped')).toBe(true);
 
     // 门架始终在巷道中心线上，且只沿 Z 走
     expect(crane!.transform.position[0]).toBeCloseTo(8, 6);
@@ -177,14 +191,15 @@ describe('堆垛机存取循环', () => {
   it('一个循环内货叉确实伸进过货架（X 偏离巷道中心）', () => {
     const host = new PluginHost();
     host.install(logisticsPlugin);
-    const world = new TwinWorld(buildCenterScene({ parcels: 2, asrsPallets: 2, externalLanes: 1 }), {
+    const world = new TwinWorld(buildCenterScene({ maxWip: 6, produceInterval: 1, highWater: 4, externalLanes: 1 }), {
       seed: 7,
       maxStepsPerAdvance: 600,
       behaviors: host.behaviors,
     });
     let maxOffset = 0;
     let maxHeight = 0;
-    for (let i = 0; i < 60 * 40; i += 1) {
+    // 托盘从打包站走到队列、再等堆垛机来取需要时间；要跑到它开始往 2/3 层存货。
+    for (let i = 0; i < 60 * 150; i += 1) {
       world.step(1 / 60);
       const fork = world.getEntity('stacker-a-fork');
       if (!fork) continue;
@@ -197,8 +212,8 @@ describe('堆垛机存取循环', () => {
 
   it('同种子跑两遍，堆垛机位姿逐帧一致', () => {
     const pose = (): string => {
-      const world = simulate(buildCenterScene({ parcels: 2, asrsPallets: 2, externalLanes: 1 }), 60 * 12);
-      return ['stacker-a', 'stacker-a-carriage', 'stacker-a-fork', 'asrs-8-pallet-1']
+      const world = simulate(buildCenterScene({ maxWip: 6, produceInterval: 1, highWater: 4, externalLanes: 1 }), 60 * 40);
+      return ['stacker-a', 'stacker-a-carriage', 'stacker-a-fork']
         .map((id) => world.getEntity(id)?.transform.position.map((v) => v.toFixed(6)).join(','))
         .join('|');
     };
@@ -208,7 +223,7 @@ describe('堆垛机存取循环', () => {
 
 describe('顶升移栽机分流', () => {
   it('场景里有一台移栽机本体 + 一个托举座子实体', () => {
-    const scene = buildCenterScene({ parcels: 8, asrsPallets: 4, externalLanes: 2 });
+    const scene = buildCenterScene({ externalLanes: 2 });
     expect(scene.entities.filter((e) => e.id === 'transfer-1' && e.kind === 'transfer').length).toBe(1);
     expect(scene.entities.filter((e) => e.id === 'transfer-1-cassette' && e.kind === 'cassette').length).toBe(1);
     // 移栽机声明了要分流的物料
@@ -219,7 +234,7 @@ describe('顶升移栽机分流', () => {
   it('分流物料经过移栽机时被顶起、触发 transfer:divert 事件，且全程不脱线', () => {
     const host = new PluginHost();
     host.install(logisticsPlugin);
-    const world = new TwinWorld(buildCenterScene({ parcels: 4, asrsPallets: 2, externalLanes: 1 }), {
+    const world = new TwinWorld(buildCenterScene({ maxWip: 6, produceInterval: 2, externalLanes: 1 }), {
       seed: 20240906,
       maxStepsPerAdvance: 600,
       behaviors: host.behaviors,
@@ -228,7 +243,7 @@ describe('顶升移栽机分流', () => {
     let maxY = 0;
     let cargoMaxY = 0;
     let busySeen = false;
-    for (let i = 0; i < 60 * 30; i += 1) {
+    for (let i = 0; i < 60 * 60; i += 1) {
       world.step(1 / 60);
       const cassette = world.getEntity('transfer-1-cassette');
       if (cassette) maxY = Math.max(maxY, cassette.transform.position[1]);
@@ -249,7 +264,7 @@ describe('顶升移栽机分流', () => {
   });
 
   it('分流物料路径每一拐点都有输送面托着', () => {
-    const scene = buildCenterScene({ parcels: 4, asrsPallets: 2, externalLanes: 1 });
+    const scene = buildCenterScene({ externalLanes: 1 });
     const divert = scene.entities.find((e) => e.id === 'divert-cargo-1');
     expect(divert?.motion).toBeTruthy();
     const surfaces = beltSurfaces(scene.entities);
@@ -264,18 +279,19 @@ describe('顶升移栽机分流', () => {
 
 describe('90° 转角', () => {
   it('转角模块已退役，所有 90° 拐都并进折线输送线（自带倒圆），且每个拐角下方仍有输送面托着', () => {
-    const scene = buildCenterScene({ parcels: 8, asrsPallets: 4, externalLanes: 2 });
+    const scene = buildCenterScene({ externalLanes: 2 });
     // 独立转角模块（config.corner === true）已全部并入折线皮带，不再单独存在。
     const corners = scene.entities.filter((e) => (e.config as { corner?: boolean })?.corner === true);
     expect(corners.length).toBe(0);
 
-    // 主环线 / 分流支线 / 两条立库出入库环的全部拐角，逐个验证下方有输送面托着。
+    // 主环线 / 分流支线 / 两条立库的"打包出料带 + 载货站台"的全部拐角，
+    // 逐个验证下方有输送面托着。
     const surfaces = beltSurfaces(scene.entities);
     const turnPoints: [number, number][] = [
       [-8, 0], [19, 0], [19, -6], [-16, -6], [-16, 3], [-12, 3], [-12, 0], // 主环线
       [1, 0], [10, 0], [10, -2.6], [1, -2.6], // 分流支线
-      [8, 2.6], [4, 2.6], [4, 5.0], [8, 5.0], [4, 0], // 立库 A 出入库环（L 形站台：竖段接角落移栽机、横段伸到巷道口）
-      [16, 2.6], [12, 2.6], [12, 5.0], [16, 5.0], [12, 0], // 立库 B 出入库环（L 形站台，inX=12 西侧）
+      [6, 1.4], [8.5, 1.4], [8.5, 3.6], [4.7, 3.6], [4, 5.0], [8, 5.0], // 立库 A：出料带 + L 形站台
+      [14, 1.4], [16.5, 1.4], [16.5, 3.6], [12.7, 3.6], [12, 5.0], [16, 5.0], // 立库 B：出料带 + L 形站台
     ];
     for (const [cx, cz] of turnPoints) {
       const ok = surfaces.some((b) => cx >= b.x0 - 1e-6 && cx <= b.x1 + 1e-6 && cz >= b.z0 - 1e-6 && cz <= b.z1 + 1e-6);
@@ -285,42 +301,48 @@ describe('90° 转角', () => {
 });
 
 describe('同线货物不互相超车（也不堆叠）', () => {
-  const scene = buildCenterScene({ parcels: 10, asrsPallets: 6, externalLanes: 4 });
+  const scene = buildCenterScene({ maxWip: 10, produceInterval: 6, externalLanes: 4 });
   const speedOf = (id: string): number => scene.entities.find((e) => e.id === id)!.motion!.speed;
 
-  it('同一条主环线上所有包裹速度相同', () => {
-    const main = Array.from({ length: 10 }, (_, i) => speedOf(`parcel-${i + 1}`));
-    expect(new Set(main).size).toBe(1);
+  it('主环线上的小货物由发生器产出，速度只有一个来源', () => {
+    const source = scene.entities.find((e) => e.kind === 'source')!;
+    expect(source.config?.goodsSpeed).toBe(1.3);
+    // 场景里不再预置 parcel-*：小货物全部由 source-1 按同一速度生成
+    expect(scene.entities.filter((e) => e.id.startsWith('parcel-')).length).toBe(0);
   });
 
   it('分流物料与主线同速（共享 x5..8, z0 段皮带，否则该段会互相超车）', () => {
-    expect(speedOf('divert-cargo-1')).toBe(speedOf('parcel-1'));
+    const source = scene.entities.find((e) => e.kind === 'source')!;
+    expect(speedOf('divert-cargo-1')).toBe(source.config?.goodsSpeed);
   });
 
-  it('托盘不走皮带，由货架行为直接摆位（不再挂在环线上匀速跑）', () => {
-    // 立库的物料现在就是托盘本身：它们按先入先出在"队列 → 货位 → 出库带"之间循环，
-    // 位置由 asrs-cycle 写，所以没有 motion 路径，也就不会和主环线的包裹抢道。
-    const pallets = scene.entities.filter((e) => e.kind === 'pallet');
-    expect(pallets.length).toBeGreaterThan(0);
-    for (const pallet of pallets) expect(pallet.motion).toBeUndefined();
+  it('托盘不走皮带，由打包站产出后交给货架行为摆位', () => {
+    // 托盘没有 motion 路径：出生后位姿全程归 asrs-cycle（否则内核每步会把它拉回路径终点）。
+    const pack = scene.entities.find((e) => e.kind === 'pack')!;
+    expect(pack.motion).toBeUndefined();
+    expect(Array.isArray(pack.config?.palletPath)).toBe(true);
   });
 
-  it('主环线运行 30s 内任意两箱最近距离始终 > 3m（不超车、不堆叠）', () => {
+  it('主环线上的小货物同速前进，最小间距不会趋近 0（不超车、不堆叠）', () => {
     const host = new PluginHost();
     host.install(logisticsPlugin);
-    const world = new TwinWorld(buildCenterScene({ parcels: 10, asrsPallets: 6, externalLanes: 4 }), {
-      seed: 20240906,
-      maxStepsPerAdvance: 600,
-      behaviors: host.behaviors,
-    });
+    const world = new TwinWorld(
+      buildCenterScene({ maxWip: 10, produceInterval: 6, externalLanes: 4 }),
+      { seed: 20240906, maxStepsPerAdvance: 600, behaviors: host.behaviors },
+    );
     let minDist = Infinity;
-    for (let s = 0; s < 60 * 30; s += 1) {
+    for (let s = 0; s < 60 * 120; s += 1) {
       world.step(1 / 60);
-      const ps: TwinVector3[] = [];
-      for (let i = 1; i <= 10; i += 1) {
-        const e = world.getEntity(`parcel-${i}`);
-        if (e) ps.push(e.transform.position);
-      }
+      const ps: TwinVector3[] = world
+        .listEntities()
+        .filter(
+          (entity) =>
+            entity.kind === 'parcel' &&
+            String(entity.config?.source ?? '') !== '' &&
+            // 被打包站扣在缓存位上的货不算"在线上跑"，它们本来就挨着站台排
+            entity.attrs.heldBy === undefined,
+        )
+        .map((entity) => entity.transform.position);
       for (let a = 0; a < ps.length; a += 1) {
         for (let b = a + 1; b < ps.length; b += 1) {
           const d = Math.hypot(ps[a]![0] - ps[b]![0], ps[a]![1] - ps[b]![1], ps[a]![2] - ps[b]![2]);
@@ -328,7 +350,8 @@ describe('同线货物不互相超车（也不堆叠）', () => {
         }
       }
     }
-    // 10 箱在 ~76m 环上均布，间距 ~7.6m；若速度不同快箱会追尾、最小间距趋近 0。
+    // 同速前进 + 固定产出间隔 → 间距恒定（产出间隔 6s × 1.3 m/s ≈ 7.8m）；
+    // 只要有一处速度不同，快箱就会追尾，最小间距趋近 0。
     expect(minDist).toBeGreaterThan(3);
   });
 });

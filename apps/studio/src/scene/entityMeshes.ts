@@ -409,6 +409,82 @@ function buildAsrsRack(size: TwinVector3, color: string, baseY: number, config?:
   return group;
 }
 
+/** 小货物发生器：底座 + 料斗 + 出料口 + 状态灯。 */
+function buildSource(size: TwinVector3, color: string, baseY: number): THREE.Group {
+  const theme = getActiveTheme();
+  const group = new THREE.Group();
+  group.userData.codePath = 'entityMeshes.ts:buildSource';
+  const [width, height, depth] = size;
+  const groundY = -baseY;
+
+  group.add(at(rbox(width, 0.3, depth, theme.frameDark, { roughness: 0.7 }), 0, groundY + 0.15, 0));
+  // 料斗用"上宽下窄"的两段盒子近似（圆角盒不做锥形，够看了）
+  group.add(at(rbox(width, height * 0.45, depth, color, { roughness: 0.5 }), 0, groundY + 0.3 + height * 0.22, 0));
+  group.add(at(rbox(width * 0.55, height * 0.4, depth * 0.7, color, { roughness: 0.5 }), 0, groundY + 0.3 + height * 0.62, 0));
+  group.add(at(rbox(width * 0.42, 0.16, depth * 0.42, theme.metal, { roughness: 0.4, metalness: 0.5 }), 0, groundY + 0.3, 0));
+
+  const lamp = statusLamp(groundY + height + 0.1, theme);
+  group.add(lamp);
+  group.userData.anim = { kind: 'source', statusLight: lamp.material as THREE.MeshStandardMaterial } as EntityAnim;
+  return group;
+}
+
+/** 打包站：机架 + 台面滚筒 + 上模压盖 + 状态灯。 */
+function buildPackingStation(size: TwinVector3, color: string, baseY: number): THREE.Group {
+  const theme = getActiveTheme();
+  const group = new THREE.Group();
+  group.userData.codePath = 'entityMeshes.ts:buildPackingStation';
+  const [width, height, depth] = size;
+  const groundY = -baseY;
+
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      group.add(
+        at(rbox(0.1, height * 0.7, 0.1, theme.frameDark, { roughness: 0.7 }), sx * (width / 2 - 0.08), groundY + height * 0.35, sz * (depth / 2 - 0.08)),
+      );
+    }
+  }
+  group.add(at(rbox(width, 0.12, depth, color, { roughness: 0.55 }), 0, groundY + height * 0.7, 0));
+  // 台面滚筒（轴沿 Z）
+  for (let i = 0; i < 5; i += 1) {
+    const roller = cyl(0.07, depth * 0.88, theme.metal, 10, { roughness: 0.4, metalness: 0.5 });
+    roller.rotation.x = Math.PI / 2;
+    group.add(at(roller, -width / 2 + 0.3 + i * ((width - 0.6) / 4), groundY + height * 0.78, 0));
+  }
+  // 上模：压下去就是"2 合 1"
+  group.add(at(rbox(width * 0.72, 0.2, depth * 0.72, theme.frameDark, { roughness: 0.5 }), 0, groundY + height * 1.02, 0));
+
+  const lamp = statusLamp(groundY + height * 1.28, theme);
+  group.add(lamp);
+  group.userData.anim = { kind: 'pack', statusLight: lamp.material as THREE.MeshStandardMaterial } as EntityAnim;
+  return group;
+}
+
+/** 卡车：驾驶室 + 平板货厢 + 四轮。 */
+function buildTruck(size: TwinVector3, color: string, baseY: number): THREE.Group {
+  const theme = getActiveTheme();
+  const group = new THREE.Group();
+  group.userData.codePath = 'entityMeshes.ts:buildTruck';
+  const [width, height, depth] = size;
+  const groundY = -baseY;
+
+  // 货厢在后半段（托盘就装在这里）
+  group.add(at(rbox(width, height * 0.5, depth * 0.62, color, { roughness: 0.55 }), 0, groundY + height * 0.45, depth * 0.16));
+  // 驾驶室在前半段
+  group.add(at(rbox(width * 0.94, height * 0.42, depth * 0.3, theme.frameDark, { roughness: 0.5 }), 0, groundY + height * 0.4, -depth * 0.32));
+  group.add(
+    at(rbox(width * 0.8, height * 0.16, 0.06, theme.roller, { roughness: 0.2, opacity: 0.7 }), 0, groundY + height * 0.5, -depth * 0.46),
+  );
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      const wheel = cyl(height * 0.16, 0.16, theme.frameDark, 12, { roughness: 0.6 });
+      wheel.rotation.z = Math.PI / 2;
+      group.add(at(wheel, sx * (width / 2 - 0.02), groundY + height * 0.16, sz * depth * 0.3));
+    }
+  }
+  return group;
+}
+
 /** 堆垛机门架：底盘 + 车轮 + 双立柱 + 顶部天梁 + 状态灯。 */
 function buildStacker(size: TwinVector3, color: string, baseY: number): THREE.Group {
   const theme = getActiveTheme();
@@ -1215,6 +1291,12 @@ export function buildEntityMesh(entity: EntityMeshInput): THREE.Group {
       return buildRack(size, color, baseY);
     case 'asrs':
       return buildAsrsRack(size, color, baseY, entity.config);
+    case 'source':
+      return buildSource(size, color, baseY);
+    case 'pack':
+      return buildPackingStation(size, color, baseY);
+    case 'truck':
+      return buildTruck(size, color, baseY);
     case 'stacker':
       return buildStacker(size, color, baseY);
     case 'carriage':
