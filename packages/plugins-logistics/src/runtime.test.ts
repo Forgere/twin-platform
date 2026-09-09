@@ -15,13 +15,35 @@ interface BeltBox {
 }
 
 function beltBoxes(entities: TwinEntity[]): BeltBox[] {
-  return entities
-    .filter((entity) => entity.kind === 'transport' || entity.kind === 'transfer')
-    .map((entity) => {
-      const [sx, , sz] = entity.visual?.size ?? [0, 0, 0];
-      const [bx, , bz] = entity.transform.position;
-      return { id: entity.id, x0: bx - sx / 2, x1: bx + sx / 2, z0: bz - sz / 2, z1: bz + sz / 2 };
-    });
+  const out: BeltBox[] = [];
+  for (const entity of entities) {
+    if (entity.kind !== 'transport' && entity.kind !== 'transfer') continue;
+    const size = entity.visual?.size ?? [1, 1, 1];
+    const px = entity.transform.position[0];
+    const pz = entity.transform.position[2];
+    const path = entity.config?.beltPath;
+    // 折线皮带（conveyorPolyline）要按段拆开，否则只认锚点那一格会把
+    // 整条线上的货全判成"脱线"。
+    if (Array.isArray(path) && path.length >= 2) {
+      const w = typeof entity.config?.beltWidth === 'number' ? (entity.config.beltWidth as number) : size[0];
+      for (let i = 0; i < path.length - 1; i += 1) {
+        const a = path[i] as [number, number];
+        const b = path[i + 1] as [number, number];
+        if (!Array.isArray(a) || !Array.isArray(b)) continue;
+        const ax = px + a[0];
+        const az = pz + a[1];
+        const bx = px + b[0];
+        const bz = pz + b[1];
+        const alongX = Math.abs(bx - ax) >= Math.abs(bz - az);
+        const padX = alongX ? 0 : w / 2;
+        const padZ = alongX ? w / 2 : 0;
+        out.push({ id: `${entity.id}#${i}`, x0: Math.min(ax, bx) - padX, x1: Math.max(ax, bx) + padX, z0: Math.min(az, bz) - padZ, z1: Math.max(az, bz) + padZ });
+      }
+    } else {
+      out.push({ id: entity.id, x0: px - size[0] / 2, x1: px + size[0] / 2, z0: pz - size[2] / 2, z1: pz + size[2] / 2 });
+    }
+  }
+  return out;
 }
 
 /** 物料是否落在某条皮带上方（留 5cm 容差吸收圆角与浮点）。 */

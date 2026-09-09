@@ -218,3 +218,45 @@ h2 { margin: 0 0 12px; color: var(--accent); font-size: 0.82rem; letter-spacing:
   .studio-grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(160px, 34vh); }
   .telemetry-hud { width: calc(100% - 28px); }
 }
+
+/* ── 右键菜单（列表里的设备/物料名字） ── */
+.ctx-backdrop { position: fixed; inset: 0; z-index: 40; }
+.ctx-menu {
+  position: fixed;
+  z-index: 41;
+  min-width: 176px;
+  display: grid;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid rgba(58, 74, 79, 0.16);
+  border-radius: 10px;
+  background: #fffdf8;
+  box-shadow: 0 12px 28px rgba(58, 74, 79, 0.18);
+}
+.ctx-title {
+  padding: 4px 8px 6px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: var(--ink-soft);
+  border-bottom: 1px solid rgba(58, 74, 79, 0.1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ctx-menu button {
+  padding: 6px 8px;
+  font-size: 0.78rem;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.ctx-menu button:hover { background: #e6f5f1; color: var(--accent); }
+.ctx-note {
+  margin-top: 2px;
+  padding: 4px 8px;
+  font-size: 0.7rem;
+  color: var(--accent);
+  border-top: 1px solid rgba(58, 74, 79, 0.1);
+}

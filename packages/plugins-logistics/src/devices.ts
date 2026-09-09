@@ -14,6 +14,14 @@ export interface ConveyorOptions {
   color?: string;
   size?: TwinVector3;
   /**
+   * **必须显式声明**这条线沿哪个轴铺：`'x'` 长边给 X、`'z'` 长边给 Z。
+   *
+   * 渲染层原来靠 `sizeZ > sizeX` 猜走向——短接驳段（比如 0.9m 长 × 1.4m 宽）
+   * 会被误判成"沿 Z 铺"，整段转 90°、长宽互换，滚筒轴和箭头方向跟着全错。
+   * 所以走向只能由声明决定，不能靠尺寸比较。
+   */
+  axis?: 'x' | 'z';
+  /**
    * 皮带箭头流动方向：`+1` 顺 local +X，`-1` 逆行。
    * 沿 X 铺设时 local +X = 世界 +X；沿 Z 铺设时模型会转 90°，local +X = 世界 -Z。
    * 按物料实际行进方向填，箭头才跟 path 一致。
@@ -29,7 +37,11 @@ export function conveyorSegment(id: string, position: TwinVector3, options: Conv
     transform: { position },
     capabilities: ['move'],
     visual: { kind: 'box', color: options.color ?? '#22c55e', size: options.size ?? [3, 0.6, 1.4] },
-    config: { label: options.label ?? id, beltDirection: options.beltDirection ?? 1 },
+    config: {
+      label: options.label ?? id,
+      beltAxis: options.axis ?? 'x',
+      beltDirection: options.beltDirection ?? 1,
+    },
   };
 }
 
@@ -45,16 +57,66 @@ export function inspectionStation(id: string, position: TwinVector3, zoneHalfWid
   };
 }
 
+export interface PolylineOptions {
+  label?: string;
+  color?: string;
+  /** 带宽（米）。 */
+  width?: number;
+  /** 箭头流动方向：+1 沿 `path` 点列顺序，-1 逆行。 */
+  beltDirection?: number;
+  /** 拐角倒圆半径，默认取带宽一半（= 半个模块，跟 90° 转角模块占地一致）。 */
+  radius?: number;
+}
+
+/**
+ * 折线输送线：一段线自己带 90° 拐，不再拆成"直段 + 独立转角模块"。
+ *
+ * `path` 是相对 `position` 的本地 [X, Z] 点列，按行进顺序给（起点 → 拐点 → 终点）。
+ * 渲染层按 `radius` 把拐角倒圆、沿中心线连续扫掠出皮带面，箭头 UV 走弧长，
+ * 所以人字形一定顺着 path 指，不会像直段那样只能沿单一轴流。
+ */
+export function conveyorPolyline(
+  id: string,
+  position: TwinVector3,
+  path: readonly [number, number][],
+  options: PolylineOptions = {},
+): TwinEntity {
+  const width = options.width ?? 1.4;
+  return {
+    id,
+    kind: 'transport',
+    transform: { position },
+    capabilities: ['move'],
+    visual: { kind: 'box', color: options.color ?? '#22c55e', size: [width, 0.6, width] },
+    config: {
+      label: options.label ?? id,
+      beltPath: path.map(([px, pz]) => [px, pz] as [number, number]),
+      beltWidth: width,
+      beltDirection: options.beltDirection ?? 1,
+      beltRadius: options.radius ?? width / 2,
+    },
+  };
+}
+
 export interface CornerOptions {
   label?: string;
   color?: string;
   size?: TwinVector3;
+  /**
+   * **入口处货物行进的方向**（不是"从哪一侧进来"）：`'x+' | 'x-' | 'z+' | 'z-'`。
+   * 90° 弯道的圆弧由「进 / 出」这两个方向唯一确定，填反了弧线会朝外翻。
+   */
+  turnIn?: string;
+  /** 出口处货物行进的方向，取值同 `turnIn`，且必须与 `turnIn` 垂直。 */
+  turnOut?: string;
 }
 
 /**
- * 90° 转角输送模块：方形台面，把两条相互垂直的输送线接到一起，货物在此转向。
- * 与普通输送线一样只作"输送面 + 设备占位"，真正的运动由路径（cornerRadius）完成。
- * 台面略高于直行皮带以避免 z-fighting（见 entityMeshes 的 buildCorner）。
+ * 90° 弯曲输送线：一段真正的圆弧，把两条互相垂直的输送线接起来。
+ *
+ * 什么时候用它：**这一段线路只有一条、且没有别的功能**（不分流、不合流、不加工）
+ * ——纯过路的拐弯。如果这个拐点还要承担分流 / 合流，就该上顶升移栽机。
+ * 台面比直行皮带高 1cm 以避免 z-fighting（见 entityMeshes 的 buildCurvedConveyor）。
  */
 export function conveyorCorner(id: string, position: TwinVector3, options: CornerOptions = {}): TwinEntity {
   return {
@@ -63,7 +125,12 @@ export function conveyorCorner(id: string, position: TwinVector3, options: Corne
     transform: { position },
     capabilities: ['move'],
     visual: { kind: 'box', color: options.color ?? '#22c55e', size: options.size ?? [1.4, 0.6, 1.4] },
-    config: { label: options.label ?? id, corner: true },
+    config: {
+      label: options.label ?? id,
+      corner: true,
+      cornerIn: options.turnIn ?? 'x+',
+      cornerOut: options.turnOut ?? 'z-',
+    },
   };
 }
 
@@ -85,6 +152,8 @@ export interface ParcelOptions {
   size?: TwinVector3;
   /** 折角圆角半径：闭环路径给 0.2~0.8 才能拐出圆角，0 是尖角。 */
   cornerRadius?: number;
+  /** 路径循环方式：`'repeat'`（默认）闭环往复；`'none'` 走到终点停住，单向产线物料不回流。 */
+  loop?: 'repeat' | 'none';
 }
 
 /**
@@ -101,7 +170,7 @@ export function parcel(id: string, path: TwinVector3[], speed: number, options: 
     transform: { position: path[0] ?? [0, 0, 0] },
     capabilities: ['parcel'],
     visual: { kind: 'box', color: options.color ?? '#f97316', size: options.size ?? [0.6, 0.6, 0.6] },
-    motion: { points: path, speed, loop: 'repeat', cornerRadius: options.cornerRadius ?? 0 },
+    motion: { points: path, speed, loop: options.loop ?? 'repeat', cornerRadius: options.cornerRadius ?? 0 },
     config: { label: options.label ?? id },
   };
 }
@@ -239,6 +308,22 @@ export interface LiftTransferOptions {
   /** 顶升 / 下降耗时（秒）。 */
   upTime?: number;
   downTime?: number;
+  /** 台面滚筒的滚动方向：+1 顺 local +X（= 世界 +X），-1 逆行。 */
+  beltDirection?: 1 | -1;
+  /** 顶起后链带把货送向哪一侧：+1 沿世界 +Z，-1 沿 -Z。 */
+  divertSign?: 1 | -1;
+  /**
+   * 'divert' = 主线上的货被顶向支路（中央 → 边缘）；
+   * 'merge'  = 支路的货并入主线（边缘 → 中央）。
+   * 两者的认领判据相反，用错会把货往回推，不能混。
+   */
+  mode?: 'divert' | 'merge';
+  /**
+   * 双向：同一台机器兼做"顶进支路"和"从支路接回"。
+   * 认领时按货从哪一侧驶入决定顶送方向——从台面中央那侧来 → +divertSign，
+   * 从 +Z 支路那侧来 → −divertSign。用于立库载货站台这种进出共用一台的场合。
+   */
+  bidirectional?: boolean;
 }
 
 /**
@@ -247,9 +332,9 @@ export interface LiftTransferOptions {
  * 真机怎么干活，这里就怎么建模：
  * - 台面与所接入的输送线**同宽**，串在线里，货物直接滚上来；
  * - 一排滚筒（轴垂直于流向）把货物继续往前推，跟两侧皮带一模一样；
- * - 滚筒缝隙里藏着一 cassette 小传动轴（带驱动轮），缩在滚筒线以下；
- * - 要分流的货来了，cassette 顶起几厘米把货抬离滚筒，传动轴转起来把货
- *   **横向**送出去，然后缩回，下一个货继续直着滚过去。
+ * - 滚筒缝隙里藏着一组顶升链带，缩在滚筒线以下（idle 时货压在滚筒上）；
+ * - 要分流的货来了，链带顶起把货抬离滚筒，链条转起来把货**垂直**送出去，
+ *   然后落回缝里，下一个货继续直着滚过去。
  *
  * cassette 是独立实体（`liftTransferCassette`）：渲染层只认 position，
  * "顶升"这种相对位移必须靠子实体表达（和堆垛机拆门架/载货台/货叉同理）。
@@ -267,18 +352,34 @@ export function liftTransfer(id: string, position: TwinVector3, options: LiftTra
       divertIds: options.divertIds ?? [],
       upTime: options.upTime ?? 0.18,
       downTime: options.downTime ?? 0.18,
+      beltDirection: options.beltDirection ?? 1,
+      divertSign: options.divertSign ?? -1,
+      transferMode: options.mode ?? 'divert',
+      bidirectional: options.bidirectional ?? false,
     },
   };
 }
 
-/** 顶升移栽机的托举座：滚筒缝隙里那组小传动轴 + 驱动轮，由 `transfer-cycle` 抬升。 */
-export function liftTransferCassette(id: string, position: TwinVector3, color?: string, label?: string): TwinEntity {
+/**
+ * 顶升移栽机的托举座：滚筒缝隙里那组顶升链带，由 `transfer-cycle` 抬升。
+ *
+ * 台面尺寸必须和 `liftTransfer` 一致——两边共用同一套节距算链带位置，
+ * 宽度不同链带就会跑到滚筒上而不是缝里。
+ */
+export function liftTransferCassette(
+  id: string,
+  position: TwinVector3,
+  color?: string,
+  label?: string,
+  size: TwinVector3 = [1.6, 0.14, 1.4],
+  divertSign = -1,
+): TwinEntity {
   return {
     id,
     kind: 'cassette',
     transform: { position },
     capabilities: ['cassette'],
-    visual: { kind: 'box', color: color ?? '#F4A261', size: [1.3, 0.14, 1.1] },
-    config: { label: label ?? id },
+    visual: { kind: 'box', color: color ?? '#F4A261', size },
+    config: { label: label ?? id, divertSign },
   };
 }

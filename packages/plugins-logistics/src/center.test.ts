@@ -2,7 +2,38 @@ import { describe, expect, it } from 'bun:test';
 import { PluginHost } from '@twin-platform/plugin-sdk';
 import { TwinWorld } from '@twin-platform/world-kernel';
 import { buildCenterScene, centerTemplate, logisticsPlugin, splitClosedLoop } from './index';
-import type { TwinVector3 } from '@twin-platform/scene-schema';
+import type { TwinEntity, TwinVector3 } from '@twin-platform/scene-schema';
+
+/** 把输送面（含折线皮带，按段拆分）展开成俯视矩形，供"拐点/拐角是否托住"校验。 */
+function beltSurfaces(entities: TwinEntity[]): { x0: number; x1: number; z0: number; z1: number }[] {
+  const out: { x0: number; x1: number; z0: number; z1: number }[] = [];
+  for (const entity of entities) {
+    if (entity.kind !== 'transport' && entity.kind !== 'transfer') continue;
+    const size = entity.visual?.size ?? [1, 1, 1];
+    const px = entity.transform.position[0];
+    const pz = entity.transform.position[2];
+    const path = entity.config?.beltPath;
+    if (Array.isArray(path) && path.length >= 2) {
+      const w = typeof entity.config?.beltWidth === 'number' ? (entity.config.beltWidth as number) : size[0];
+      for (let i = 0; i < path.length - 1; i += 1) {
+        const a = path[i] as [number, number];
+        const b = path[i + 1] as [number, number];
+        if (!Array.isArray(a) || !Array.isArray(b)) continue;
+        const ax = px + a[0];
+        const az = pz + a[1];
+        const bx = px + b[0];
+        const bz = pz + b[1];
+        const alongX = Math.abs(bx - ax) >= Math.abs(bz - az);
+        const padX = alongX ? 0 : w / 2;
+        const padZ = alongX ? w / 2 : 0;
+        out.push({ x0: Math.min(ax, bx) - padX, x1: Math.max(ax, bx) + padX, z0: Math.min(az, bz) - padZ, z1: Math.max(az, bz) + padZ });
+      }
+    } else {
+      out.push({ x0: px - size[0] / 2, x1: px + size[0] / 2, z0: pz - size[2] / 2, z1: pz + size[2] / 2 });
+    }
+  }
+  return out;
+}
 
 /** 把场景装上插件行为跑若干步，返回最终世界。 */
 function simulate(scene: ReturnType<typeof buildCenterScene>, steps: number, seed = 20240906) {
@@ -74,15 +105,13 @@ describe('智能物流中心模板', () => {
   });
 
   it('每条物料路径的每一个拐点下面都有输送线托着（不脱线）', () => {
-    // 移栽机本体也是一段 inline 输送面，拐角顶点可能落在它上面，故一并计入。
-    const belts = entities.filter((e) => e.kind === 'transport' || e.kind === 'transfer');
+    // 移栽机本体也是一段 inline 输送面；折线皮带按段拆开，拐角顶点才可能落在它上面。
+    const surfaces = beltSurfaces(entities);
     for (const mover of entities.filter((e) => e.motion)) {
       for (const point of mover.motion!.points) {
-        const covered = belts.some((belt) => {
-          const [sx, , sz] = belt.visual?.size ?? [0, 0, 0];
-          const [bx, , bz] = belt.transform.position;
-          return Math.abs(point[0] - bx) <= sx / 2 + 1e-6 && Math.abs(point[2] - bz) <= sz / 2 + 1e-6;
-        });
+        const covered = surfaces.some(
+          (b) => point[0] >= b.x0 - 1e-6 && point[0] <= b.x1 + 1e-6 && point[2] >= b.z0 - 1e-6 && point[2] <= b.z1 + 1e-6,
+        );
         expect(covered, `${mover.id} 的点 ${point.join(',')} 没有皮带`).toBe(true);
       }
     }
@@ -200,36 +229,34 @@ describe('顶升移栽机分流', () => {
     const scene = buildCenterScene({ parcels: 4, asrsParcels: 1, externalLanes: 1 });
     const divert = scene.entities.find((e) => e.id === 'divert-cargo-1');
     expect(divert?.motion).toBeTruthy();
-    const surfaces = scene.entities.filter((e) => e.kind === 'transport' || e.kind === 'transfer');
+    const surfaces = beltSurfaces(scene.entities);
     for (const point of divert!.motion!.points) {
-      const covered = surfaces.some((belt) => {
-        const [sx, , sz] = belt.visual?.size ?? [0, 0, 0];
-        const [bx, , bz] = belt.transform.position;
-        return Math.abs(point[0] - bx) <= sx / 2 + 1e-6 && Math.abs(point[2] - bz) <= sz / 2 + 1e-6;
-      });
+      const covered = surfaces.some(
+        (b) => point[0] >= b.x0 - 1e-6 && point[0] <= b.x1 + 1e-6 && point[2] >= b.z0 - 1e-6 && point[2] <= b.z1 + 1e-6,
+      );
       expect(covered, `divert 点 ${point.join(',')} 没有输送面`).toBe(true);
     }
   });
 });
 
-describe('90° 转角模块', () => {
-  it('主环线/分流支线/立库环线的每个拐角都有转角皮带，且台面高度与输送线齐平', () => {
+describe('90° 转角', () => {
+  it('转角模块已退役，所有 90° 拐都并进折线输送线（自带倒圆），且每个拐角下方仍有输送面托着', () => {
     const scene = buildCenterScene({ parcels: 8, asrsParcels: 2, externalLanes: 2 });
+    // 独立转角模块（config.corner === true）已全部并入折线皮带，不再单独存在。
     const corners = scene.entities.filter((e) => (e.config as { corner?: boolean })?.corner === true);
-    // 主环线 6 + 分流支线 4 + 两条立库环线各 4 = 18
-    expect(corners.length).toBe(18);
-    // 转角台面高度和普通输送线一致（y = BELT_Y = 0.6）
-    for (const c of corners) expect(c.transform.position[1]).toBeCloseTo(0.6, 5);
+    expect(corners.length).toBe(0);
 
-    // 主环线 6 个拐角点下方都有转角模块
-    const expected = [
-      [16, 0], [16, -6], [-16, -6], [-16, 2], [-12, 2], [-12, 0],
+    // 主环线 / 分流支线 / 两条立库出入库环的全部拐角，逐个验证下方有输送面托着。
+    const surfaces = beltSurfaces(scene.entities);
+    const turnPoints: [number, number][] = [
+      [-8, 0], [19, 0], [19, -6], [-16, -6], [-16, 3], [-12, 3], [-12, 0], // 主环线
+      [1, 0], [10, 0], [10, -2.6], [1, -2.6], // 分流支线
+      [8, 2.6], [4, 2.6], [4, 5.0], [8, 5.0], [4, 0], // 立库 A 出入库环（L 形站台：竖段接角落移栽机、横段伸到巷道口）
+      [16, 2.6], [12, 2.6], [12, 5.0], [16, 5.0], [12, 0], // 立库 B 出入库环（L 形站台，inX=12 西侧）
     ];
-    for (const [cx, cz] of expected) {
-      const has = corners.some(
-        (c) => Math.abs(c.transform.position[0] - cx) < 1e-6 && Math.abs(c.transform.position[2] - cz) < 1e-6,
-      );
-      expect(has, `拐角 (${cx},${cz}) 缺转角模块`).toBe(true);
+    for (const [cx, cz] of turnPoints) {
+      const ok = surfaces.some((b) => cx >= b.x0 - 1e-6 && cx <= b.x1 + 1e-6 && cz >= b.z0 - 1e-6 && cz <= b.z1 + 1e-6);
+      expect(ok, `拐角 (${cx},${cz}) 下方缺输送面`).toBe(true);
     }
   });
 });

@@ -3,7 +3,7 @@ import type { TwinEntity, TwinScene, TwinVector3 } from '@twin-platform/scene-sc
 import {
   asrsRack,
   bufferRack,
-  conveyorCorner,
+  conveyorPolyline,
   conveyorSegment,
   inspectionStation,
   liftTransfer,
@@ -51,10 +51,10 @@ export const lineTemplate: SceneTemplateDescriptor<LineTemplateParams> = {
     ];
 
     const entities: TwinEntity[] = [
-      conveyorSegment('belt-top', [0, 0.6, 0], { label: '输送线上行', size: [length, 0.6, 1.4] }),
-      conveyorSegment('belt-bottom', [0, 0.6, DEPTH], { label: '输送线下行', size: [length, 0.6, 1.4] }),
-      conveyorSegment('belt-left', [-w, 0.6, DEPTH / 2], { label: '输送线左转', size: [1.4, 0.6, DEPTH] }),
-      conveyorSegment('belt-right', [w, 0.6, DEPTH / 2], { label: '输送线右转', size: [1.4, 0.6, DEPTH] }),
+      conveyorSegment('belt-top', [0, 0.6, 0], { label: '输送线上行', size: [length, 0.6, 1.4], axis: 'x' }),
+      conveyorSegment('belt-bottom', [0, 0.6, DEPTH], { label: '输送线下行', size: [length, 0.6, 1.4], axis: 'x' }),
+      conveyorSegment('belt-left', [-w, 0.6, DEPTH / 2], { label: '输送线左转', size: [1.4, 0.6, DEPTH], axis: 'z' }),
+      conveyorSegment('belt-right', [w, 0.6, DEPTH / 2], { label: '输送线右转', size: [1.4, 0.6, DEPTH], axis: 'z' }),
       inspectionStation('scan-01', [0, 0.9, 0], 1.6),
       bufferRack('buffer-01', [length / 2 + 1.5, 1, 0]),
     ];
@@ -129,43 +129,44 @@ export const factoryTemplate: SceneTemplateDescriptor<FactoryTemplateParams> = {
     const yLine = 1.15;
 
     const entities: TwinEntity[] = [
-      conveyorSegment('infeed-1', [x(-14), 0.6, -2], { label: '入料线 1', color: PASTEL.conveyor }),
-      conveyorSegment('infeed-2', [x(-14), 0.6, 2], { label: '入料线 2', color: PASTEL.conveyor }),
-      conveyorSegment('belt-main-1', [x(-9), 0.6, 0], { label: '主输送段 1', color: PASTEL.conveyor }),
-      conveyorSegment('belt-main-2', [x(-2), 0.6, 0], { label: '主输送段 2', color: PASTEL.conveyor }),
-      conveyorSegment('belt-main-3', [x(9), 0.6, 0], { label: '主输送段 3', color: PASTEL.conveyor }),
-      conveyorSegment('outfeed-1', [x(14), 0.6, 0], { label: '出料线', color: PASTEL.conveyor }),
+      conveyorSegment('infeed-1', [x(-14), 0.6, -2], { label: '入料线 1', color: PASTEL.conveyor, axis: 'x' }),
+      conveyorSegment('infeed-2', [x(-14), 0.6, 2], { label: '入料线 2', color: PASTEL.conveyor, axis: 'x' }),
+      conveyorSegment('belt-main-1', [x(-9), 0.6, 0], { label: '主输送段 1', color: PASTEL.conveyor, axis: 'x' }),
+      conveyorSegment('belt-main-2', [x(-2), 0.6, 0], { label: '主输送段 2', color: PASTEL.conveyor, axis: 'x' }),
+      conveyorSegment('belt-main-3', [x(9), 0.6, 0], { label: '主输送段 3', color: PASTEL.conveyor, axis: 'x' }),
+      conveyorSegment('outfeed-1', [x(14), 0.6, 0], { label: '出料线', color: PASTEL.conveyor, axis: 'x' }),
       withColor(inspectionStation('scan-01', [x(-5), 0.9, 0], 1.6), PASTEL.inspection),
       withColor(inspectionStation('scan-02', [x(5), 0.9, 0], 1.6), PASTEL.inspection),
       withColor(bufferRack('reject-rack-1', [x(-5), 1, 3]), PASTEL.reject),
       withColor(bufferRack('reject-rack-2', [x(5), 1, 3]), PASTEL.reject),
-      conveyorSegment('sorter-1', [x(1.5), 0.6, 0], { label: '分拣台', color: PASTEL.conveyor }),
-      withColor(bufferRack('pack-01', [x(12), 1, 0]), PASTEL.pack),
+      conveyorSegment('sorter-1', [x(1.5), 0.6, 0], { label: '分拣台', color: PASTEL.conveyor, axis: 'x' }),
+      { ...withColor(bufferRack('pack-01', [x(12), 1, 0]), PASTEL.pack), capabilities: ['store', 'buffer', 'pack'] },
       // 外部车道沿 Z 铺设（长边给 Z），间距 4 > 长度 3.2，彼此不重叠。
       ...Array.from({ length: lanes }, (_, i) =>
         conveyorSegment(`ext-${i + 1}`, [x(16), 0.6, -6 + i * 4], {
           label: `外部车道 ${i + 1}`,
           color: PASTEL.external,
           size: [1.4, 0.6, 3.2],
+          axis: 'z',
         }),
       ),
     ];
 
-    // 主环线：左入料 → 右出料 → 下 → 回到左侧，构成闭环矩形。
-    // 同一条连续皮带 → 所有包裹同速（MAIN_SPEED）。靠 splitClosedLoop 把起步点
-    // 错开在环上，既不会互相超车、也不会叠在一起。
+    // 包装线（单向、不回流）：左入料 → 质检 → 分拣 → 到达 pack-01（等待/装盒处）停下。
+    // 之前是闭环矩形（loop:'repeat'），物料会一圈圈绕回 pack-01——即用户看到的
+    // "小盒子在等待处被装盒、却又绕回去"。改成开放路径 + loop:'none'：物料只走一趟、
+    // 到 pack-01 即停（堆积成「大箱」），不再回流。同线仍用 splitOpenPath 错开起步点。
     const mainPath: TwinVector3[] = [
       [x(-14), yLine, 0],
-      [x(14), yLine, 0],
-      [x(14), yLine, -5],
-      [x(-14), yLine, -5],
+      [x(12), yLine, 0], // 终点落在 pack-01：物料到此停下、堆积成「大箱」，不再绕回
     ];
     const MAIN_SPEED = 1.4;
     for (let i = 0; i < count; i += 1) {
       entities.push(
-        parcel(`parcel-${i + 1}`, splitClosedLoop(mainPath, i / count), MAIN_SPEED, {
+        parcel(`parcel-${i + 1}`, splitOpenPath(mainPath, i / count), MAIN_SPEED, {
           label: `在制物料 ${i + 1}`,
           color: PASTEL.cargo[i % PASTEL.cargo.length],
+          loop: 'none',
         }),
       );
     }
@@ -286,6 +287,36 @@ export function splitClosedLoop(corners: TwinVector3[], fraction: number): TwinV
   return [start, ...rest, start];
 }
 
+/**
+ * 开放路径的起步点错开（不闭合、不回绕）。
+ *
+ * 与 `splitClosedLoop` 的区别：返回的 path 首尾**不重合**，且沿行进方向走到终点即止，
+ * 配合 `parcel(..., { loop: 'none' })` 使用——物料从错开的位置进入、单向走到终点停下，
+ * 不会像闭环那样绕回起点（即用户看到的"小盒子回去"）。
+ */
+export function splitOpenPath(points: TwinVector3[], fraction: number): TwinVector3[] {
+  const n = points.length;
+  if (n < 2) return [...points];
+  let total = 0;
+  for (let i = 0; i < n - 1; i += 1) total += dist(points[i]!, points[i + 1]!);
+  let target = (((fraction % 1) + 1) % 1) * total;
+  let index = 0;
+  let ratio = 0;
+  for (let i = 0; i < n - 1; i += 1) {
+    const segment = dist(points[i]!, points[i + 1]!);
+    if (target <= segment || i === n - 2) {
+      index = i;
+      ratio = segment > 1e-9 ? Math.min(1, target / segment) : 0;
+      break;
+    }
+    target -= segment;
+  }
+  const a = points[index]!;
+  const b = points[index + 1]!;
+  const start: TwinVector3 = [a[0] + (b[0] - a[0]) * ratio, a[1] + (b[1] - a[1]) * ratio, a[2] + (b[2] - a[2]) * ratio];
+  return [start, ...points.slice(index + 1)];
+}
+
 export interface CenterTemplateParams {
   /** 主环线在制物料数，默认 10。 */
   parcels?: number;
@@ -339,6 +370,7 @@ export const centerTemplate: SceneTemplateDescriptor<CenterTemplateParams> = {
           label,
           color,
           size: [x(Math.abs(x1 - x0)), 0.6, 1.4],
+          axis: 'x',
           beltDirection: dir,
         }),
       );
@@ -362,6 +394,7 @@ export const centerTemplate: SceneTemplateDescriptor<CenterTemplateParams> = {
           label,
           color,
           size: [1.4, 0.6, z(Math.abs(z1 - z0))],
+          axis: 'z',
           beltDirection: dir,
         }),
       );
@@ -373,58 +406,119 @@ export const centerTemplate: SceneTemplateDescriptor<CenterTemplateParams> = {
     // 3) 转弯用 90° 转角模块；**只有不转弯的垂直移动**才用顶升移栽机，并把主线断开。
     const HALF_C = 0.7;
     const HALF_T = 0.8;
-    // 立库巷道（两条要隔 ≥5.8，否则两侧货架互撞）；出入库环宽 2.5、环顶 z=2.6。
-    const aisleXs = aisles >= 2 ? [7, 13] : [7];
+    // 立库巷道：环线宽 4.0（巷道 → 载货站台），所以相邻巷道要隔 ≥7.6，
+    // 否则下一巷道的载货站台会撞上一巷道的货架（货架在 aisleX±2、半宽 0.9）。
+    // 取 [8, 16]：相隔 8.0，两侧各留 0.4 净距。
+    const aisleXs = aisles >= 2 ? [8, 16] : [8];
     const IO_TOP = 2.6;
-    const ioInX = (aisleX: number): number => aisleX - 2.5;
-    // 分流移栽机放在两巷道之间的空档（T@7 右缘 7.8 ~ T@10.5 左缘 9.7，共 1.9m）。
-    const transferX = 8.75;
+    /**
+     * 环线宽 = 巷道到载货站台的横向距离。载货站台在 inX 处沿 +Z 铺开，
+     * 必须整个落进"上一巷道 rack2"与"本巷道 rack1"之间的空档，否则会穿货架。
+     * 4.0 是算出来的下限：站台右缘 inX+0.7 ≤ aisleX−2−0.9−0.3 ⇒ IO_SPAN ≥ 3.9。
+     */
+    const IO_SPAN = 4.0;
+    const ioInX = (aisleX: number): number => aisleX - IO_SPAN;
+    /** 载货站台北端 / 堆垛机出入库交接点 Z：紧贴货架前沿（zFront=6）南侧 1.0m 处。
+     *  站台横段（朝巷道中心伸出那段）就在这个 Z：低于货架前沿，所以不会和货架叠面；
+     *  又高过角落移栽机（IO_TOP=2.6），所以竖段+横段构成 L 形、货从 -Z 侧被顶进来排队。 */
+    const STATION_END = 5.0;
+    /** 堆垛机出入库交接点 Z：与站台横段同高（紧邻货架前沿南侧），堆垛机从这里把货叉伸进巷道存取。 */
+    const ASRS_IO_Z = STATION_END;
+    // 分流移栽机放在两巷道入库口之间的空档（T@8 右缘 8.8 ~ T@12 左缘 11.2，共 2.4m）。
+    const transferX = 10.0;
+    /** 主环线东界（右转载拐角 x）：要容下 aisleX=16 的入库移栽机右缘 16.8，留 1.5 净距。 */
+    const MAIN_EAST = 19;
     // 分流支线：南行到 z=-2.6，西行回主线；回程接口选西侧长直段 x=1.0。
     const BRANCH_Z = -2.6;
     const branchBackX = 1.0;
 
+    /**
+     * 折线输送线：一条线自带 90° 拐，点列按**行进顺序**给（未缩放的世界坐标）。
+     * 拐角在渲染层按带宽一半（= HALF_C）倒圆，占地跟独立转角模块完全一样，
+     * 所以相邻直段的让位距离沿用 HALF_C 即可，不用重新算。
+     */
+    const beltL = (
+      id: string,
+      // 用 `number[][]` 而不是 `[number, number][]`：数组字面量 [[16,0],[16,-6]]
+      // 会被推断成 number[][]，赋给元组类型要报错，没必要为此在每个调用点写断言。
+      pts: number[][],
+      label: string,
+      color = CENTER.belt,
+      direction: 1 | -1 = 1,
+    ): void => {
+      const head = pts[0]!;
+      const p0x = head[0] ?? 0;
+      const p0z = head[1] ?? 0;
+      entities.push(
+        conveyorPolyline(
+          id,
+          [x(p0x), BELT_Y, z(p0z)],
+          pts.map((seg) => {
+            const sx = seg[0] ?? 0;
+            const sz = seg[1] ?? 0;
+            return [x(sx) - x(p0x), z(sz) - z(p0z)] as [number, number];
+          }),
+          { label, color, beltDirection: direction },
+        ),
+      );
+    };
+
     // 箭头方向按"物料实际行进方向"填：主线东行 +1、回程西行 -1；
     // 沿 Z 的段注意 local +X = 世界 -Z（往 -Z 走填 +1，往 +Z 走填 -1）。
     // 入料/回程线抬到 z=3，让 (-12) 那一对转角之间留出 1.6m 接驳段，不再是 0.6m 的缝。
-    beltX('infeed-1', -16 + HALF_C, -12 - HALF_C, 3, '入料线 1', CENTER.belt, 1);
-    beltZ('belt-join', -12, 3 - HALF_C, 0 + HALF_C, '汇入段', CENTER.belt, 1);
-    beltX('belt-main-1', -12 + HALF_C, -5, 0, '主输送段 1', CENTER.belt, 1);
-    beltX('belt-main-2', -5, branchBackX - HALF_C, 0, '主输送段 2', CENTER.belt, 1);
+    // 汇入段—主输送段：从入料拐的出口切点 (-12, 2.3) 南下，到 (-12,0) 拐 90° 东行，
+    // 一路铺到合流移栽机前（回程接口是合流点，让位按移栽机半长 HALF_T 算）。
+    beltL(
+      'belt-join-main',
+      [[-12, 3 - HALF_C], [-12, 0], [branchBackX - HALF_T, 0]],
+      '汇入段—主输送段',
+      CENTER.belt,
+      1,
+    );
     // 分拣台：紧贴分流支线回程接口往东，铺到第一条巷道的接口移栽机为止。
     const firstAisle = aisleXs[0]!;
     const lastAisle = aisleXs[aisleXs.length - 1]!;
     // 分拣台：紧贴分流支线回程接口往东，铺到第一条巷道的接口移栽机为止。
-    beltX('sorter-1', branchBackX + HALF_C, ioInX(firstAisle) - HALF_T, 0, '分拣台', CENTER.sorter, 1);
+    beltX('sorter-1', branchBackX + HALF_T, ioInX(firstAisle) - HALF_T, 0, '分拣台', CENTER.sorter, 1);
     // 每条巷道的两个接口移栽机之间，主线让位后剩下的一小段接驳皮带。
     // 由巷道位置推出来，不写死数字——改巷道位置时不会漏改。
     aisleXs.forEach((aisleX, index) => {
       const tag = String.fromCharCode(97 + index);
       beltX(`belt-io-${tag}-join`, ioInX(aisleX) + HALF_T, aisleX - HALF_T, 0, `主线接驳 ${tag.toUpperCase()}`, CENTER.belt, 1);
     });
-    beltX('belt-outfeed', lastAisle + HALF_T, 16 - HALF_C, 0, '出库段', CENTER.belt, 1);
-    beltZ('belt-turn-r', 16, 0 - HALF_C, -6 + HALF_C, '右转载段', CENTER.belt, 1);
-    beltX('belt-back-1', 16 - HALF_C, -2, -6, '回程段 1', CENTER.belt, -1);
-    beltX('belt-back-2', -2, -16 + HALF_C, -6, '回程段 2', CENTER.belt, -1);
-    beltZ('belt-turn-l', -16, -6 + HALF_C, 3 - HALF_C, '左转载段', CENTER.belt, -1);
+    // 出库段—右转载—回程段 1：一条线带两个 90° 拐——东行到 (16,0) 南下、到 (16,-6) 再西行。
+    beltL(
+      'belt-outfeed-turn-back',
+      [[lastAisle + HALF_T, 0], [MAIN_EAST, 0], [MAIN_EAST, -6], [-2, -6]],
+      '出库段—右转载—回程段 1',
+      CENTER.belt,
+      1,
+    );
+    // 回程段 2—左转载—入料线 1：西行到 (-16,-6) 北上、(-16,3) 东行、(-12,3) 南下，
+    // 终点 (-12, 2.3) 正是 belt-join-main 的起点，两条线首尾相接、中间没有拼缝。
+    beltL(
+      'belt-back-turn-left',
+      [[-2, -6], [-16, -6], [-16, 3], [-12, 3], [-12, 3 - HALF_C]],
+      '回程段 2—左转载—入料线 1',
+      CENTER.belt,
+      1,
+    );
 
-    // 90° 转角模块：直行皮带按"让到模块边"的约定铺，转角正好补上缺口，输送线在这真正拐弯。
-    const corner = (id: string, xAt: number, zAt: number, color = CENTER.belt): void => {
-      entities.push(
-        conveyorCorner(id, [x(xAt), BELT_Y, z(zAt)], { label: '转角', color, size: [1.4, 0.6, 1.4] }),
-      );
-    };
-    corner('corner-1', 16, 0);
-    corner('corner-2', 16, -6);
-    corner('corner-3', -16, -6);
-    corner('corner-4', -16, 3);
-    corner('corner-5', -12, 3);
-    corner('corner-6', -12, 0);
+    // 转角模块全部退役：所有 90° 拐都并进了上面的折线输送线（beltL）。
+    // 剩下没并的只有"不转弯的垂直接入/合流"——那是顶升移栽机的活，见下面的 liftTransfer。
+
+    // 主线在相邻移栽机之间还有两小段没铺皮带：transfer-io-8-1 右缘 8.8 →
+    // transfer-1 左缘 9.2，以及 transfer-1 右缘 10.8 → transfer-io-16-4 左缘 11.2。
+    // 这两条都是纯直段（沿 +X 东行），按规矩用直行皮带补齐；不补的话主线包裹
+    // 会在缺口处脱线悬空（runtime 测试抓的就是这种历史遗留断点）。
+    beltX('belt-main-link-1', 8.8, 9.2, 0, '主线接驳（8.8→9.2）', CENTER.belt, 1);
+    beltX('belt-main-link-2', 10.8, 11.2, 0, '主线接驳（10.8→11.2）', CENTER.belt, 1);
 
     // 主环线折线：从直段中间起笔，首尾同点，拐角才会被倒圆。
     const mainCorners: TwinVector3[] = [
       [x(-8), DECK_Y, z(0)],
-      [x(16), DECK_Y, z(0)],
-      [x(16), DECK_Y, z(-6)],
+      [x(MAIN_EAST), DECK_Y, z(0)],
+      [x(MAIN_EAST), DECK_Y, z(-6)],
       [x(-16), DECK_Y, z(-6)],
       [x(-16), DECK_Y, z(3)],
       [x(-12), DECK_Y, z(3)],
@@ -449,19 +543,45 @@ export const centerTemplate: SceneTemplateDescriptor<CenterTemplateParams> = {
     // 这里是"不转弯的垂直移动"，所以主线在移栽机处断开（两侧各留 0.15 缝）。
     // 支线三面铺皮带 + 三个 90° 转角，货物不会脱线。
     // 分流环走向：主线东行到移栽机 → 顶起南行 → 西行 → 北行 → 回主线东行。
-    beltZ('belt-branch-a', transferX, 0 - HALF_C, BRANCH_Z + HALF_C, '分流支线（南行）', CENTER.belt, 1);
-    beltX('belt-branch-b', branchBackX + HALF_C, transferX - HALF_C, BRANCH_Z, '分流支线（西行）', CENTER.belt, -1);
-    beltZ('belt-branch-c', branchBackX, 0 - HALF_C, BRANCH_Z + HALF_C, '分流支线（北行）', CENTER.belt, -1);
+    // 台面与托举座必须同宽同深：两边共用一套节距算链带位置，尺寸不一致
+    // 链带就会压在滚筒上而不是落在缝里。
+    const TRANSFER_SIZE: TwinVector3 = [1.6, 0.6, 1.4];
+    const CASSETTE_SIZE: TwinVector3 = [1.6, 0.14, 1.4];
+    // 分流支线：一条线走完"南行 → 西行 → 北行"，两个 90° 拐都在线上，不再拼转角模块。
+    beltL(
+      'belt-branch',
+      [
+        [transferX, 0 - HALF_C],
+        [transferX, BRANCH_Z],
+        [branchBackX, BRANCH_Z],
+        [branchBackX, 0 - HALF_C],
+      ],
+      '分流支线（南—西—北）',
+      CENTER.belt,
+      1,
+    );
 
     entities.push(
       liftTransfer('transfer-1', [x(transferX), BELT_Y, z(0)], {
         label: '顶升移栽机 1',
         color: CENTER.sorter,
+        size: TRANSFER_SIZE,
         divertIds: ['divert-cargo-1'],
         liftHeight: 0.13,
+        beltDirection: 1, // 主线东行
+        divertSign: -1, // 往南(-Z)顶进分流支线
       }),
     );
-    entities.push(liftTransferCassette('transfer-1-cassette', [x(transferX), BELT_Y, z(0)], CENTER.pack, '移栽托举座'));
+    entities.push(
+      liftTransferCassette(
+        'transfer-1-cassette',
+        [x(transferX), BELT_Y, z(0)],
+        CENTER.pack,
+        '移栽托举座',
+        CASSETTE_SIZE,
+        -1,
+      ),
+    );
 
     // 分流环：主线(branchBackX→transferX) → 南行 → 西行 → 北行 → 回主线。
     // 起笔点落在第一段（沿主线的那一笔）上，货物开局就在主线上。
@@ -479,23 +599,50 @@ export const centerTemplate: SceneTemplateDescriptor<CenterTemplateParams> = {
       }),
     );
 
-    // 分流支线转角：只有真正拐弯的三处（回主线接口 + 支线两角）。
-    // 注意主线上不再放 corner-d1 —— 原来那个压在主线皮带上，纯属叠面。
-    corner('corner-d2', transferX, BRANCH_Z);
-    corner('corner-d3', branchBackX, BRANCH_Z);
-    corner('corner-d4', branchBackX, 0);
+    // 支线两个真拐弯（南行→西行、西行→北行）都是单线纯过路 → 90° 弯道。
+    // corner-d2 / corner-d3 已撤：那两个拐并进 belt-branch 了。
+    // 支线汇回主线那一点是**合流**：主线要直通、支线要并入，两条线在此相交，
+    // 按规矩改用顶升移栽机（不是 90° 弯道）。且必须是 merge 模式：
+    // 货从 −Z 侧驶入台面边缘 → 顶起 → 链带(+Z)送到台面中央 → 落带 → 主线带走。
+    // 用 divert 模式会把货往回推（它是"中央→边缘"，正好相反）。
+    entities.push(
+      liftTransfer('transfer-merge-1', [x(branchBackX), BELT_Y, z(0)], {
+        label: '合流移栽机 1',
+        color: CENTER.sorter,
+        size: TRANSFER_SIZE,
+        divertIds: ['divert-cargo-1'],
+        liftHeight: 0.13,
+        beltDirection: 1,
+        divertSign: 1, // 链带往北(+Z)，与支线来料同向
+        mode: 'merge',
+      }),
+    );
+    entities.push(
+      liftTransferCassette(
+        'transfer-merge-1-cassette',
+        [x(branchBackX), BELT_Y, z(0)],
+        CENTER.pack,
+        '合流托举座',
+        CASSETTE_SIZE,
+        1,
+      ),
+    );
 
     // ── 质检与拒收 ──
     // 检测站是跨在皮带上方的拱门，不占皮带，所以直接架在主干线上。
     entities.push(inspectionStation('scan-01', [x(-8.5), 0, z(0)], 1.8));
     entities.push(inspectionStation('scan-02', [x(-2), 0, z(0)], 1.8));
-    // 拒收货架挪到 z=-4.5：让开分流支线(z=-2.6)与回程线(z=-6)之间的唯一空档。
-    entities.push(withColor(bufferRack('reject-rack-1', [x(-6), 1, z(-4.5)]), CENTER.reject));
-    entities.push(withColor(bufferRack('reject-rack-2', [x(6), 1, z(-4.5)]), CENTER.reject));
+    // 拒收货架落在 z=-2.6 分流支线与 z=-6 回程线之间唯一空档的正中（z=-4.3）：
+    // 深 1.8 → z∈[-5.2,-3.4]，与回程线台面（z∈[-6.7,-5.3]）和支线台面（z∈[-3.3,-1.9]）
+    // 各留 0.1m，不再叠面。
+    entities.push(withColor(bufferRack('reject-rack-1', [x(-6), 1, z(-4.3)]), CENTER.reject));
+    entities.push(withColor(bufferRack('reject-rack-2', [x(6), 1, z(-4.3)]), CENTER.reject));
     entities.push(withColor(bufferRack('pack-01', [x(18.5), 1, z(2)]), CENTER.pack));
 
     // ── 立体仓库：巷道两侧各一排高层货架，巷道口接一段出入库环线 ──
-    const RACK = { halfW: 0.9, height: 4.5, zFront: 4, zBack: 13 } as const;
+    // 货架前沿从 z=4 挪到 6：让出 2m 给载货站台，否则站台只有 1.1m、存不下货。
+    // 后端同步 13→15，货架净长仍是 9m，库容不变。
+    const RACK = { halfW: 0.9, height: 4.5, zFront: 6, zBack: 15 } as const;
     const rackZ = (RACK.zFront + RACK.zBack) / 2;
     const rackLen = RACK.zBack - RACK.zFront;
     const rackY = RACK.height / 2; // 货架实体 y 取半高，模型才落在地面上
@@ -515,48 +662,145 @@ export const centerTemplate: SceneTemplateDescriptor<CenterTemplateParams> = {
         );
       }
 
-      // 出入库环线：主线 →(顶升移栽机垂直接入)→ 巷道 → 环顶 →(顶升移栽机)→ 回主线。
-      // 出库/入库都是"不转弯的垂直移动"（相对主线流向是垂直的），所以按规则用移栽机
-      // 并把主线断开；环顶那两处是真拐弯，仍然用 90° 转角模块。
-      // 环线走向：沿巷道北上(+Z) → 西行到 inX(-X) → 南下回主线(-Z) → 沿主线东行回巷道口。
+      // 出入库不再是一个闭环：左上角改成双向顶升移栽机后，环线被切成三段。
+      //
+      //   主线 ──(T@aisleX 顶起)── 北上 ──环顶西行──> [角落移栽机 @(inX, IO_TOP)]
+      //                                                    │
+      //                                        +Z 顶出 ────┼──── −Z 落带
+      //                                          ↓              ↓
+      //                                      载货站台        出库接驳 ──> 主线
+      //                                   （货在这排队等堆垛机）
+      //
+      // 按"转弯用 90° 输送线、不转弯的垂直移动用移栽机"：
+      // - 北上→西行 是转弯，留在 belt-io-{tag}-in 这条折线里（自带 90° 拐）；
+      // - 进出载货站台是沿 ±Z 的垂直移动，所以由角落移栽机承担；
+      // - 移栽机南侧那段出库接驳是纯直段，不再需要 90° 拐角。
+      // 载货站台 IO 接口位置（巷道西侧，与 A 同侧）。注：左-"右镜像到 x=20" 会与东侧
+      // pack-01 货架、belt-outfeed-turn-back 回程带冲突叠面，故 B 暂保持原侧（西侧），
+      // 仅把站台本身改成 L 形朝巷道中心伸出（见下方 belt-io-*-station）。
       const inX = ioInX(aisleX);
       const ioCargoIds = Array.from({ length: asrsCount }, (_, i) => `asrs-${aisleX}-cargo-${i + 1}`);
-      // 竖向接驳段：移栽机台面(z ±0.7)到环顶转角(z 2.6±0.7)之间那 1.2m。
-      beltZ(`belt-io-${aisleX}-in`, aisleX, HALF_T, IO_TOP - HALF_C, `入库接驳 ${upper}`, CENTER.belt, -1);
-      beltX(`belt-io-${aisleX}-top`, inX + HALF_C, aisleX - HALF_C, IO_TOP, `巷道口 ${upper}`, CENTER.belt, 1);
-      beltZ(`belt-io-${aisleX}-out`, inX, HALF_T, IO_TOP - HALF_C, `出库接驳 ${upper}`, CENTER.belt, 1);
+      // ① 入库段：北上(+Z) → 西行(−X)，止于角落移栽机东缘（让出 HALF_T）。
+      beltL(
+        `belt-io-${tag}-in`,
+        [[aisleX, HALF_C], [aisleX, IO_TOP], [inX + HALF_T, IO_TOP]],
+        `入库接驳 ${upper}—环顶 ${upper}`,
+        CENTER.belt,
+        1,
+      );
+      // ② 载货站台：L 形——竖段从角落移栽机（inX, IO_TOP+HALF_C）沿 +Z 立起到 STATION_END，
+      //    横段再从 (inX, STATION_END) 沿 ±X 朝巷道中心伸出到 aisleX，让堆垛机从侧面接货。
+      //    横段 z=STATION_END=5.0 紧贴货架前沿(zFront=6)南侧 1.0m，低于货架不叠面；
+      //    B 巷道镜像为从 (inX=20) 沿 −X 伸到巷道中心(x=16)。
+      beltL(
+        `belt-io-${tag}-station`,
+        [[inX, IO_TOP + HALF_C], [inX, STATION_END], [aisleX, STATION_END]],
+        `载货站台 ${upper}`,
+        CENTER.pack,
+        1,
+      );
+      // ③ 出库段：从角落移栽机南缘沿 −Z 回到主线接口。
+      beltL(
+        `belt-io-${tag}-out`,
+        [[inX, IO_TOP - HALF_C], [inX, HALF_C]],
+        `出库接驳 ${upper}`,
+        CENTER.belt,
+        1,
+      );
 
+      // 物料路径：主线 → 北上 → 环顶西行 → 竖段进站台 → 横段伸到巷道口（掉头）→ 原路退回 → 南下出库。
+      // 横段把货送到巷道口正下方（堆垛机货叉可达范围内），堆垛机从侧面把货取走存进巷道；
+      // B 巷道镜像：横段朝 −X 伸到 x=16，与 A 的 x=8 关于 x=12 中轴左右对称。
       const ioCorners: TwinVector3[] = [
         [x(aisleX), DECK_Y, z(0)],
         [x(aisleX), DECK_Y, z(IO_TOP)],
         [x(inX), DECK_Y, z(IO_TOP)],
+        [x(inX), DECK_Y, z(STATION_END)],
+        [x(aisleX), DECK_Y, z(STATION_END)],
+        [x(inX), DECK_Y, z(STATION_END)],
+        [x(inX), DECK_Y, z(IO_TOP)],
         [x(inX), DECK_Y, z(0)],
       ];
 
-      // 环顶两处 90° 转角（真拐弯）；主线上的两个接口改用顶升移栽机垂直接入。
-      corner(`corner-io-${aisleX}-2`, aisleX, IO_TOP);
-      corner(`corner-io-${aisleX}-3`, inX, IO_TOP);
-      for (const [suffix, atX] of [
-        ['1', aisleX],
-        ['4', inX],
-      ] as const) {
-        entities.push(
-          liftTransfer(`transfer-io-${aisleX}-${suffix}`, [x(atX), BELT_Y, z(0)], {
-            label: `出入库移栽机 ${upper}${suffix}`,
-            color: CENTER.sorter,
-            divertIds: ioCargoIds,
-            liftHeight: 0.13,
-          }),
-        );
-        entities.push(
-          liftTransferCassette(
-            `transfer-io-${aisleX}-${suffix}-cassette`,
-            [x(atX), BELT_Y, z(0)],
-            CENTER.pack,
-            `移栽托举座 ${upper}${suffix}`,
-          ),
-        );
-      }
+      // 环顶两处才是真拐弯（单线、纯过路）→ 90° 弯道：
+      // (aisleX) 北上(+Z) 转西行(−X)；(inX) 西行(−X) 转南下(−Z)。
+      // corner-io-*-2 / -3 已撤：环顶那两个拐并进 belt-io-*-loop 了。
+      // ① 入库（aisleX）：主线东行的货在这里被顶起、沿 +Z **垂直**顶进巷道。
+      //    这是"不转弯的垂直移动"，按规矩用移栽机 + 主线断开。divert 模式。
+      entities.push(
+        liftTransfer(`transfer-io-${aisleX}-1`, [x(aisleX), BELT_Y, z(0)], {
+          label: `入库移栽机 ${upper}`,
+          color: CENTER.sorter,
+          size: TRANSFER_SIZE,
+          divertIds: ioCargoIds,
+          liftHeight: 0.13,
+          beltDirection: 1, // 主线东行
+          divertSign: 1, // 往北(+Z)顶进巷道
+          mode: 'divert',
+        }),
+      );
+      entities.push(
+        liftTransferCassette(
+          `transfer-io-${aisleX}-1-cassette`,
+          [x(aisleX), BELT_Y, z(0)],
+          CENTER.pack,
+          `入库托举座 ${upper}`,
+          CASSETTE_SIZE,
+          1,
+        ),
+      );
+      // ② 出库（inX）：货从 +Z 侧驶入台面边缘 → 链带(−Z)送到中央 → 落带给主线。
+      //    这里是**合流**（巷道支线并入主线），必须用 merge 模式；
+      //    divertSign 取 −1（链带往南，与来料同向），取 +1 会把货往回推。
+      entities.push(
+        liftTransfer(`transfer-io-${aisleX}-4`, [x(inX), BELT_Y, z(0)], {
+          label: `出库移栽机 ${upper}`,
+          color: CENTER.sorter,
+          size: TRANSFER_SIZE,
+          divertIds: ioCargoIds,
+          liftHeight: 0.13,
+          beltDirection: 1,
+          divertSign: -1,
+          mode: 'merge',
+        }),
+      );
+      entities.push(
+        liftTransferCassette(
+          `transfer-io-${aisleX}-4-cassette`,
+          [x(inX), BELT_Y, z(0)],
+          CENTER.pack,
+          `出库托举座 ${upper}`,
+          CASSETTE_SIZE,
+          -1,
+        ),
+      );
+      // ③ 角落移栽机（环顶左上角 inX）：一台机器兼做进出载货站台。
+      //    入库：环顶西行来的货驶入台面 → 顶起 → 链带 +Z 送进载货站台排队；
+      //    出库：站台上返回的货从 +Z 侧驶入 → 落带 → 链带 −Z 送进出库接驳段。
+      //    进出链带方向相反，所以开 bidirectional：行为层按"货从哪侧驶入"定顶送方向。
+      entities.push(
+        liftTransfer(`transfer-io-${aisleX}-top`, [x(inX), BELT_Y, z(IO_TOP)], {
+          label: `载货站台移栽机 ${upper}`,
+          color: CENTER.sorter,
+          size: TRANSFER_SIZE,
+          divertIds: ioCargoIds,
+          liftHeight: 0.13,
+          beltDirection: -1, // 台面滚向 = 环顶西行（−X）
+          divertSign: 1, // 入库往北(+Z)顶进载货站台
+          mode: 'divert',
+          bidirectional: true,
+        }),
+      );
+      entities.push(
+        liftTransferCassette(
+          `transfer-io-${aisleX}-top-cassette`,
+          [x(inX), BELT_Y, z(IO_TOP)],
+          CENTER.pack,
+          `站台托举座 ${upper}`,
+          CASSETTE_SIZE,
+          1,
+        ),
+      );
       for (let i = 0; i < asrsCount; i += 1) {
         entities.push(
           parcel(`asrs-${aisleX}-cargo-${i + 1}`, splitClosedLoop(ioCorners, i / asrsCount), LINE_SPEED.asrs, {
@@ -571,12 +815,12 @@ export const centerTemplate: SceneTemplateDescriptor<CenterTemplateParams> = {
       const cycle = tag === 'a' ? 14 : 16.5;
       const phase = tag === 'a' ? 0 : 0.38;
       entities.push(
-        stackerCrane(`stacker-${tag}`, [x(aisleX), 0, z(3)], {
+        stackerCrane(`stacker-${tag}`, [x(aisleX), 0, z(ASRS_IO_Z)], {
           label: `堆垛机 ${upper}`,
           color: CENTER.stacker,
           cycle: {
             aisleX: x(aisleX),
-            ioZ: z(3),
+            ioZ: z(ASRS_IO_Z),
             ioY: DECK_Y,
             zMin: z(RACK.zFront + 0.4),
             zMax: z(RACK.zBack - 0.4),
@@ -595,31 +839,6 @@ export const centerTemplate: SceneTemplateDescriptor<CenterTemplateParams> = {
       entities.push(stackerFork(`stacker-${tag}-fork`, [x(aisleX), DECK_Y, z(3)], undefined, `货叉 ${upper}`));
       entities.push(
         pallet(`stacker-${tag}-load`, [x(aisleX), DECK_Y, z(2.1)], CENTER.pack, `托盘 ${upper}`),
-      );
-    }
-
-    // ── 外部数字孪生车道：各自一小圈环线 ──
-    for (let i = 0; i < lanes; i += 1) {
-      const zCenter = -3 + i * 4.5;
-      entities.push(
-        conveyorSegment(`ext-${i + 1}`, [x(20.6), BELT_Y, z(zCenter)], {
-          label: `外部车道 ${i + 1}`,
-          color: CENTER.external,
-          size: [1.2, 0.6, z(2.6)],
-        }),
-      );
-      const extCorners: TwinVector3[] = [
-        [x(20.3), DECK_Y, z(zCenter - 1.3)],
-        [x(20.9), DECK_Y, z(zCenter - 1.3)],
-        [x(20.9), DECK_Y, z(zCenter + 1.3)],
-        [x(20.3), DECK_Y, z(zCenter + 1.3)],
-      ];
-      entities.push(
-        parcel(`ext-cargo-${i + 1}`, splitClosedLoop(extCorners, 0), LINE_SPEED.ext, {
-          label: `外部物料 ${i + 1}`,
-          color: CENTER.cargo[(i + 2) % CENTER.cargo.length],
-          cornerRadius: 0.2 * s,
-        }),
       );
     }
 

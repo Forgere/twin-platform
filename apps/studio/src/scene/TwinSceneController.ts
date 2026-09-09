@@ -40,8 +40,10 @@ export interface TwinSceneControllerOptions {
 const DEFAULT_SIZE: TwinVector3 = [0.7, 0.7, 0.7];
 /** 选中高亮色（暖橘，和奶油色场景对比足够）。 */
 const HIGHLIGHT = '#F4A261';
-/** 滚筒滚动角速度（rad/s），仅播放时转。 */
-const ROLLER_SPIN = 3.0;
+/** 顶升链带链轮角速度（rad/s）。 */
+const CHAIN_SPIN = 7.0;
+/** 顶升链带线速度（m/s），链齿按它循环平移。 */
+const CHAIN_RUN = 0.6;
 
 /** 物料类实体：走实例化池，不走逐实体 Group。 */
 function isCargoKind(kind: string): boolean {
@@ -96,6 +98,9 @@ export class TwinSceneController {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setClearColor('#F5F2EB');
     this.renderer.shadowMap.enabled = true;
+    // PCFSoft：相比默认 BasicShadowMap（硬边、移动物体边缘严重闪烁）抗锯齿好得多，
+    // 代价只是多一次纹理采样，单方向光下几乎无感，专治箱子移动时阴影抖动。
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.host.append(this.renderer.domElement);
     this.camera.position.set(20, 24, 40);
     this.controls = new CameraControls(this.camera, this.renderer.domElement);
@@ -227,14 +232,26 @@ export class TwinSceneController {
     this.scene.background = new THREE.Color('#F5F2EB');
     const grid = new THREE.GridHelper(64, 64, '#D8D0C2', '#E8E4DC');
     this.scene.add(grid);
+    this.addCoordinateAxes();
     this.scene.add(new THREE.HemisphereLight('#FFF4E6', '#E8E4DC', 1.7));
     const key = new THREE.DirectionalLight('#FFF4E6', 2.4);
     key.position.set(14, 20, 16);
     key.castShadow = true;
-    key.shadow.camera.left = -30;
-    key.shadow.camera.right = 30;
-    key.shadow.camera.top = 30;
-    key.shadow.camera.bottom = -30;
+    // 阴影质量：mapSize 默认仅 512² → 放大到 2048 让边缘更细腻（单方向光一次深度 pass，开销可控）。
+    key.shadow.mapSize.set(2048, 2048);
+    // 正交阴影相机裁剪范围收紧：场景跨度 ~60，远裁剪从 500 收到 80，近裁剪从 0.5 提到 1，
+    // 深度精度大幅提高，避免移动物体上的 shadow acne 闪烁。
+    key.shadow.camera.left = -32;
+    key.shadow.camera.right = 32;
+    key.shadow.camera.top = 32;
+    key.shadow.camera.bottom = -32;
+    key.shadow.camera.near = 1;
+    key.shadow.camera.far = 80;
+    key.shadow.camera.updateProjectionMatrix();
+    // normalBias：沿法线方向把阴影采样点推出表面，是消除移动箱子/薄几何自阴影闪烁的关键，
+    // 比单纯 bias 更稳，不会造成阴影"悬空"（peter-panning）。
+    key.shadow.normalBias = 0.03;
+    key.shadow.bias = -0.0001;
     this.scene.add(key);
     const fill = new THREE.DirectionalLight('#ffffff', 0.6);
     fill.position.set(-12, 8, -10);
@@ -248,6 +265,53 @@ export class TwinSceneController {
     this.scene.add(floor);
 
     for (const entity of scene.entities) this.addEntity(entity);
+  }
+
+  /**
+   * 加一个世界坐标系（X 红 / Y 绿 / Z 蓝 + 文字标注），放在场景左下角空白处，
+   * 方便肉眼核对朝向——尤其确认外部车道/移栽机的 +X（东）、+Z（北）方向对不对。
+   * 不进 entityMeshes / cargoPool，所以不会被拾取/选中逻辑干扰。
+   */
+  private addCoordinateAxes(): void {
+    const origin = new THREE.Vector3(-17, 0, -7); // 主环线西南角外侧的空地
+    const len = 6;
+    const axes = new THREE.AxesHelper(len);
+    axes.position.copy(origin);
+    axes.renderOrder = 999; // 压在其它几何之上，避免被皮带/货架挡住
+    if (Array.isArray(axes.material)) {
+      for (const m of axes.material) {
+        m.depthTest = false;
+        m.transparent = true;
+      }
+    } else {
+      axes.material.depthTest = false;
+      axes.material.transparent = true;
+    }
+    this.scene.add(axes);
+
+    const makeLabel = (text: string, color: string, offset: THREE.Vector3): void => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 128;
+      canvas.height = 128;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.fillStyle = color;
+      ctx.font = 'bold 88px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, 64, 64);
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.anisotropy = 4;
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+      sprite.position.copy(origin).add(offset);
+      sprite.scale.set(1.6, 1.6, 1.6);
+      sprite.renderOrder = 1000;
+      this.scene.add(sprite);
+    };
+    // 颜色与 AxesHelper 默认一致：X=红、Y=绿、Z=蓝。
+    makeLabel('X', '#E5484D', new THREE.Vector3(len + 0.8, 0, 0));
+    makeLabel('Y', '#46A758', new THREE.Vector3(0, len + 0.8, 0));
+    makeLabel('Z', '#3E63DD', new THREE.Vector3(0, 0, len + 0.8));
   }
 
   /** 切主题后重建：卸掉设备网格 + 清空货池，再按新主题重新生成。 */
@@ -277,6 +341,8 @@ export class TwinSceneController {
     // 叠加而不是覆盖：输送段可能已经在模型工厂里转过 90°（沿 Z 铺设）。
     object.rotation.y += entity.transform.rotation?.[1] ?? 0;
     object.userData.entityId = entity.id;
+    // 记下初始高度：托举座靠"相对它的偏移"判断自己有没有被顶起来。
+    object.userData.baseY = entity.transform.position[1] ?? 0;
     // 记下原始自发光，取消选中时才能还原（光幕/状态灯原本就发光）。
     for (const material of collectMaterials(object)) {
       material.userData.baseEmissive = material.emissive.getHex();
@@ -363,17 +429,36 @@ export class TwinSceneController {
     }
   }
 
-  /** 每渲染帧推进皮带箭头流动 + 滚筒自转（播放时）；状态由帧差量驱动，这里只做连续动效。 */
+  /** 每渲染帧推进皮带箭头流动（播放时）；状态由帧差量驱动，这里只做连续动效。 */
   private animateBeltAndRollers(realDelta: number): void {
     const playing = this.controller.playing;
     if (playing) this.beltTime += realDelta;
-    const spin = playing ? ROLLER_SPIN * realDelta : 0;
     for (const object of this.entityMeshes.values()) {
       const anim = object.userData.anim as EntityAnim | undefined;
       if (!anim) continue;
       if (anim.belt) anim.belt.uniforms.time.value = this.beltTime;
-      if (anim.rollers && spin !== 0) {
-        for (const roller of anim.rollers) roller.rotation.y += spin;
+      // 滚筒不再自转：输送线滚筒属装饰件，转动既无物理含义又增加每帧矩阵写入，
+      // 静态可见即可（保留用户能看见"是一排滚筒"的语义）。
+      // 顶升链带：只有真的被顶起来才转。顶升量 = 托举座相对初始高度的偏移，
+      // 这样链带动效完全跟着内核走，不额外读 attrs，也不怕时序错位。
+      if (anim.sprockets || anim.chainTeeth) {
+        const baseY = typeof object.userData.baseY === 'number' ? (object.userData.baseY as number) : object.position.y;
+        if (playing && object.position.y - baseY > 0.004) {
+          const sign = anim.divertSign ?? -1;
+          if (anim.sprockets) {
+            // 链轮用 order='ZYX' + Rz(−π/2) 立起来，rotation.y 增大 → 盘面顶点往 +Z 走，
+            // 与链齿的 `+sign` 同向（见 entityMeshes 里 buildCassette 的推导）。
+            for (const sprocket of anim.sprockets) sprocket.rotation.y += sign * CHAIN_SPIN * realDelta;
+          }
+          if (anim.chainTeeth) {
+            const travel = CHAIN_RUN * realDelta;
+            for (const tooth of anim.chainTeeth) {
+              tooth.mesh.position.z += sign * travel;
+              if (tooth.mesh.position.z > tooth.halfSpan) tooth.mesh.position.z -= tooth.halfSpan * 2;
+              else if (tooth.mesh.position.z < -tooth.halfSpan) tooth.mesh.position.z += tooth.halfSpan * 2;
+            }
+          }
+        }
       }
     }
   }

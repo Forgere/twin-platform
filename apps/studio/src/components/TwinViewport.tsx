@@ -70,6 +70,33 @@ export default function TwinViewport() {
   }>({ time: 0, duration: 0, playing: true, speed: 1, events: [], stored: 0 });
   const [metrics, setMetrics] = createSignal<LineMetrics>(session.metrics());
   const [telemetry, setTelemetry] = createSignal<StudioTelemetry>(session.telemetry());
+  /** 右键菜单：记下弹在哪、对哪个实体，以及刚复制了什么（用来给个即时反馈）。 */
+  const [menu, setMenu] = createSignal<{ x: number; y: number; entity: TwinEntityView; note?: string } | null>(
+    null,
+  );
+
+  const copyText = async (text: string, note: string): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // 非安全上下文（http://）下 clipboard 不可用，退回到隐藏 textarea + execCommand。
+      const area = document.createElement('textarea');
+      area.value = text;
+      area.style.position = 'fixed';
+      area.style.opacity = '0';
+      document.body.appendChild(area);
+      area.select();
+      document.execCommand('copy');
+      document.body.removeChild(area);
+    }
+    const current = menu();
+    if (current) setMenu({ ...current, note });
+  };
+
+  const openMenu = (event: MouseEvent, entity: TwinEntityView): void => {
+    event.preventDefault();
+    setMenu({ x: event.clientX, y: event.clientY, entity });
+  };
 
   const mountViewport = (host: HTMLDivElement) => {
     controller = new TwinSceneController(
@@ -279,6 +306,8 @@ export default function TwinViewport() {
                       type="button"
                       class={selected()?.id === entity.id ? 'selected' : undefined}
                       onClick={() => controller?.selectEntity(entity.id)}
+                      onContextMenu={(event) => openMenu(event, entity)}
+                      title="左键选中，右键复制名字 / ID"
                     >
                       {entity.label}
                     </button>
@@ -291,7 +320,9 @@ export default function TwinViewport() {
                 <Show when={selected()} fallback={<p>点击场景中的设备或物料，或从上方列表选择。</p>}>
                   {(entity) => (
                     <>
-                      <strong>{entity().label}</strong>
+                      <strong onContextMenu={(event) => openMenu(event, entity())} title="右键可复制名字 / ID">
+                        {entity().label}
+                      </strong>
                       <span>
                         {entity().kind} · {entity().id}
                       </span>
@@ -340,6 +371,48 @@ export default function TwinViewport() {
           </div>
         </aside>
       </div>
+
+      {/* 右键菜单：设备/物料名字上点右键弹出，复制名字、ID 或渲染来源。 */}
+      <Show when={menu()}>
+        {(state) => (
+          <>
+            <div
+              class="ctx-backdrop"
+              onMouseDown={() => setMenu(null)}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                setMenu(null);
+              }}
+            />
+            <div
+              class="ctx-menu"
+              style={{
+                left: `${Math.max(8, Math.min(state().x, window.innerWidth - 200))}px`,
+                top: `${Math.max(8, Math.min(state().y, window.innerHeight - 180))}px`,
+              }}
+            >
+              <div class="ctx-title" title={state().entity.id}>
+                {state().entity.label}
+              </div>
+              <button type="button" onClick={() => void copyText(state().entity.label, '已复制名字')}>
+                📋 复制名字
+              </button>
+              <button type="button" onClick={() => void copyText(state().entity.id, '已复制 ID')}>
+                🏷️ 复制 ID
+              </button>
+              <button
+                type="button"
+                onClick={() => void copyText(controller?.codePath(state().entity.id) ?? '', '已复制渲染来源')}
+              >
+                🧭 复制渲染来源
+              </button>
+              <Show when={state().note}>
+                <div class="ctx-note">{state().note}</div>
+              </Show>
+            </div>
+          </>
+        )}
+      </Show>
     </main>
   );
 }

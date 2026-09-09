@@ -19,7 +19,8 @@ describe('logistics 插件', () => {
     const host = new PluginHost();
     const record = host.install(logisticsPlugin);
     expect(record.state).toBe('active');
-    expect(host.behaviors).toHaveLength(3);
+    // logistics-flow + asrs-cycle + transfer-cycle + buffer-fill + packing 共五个行为。
+    expect(host.behaviors).toHaveLength(5);
     expect(host.behaviors[0]?.id).toBe('logistics-flow');
     expect(host.metrics.map((metric) => metric.id)).toEqual(['throughput', 'busy-duration']);
     expect(host.templates.map((template) => template.id)).toEqual([

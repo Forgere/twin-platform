@@ -21,8 +21,22 @@ export interface EntityAnim {
   kind: string;
   /** 输送带箭头流动 shader（仅 transport）。 */
   belt?: THREE.ShaderMaterial;
-  /** 滚筒网格数组（仅 transport），按速度旋转。 */
+  /** 滚筒网格数组（transport / transfer / 弯道），按速度自转。 */
   rollers?: THREE.Mesh[];
+  /**
+   * 滚筒自转方向符号：控制器执行 `rotation.y += spin * rollerSign`（spin > 0）。
+   *
+   * **改符号前先读这段推导**，凭直觉改必反：
+   * 滚筒由 `rotation.x = π/2` 立起来，轴向用方位角 θ 表示（直段 θ=π/2 → 轴沿
+   * local +Z；弯道 θ 为径向、轴指向圆心外）。Euler 默认 XYZ，即 R = Rx·Ry·Rz，
+   * 所以 `rotation.y` 是在**本体坐标系**里转，转轴就是滚筒自身轴线 ✓。
+   * 角速度 ω = ṡ·(cosθ, 0, sinθ)，台面顶点 r=(0, r, 0) 的速度
+   * v = ω × r = ṡ·r·(−sinθ, 0, cosθ)。
+   * - 直段 θ=π/2 → v = ṡ·r·(−1, 0, 0)：**rotation.y 增大，台面往 −X 走**。
+   *   所以"台面顺 local +X 走"必须 rollerSign = −direction（之前写成 +direction，反了）。
+   * - 弯道：行进切向 = σ·(−sinθ, 0, cosθ)，故 rollerSign = σ（扫掠方向）。
+   */
+  rollerSign?: number;
   /** 状态灯材质（inspect / buffer / transfer / stacker），idle↔active 变色。 */
   statusLight?: THREE.MeshStandardMaterial;
   /** 缓存货架预置货位（仅 buffer），按 attrs.fill 显隐。 */
@@ -174,11 +188,17 @@ function buildConveyor(
   id: string,
   /** 箭头流动方向：+1 顺 local +X，-1 逆行。沿 Z 铺设时 local +X 指向世界 -Z。 */
   direction = 1,
+  /**
+   * 长边落在哪个轴上——**必须由场景模板声明**，不能靠 `sizeZ > sizeX` 猜。
+   * 猜会在短段上翻车：0.9m 长 × 1.4m 宽的接驳段会被当成"沿 Z 铺"，
+   * 整段转 90°、长宽互换，滚筒轴和箭头方向跟着全错。
+   */
+  axis: 'x' | 'z' = 'x',
 ): THREE.Group {
   const theme = getActiveTheme();
   const group = new THREE.Group();
   group.userData.codePath = 'entityMeshes.ts:buildConveyor';
-  const alongZ = sizeZ > sizeX;
+  const alongZ = axis === 'z';
   const length = alongZ ? sizeZ : sizeX;
   const width = alongZ ? sizeX : sizeZ;
   if (alongZ) group.rotation.y = Math.PI / 2;
@@ -193,8 +213,8 @@ function buildConveyor(
   // 皮带箭头面：盖在滚筒上方，UV.x 沿皮带长度方向滚动箭头。
   // 箭头间距按 1.1m 一个折算成 repeat，长皮带不会把箭头拉长。
   const belt = new THREE.Mesh(
-    new THREE.PlaneGeometry(length * 0.96, width * 0.82),
-    beltMaterial(theme, direction, Math.max(1, Math.round(length / 1.1))),
+    new THREE.PlaneGeometry(length * 0.96, width * BELT_SURFACE_RATIO),
+    beltMaterial(theme, direction, Math.max(1, Math.round(length / BELT_ARROW_SPACING))),
   );
   belt.rotation.x = -Math.PI / 2;
   belt.position.y = deckTop + 0.005;
@@ -203,7 +223,7 @@ function buildConveyor(
   belt.receiveShadow = false;
   group.add(belt);
 
-  group.add(at(rbox(length * 0.98, 0.04, width * 0.9, theme.frameDark, { roughness: 0.7 }), 0, deckBottom - 0.02, 0));
+  group.add(at(rbox(length * 0.98, 0.04, width * BELT_DECK_RATIO, theme.frameDark, { roughness: 0.7 }), 0, deckBottom - 0.02, 0));
 
   for (const side of [-1, 1]) {
     group.add(at(rbox(length * 0.98, 0.07, 0.06, theme.frame, { roughness: 0.6 }), 0, deckBottom - 0.05 / 2 + 0.02, side * (width / 2 - 0.05)));
@@ -213,7 +233,7 @@ function buildConveyor(
   const rollerCount = Math.max(3, Math.round(length / 0.32));
   for (let i = 0; i <= rollerCount; i += 1) {
     const x = -length / 2 + 0.16 + (i / rollerCount) * (length - 0.32);
-    const roller = cyl(rollerRadius, width * 0.84, theme.roller, 10, { roughness: 0.35, metalness: 0.45 });
+    const roller = cyl(rollerRadius, width * BELT_ROLLER_RATIO, theme.roller, 10, { roughness: 0.35, metalness: 0.45 });
     roller.castShadow = false;
     roller.rotation.x = Math.PI / 2;
     roller.position.set(x, rollerCenterY, 0);
@@ -245,7 +265,8 @@ function buildConveyor(
   const lamp = statusLamp(deckCenterY + 0.5, theme);
   group.add(lamp);
 
-  group.userData.anim = { kind: 'transport', belt: belt.material as THREE.ShaderMaterial, rollers, rollerSign: direction, statusLight: lamp.material as THREE.MeshStandardMaterial } as EntityAnim;
+  // rollerSign = −direction：rotation.y 增大时台面往 −X 走（见 EntityAnim 推导）。
+  group.userData.anim = { kind: 'transport', belt: belt.material as THREE.ShaderMaterial, rollers, rollerSign: -direction, statusLight: lamp.material as THREE.MeshStandardMaterial } as EntityAnim;
   return group;
 }
 
@@ -536,17 +557,23 @@ function buildTransfer(
     );
   }
 
+  // 四角导向柱必须落在滚筒包络之外：滚筒最外侧到 x=±(width/2-0.16)+r，
+  // 所以柱子贴到 x=±(width/2-0.05)、z=±(depth/2-0.10)，才不会从滚筒里穿出来。
+  const postX = width / 2 - 0.05;
+  const postZ = depth / 2 - 0.10;
   for (const sx of [-1, 1]) {
     for (const sz of [-1, 1]) {
-      group.add(at(cyl(0.045, 0.22, theme.frameDark, 10, { roughness: 0.5, metalness: 0.4 }), sx * (width / 2 - 0.18), deckCenterY + 0.08, sz * (depth / 2 - 0.16)));
-      group.add(at(cyl(0.025, 0.3, theme.metal, 8, { roughness: 0.4, metalness: 0.5 }), sx * (width / 2 - 0.18), deckCenterY + 0.2, sz * (depth / 2 - 0.16)));
+      group.add(at(cyl(0.045, 0.22, theme.frameDark, 10, { roughness: 0.5, metalness: 0.4 }), sx * postX, deckCenterY + 0.08, sz * postZ));
+      group.add(at(cyl(0.025, 0.3, theme.metal, 8, { roughness: 0.4, metalness: 0.5 }), sx * postX, deckCenterY + 0.2, sz * postZ));
     }
   }
 
-  group.add(at(rbox(0.22, 0.18, 0.2, theme.metal, { roughness: 0.45, metalness: 0.4 }), width / 2 - 0.04, rollerCenterY, 0));
+  // 端部驱动罩：整体挪到滚筒包络之外（滚筒最右到 width/2-0.16+r）。
+  group.add(at(rbox(0.22, 0.18, 0.2, theme.metal, { roughness: 0.45, metalness: 0.4 }), width / 2 + 0.05, rollerCenterY, 0));
 
+  // 光电对射：抬到滚筒线以上，原来埋在滚筒里。
   for (const sz of [-1, 1]) {
-    group.add(at(rbox(0.08, 0.08, 0.08, '#FF5252', { emissive: '#FF5252', emissiveIntensity: 0.6 }), -width / 2 + 0.12, deckCenterY + 0.05, sz * (depth / 2 - 0.12)));
+    group.add(at(rbox(0.08, 0.08, 0.08, '#FF5252', { emissive: '#FF5252', emissiveIntensity: 0.6 }), -width / 2 + 0.12, deckTop + 0.06, sz * (depth / 2 - 0.12)));
   }
 
   // 流向指示：挡料侧台面上两个小箭头，指的就是主线滚动方向 ——
@@ -566,7 +593,7 @@ function buildTransfer(
   group.userData.anim = {
     kind: 'transfer',
     rollers,
-    rollerSign: direction,
+    rollerSign: -direction, // 同直段皮带：rotation.y 增大台面往 −X 走
     statusLight: lamp.material as THREE.MeshStandardMaterial,
   } as EntityAnim;
   return group;
@@ -592,10 +619,16 @@ function buildCassette(size: TwinVector3, color: string, divertSign = -1): THREE
   const chainTop = 0.265;
   const strandLen = depth * 0.86;
   const halfSpan = strandLen / 2;
-  const strandW = 0.06;
+  // 链带宽度受滚筒缝宽限制：缝 = 节距 - 2×滚筒半径，两侧各留 1cm 余量。
+  const strandW = Math.min(0.06, transferPitch(width) - 0.12);
+  const rollerHalfZ = (depth * 0.82) / 2;
 
-  // 链带组的底板：把几条链带串成一套机构，整体压在滚筒缝下方。
-  group.add(at(rbox(width * 0.84, 0.035, strandLen * 0.9, color, { roughness: 0.5 }), 0, chainTop - 0.085, 0));
+  // 两端横梁：把几条链带串成一套机构，同时充当链轮轴。
+  // 必须落在滚筒 Z 包络之外——做成整块底板会横穿所有滚筒。
+  const beamZ = rollerHalfZ + 0.04;
+  for (const sz of [-1, 1]) {
+    group.add(at(rbox(width * 0.84, 0.05, 0.04, color, { roughness: 0.5 }), 0, chainTop - 0.075, sz * beamZ));
+  }
 
   const sprockets: THREE.Mesh[] = [];
   const chainTeeth: { mesh: THREE.Mesh; halfSpan: number }[] = [];
@@ -610,9 +643,17 @@ function buildCassette(size: TwinVector3, color: string, divertSign = -1): THREE
     group.add(at(rbox(strandW, 0.055, strandLen, theme.frameDark, { roughness: 0.55, metalness: 0.3 }), x, chainTop - 0.0275, 0));
 
     // 两端链轮：轴沿 local X（rotation.z = 90°），转起来链带才跑。
+    // 厚度同样不能超缝宽，否则两侧会啃到滚筒（和链带同宽就够）。
     for (const sz of [-1, 1]) {
-      const sprocket = cyl(0.045, strandW * 1.6, theme.metal, 12, { roughness: 0.4, metalness: 0.5 });
-      sprocket.rotation.z = Math.PI / 2;
+      const sprocket = cyl(0.045, strandW, theme.metal, 12, { roughness: 0.4, metalness: 0.5 });
+      // 链轮盘的轴必须沿 local X（链带沿 Z 跑），并且自转要绕**自身轴线**：
+      // - 默认 Euler 序 XYZ 下 R = Rx·Ry·Rz，改 rotation.y 会在父级坐标系里转，
+      //   链轮不是自转而是整体翻跟头。改成 'ZYX'（R = Rz·Ry·Rx）后，
+      //   "立起来"的 Rz 在最外层、自转的 Ry 在内层，才是绕自身轴转。
+      // - Rz(−π/2) 把本体 +Y 摆到 +X；此后 rotation.y 增大 → 盘面顶点往 +Z 走，
+      //   所以控制器里链轮与链齿同取 `+divertSign`。
+      sprocket.rotation.order = 'ZYX';
+      sprocket.rotation.set(0, 0, -Math.PI / 2);
       sprocket.position.set(x, chainTop - 0.045, sz * halfSpan);
       sprockets.push(sprocket);
       group.add(sprocket);
@@ -632,55 +673,509 @@ function buildCassette(size: TwinVector3, color: string, divertSign = -1): THREE
   return group;
 }
 
-/** 90° 转角输送模块：方形台面 + 弯道滚筒 + 低包边 + 支腿。 */
-function buildCorner(size: TwinVector3, color: string, baseY: number): THREE.Group {
+/** `'x+'` / `'z-'` 这类行进方向声明 → `[dx, dz]` 单位向量；解析不出来返回 null。 */
+function travelDir(raw: unknown): [number, number] | null {
+  if (typeof raw !== 'string' || raw.length !== 2) return null;
+  const sign = raw[1] === '-' ? -1 : raw[1] === '+' ? 1 : 0;
+  if (sign === 0) return null;
+  if (raw[0] === 'x') return [sign, 0];
+  if (raw[0] === 'z') return [0, sign];
+  return null;
+}
+
+/**
+ * 90° 弯曲输送线：货物沿一段**真正的圆弧**从入口转到出口。
+ *
+ * 以前那个"方形台面 + 一排平行滚筒"根本不是弯道——滚筒全平行、货是硬拐的。
+ * 几何关系如下（手推过一次，改代码前先看这段）：设入口行进方向 din、出口 dout
+ * （都是 ±X/±Z 单位向量且互相垂直），模块边长 S（= 带宽 w），半宽 h = S/2，则
+ *   转弯半径 R = h                      （S = R + w/2 且 w = S）
+ *   圆心     C = R·(dout − din)         落在转弯内侧那个角上
+ *   切点方位 n1 = −dout（入）、n2 = din（出），方位角 θ = atan2(z, x)
+ *   扫掠     θ1 → θ2，正好 90°，σ = sign(归一化(θ2 − θ1))
+ * 滚筒轴沿径向 (cosθ, 0, sinθ)，`rotation.y` 增大时台面沿 (−sinθ, 0, cosθ) 走，
+ * 与 σ·行进切向同向，所以 `rollerSign = σ`（推导见 EntityAnim.rollerSign）。
+ *
+ * 环形几何（RingGeometry / TorusGeometry）都在 XY 平面，绕 X 转 −90° 躺平后
+ * XZ 方位角 = −φ，所以起笔角取 −θB，扇面才正好盖住 [θA, θB]。
+ *
+ * @param din  入口处货物的行进方向
+ * @param dout 出口处货物的行进方向
+ */
+function buildCurvedConveyor(
+  size: TwinVector3,
+  color: string,
+  baseY: number,
+  din: [number, number],
+  dout: [number, number],
+): THREE.Group {
   const theme = getActiveTheme();
   const group = new THREE.Group();
-  group.userData.codePath = 'entityMeshes.ts:buildCorner';
+  group.userData.codePath = 'entityMeshes.ts:buildCurvedConveyor';
   const [width, , depth] = size;
   const groundY = -baseY;
-  const deckHeight = 0.12;
-  const deckCenterY = 0.25;
-  const deckTop = deckCenterY + deckHeight / 2;
-  const deckBottom = deckCenterY - deckHeight / 2;
-  const rollerRadius = 0.05;
-  const rollerCenterY = deckTop - rollerRadius;
+  const span = Math.min(width, depth); // 模块边长 = 带宽
+  const half = span / 2;
+  const R = half; // 中心线转弯半径
+  const rOut = span; // 外缘半径 = R + 带宽/2
+  const rIn = 0.06;
 
-  group.add(at(rbox(width * 0.98, deckHeight, depth * 0.98, color, { roughness: 0.5 }), 0, deckCenterY, 0));
+  const deckTop = 0.31; // 比直行皮带台面(0.30)高 1cm，避免同高 z-fighting
+  const deckBottom = deckTop - 0.12;
+  const rollerCenterY = deckTop - 0.05;
 
+  const cx = R * (dout[0] - din[0]);
+  const cz = R * (dout[1] - din[1]);
+  const th1 = Math.atan2(-dout[1], -dout[0]);
+  const th2 = Math.atan2(din[1], din[0]);
+  const sweep = Math.atan2(Math.sin(th2 - th1), Math.cos(th2 - th1)); // 归一化到 (−π, π]
+  const sigma = sweep >= 0 ? 1 : -1;
+  const thA = Math.min(th1, th2);
+  const thB = Math.max(th1, th2);
+  const thM = th1 + sweep / 2;
+
+  // 弧形台面：90° 环形扇面
+  const deck = new THREE.Mesh(
+    new THREE.RingGeometry(rIn, rOut, 30, 1, -thB, thB - thA),
+    material(color, { roughness: 0.65 }),
+  );
+  deck.rotation.x = -Math.PI / 2;
+  deck.position.set(cx, deckBottom, cz);
+  deck.receiveShadow = true;
+  group.add(deck);
+
+  // 外侧护栏：一段圆环管
+  const rail = new THREE.Mesh(
+    new THREE.TorusGeometry(rOut - 0.02, 0.035, 8, 24, Math.PI / 2),
+    material(theme.frameDark, { roughness: 0.6 }),
+  );
+  rail.rotation.set(-Math.PI / 2, 0, -thB);
+  rail.position.set(cx, deckTop + 0.06, cz);
+  rail.castShadow = true;
+  group.add(rail);
+
+  // 弯道滚筒：轴一律沿径向；做成锥形（内侧细）才不会在靠圆心那端互相啃到
   const rollers: THREE.Mesh[] = [];
-  const r = width / 2;
-  const cx = width / 2;
-  const n = 5;
-  for (let i = 0; i < n; i += 1) {
-    const a = Math.PI + (i / (n - 1)) * (Math.PI / 2);
-    const x = cx + r * Math.cos(a);
-    const z = cx + r * Math.sin(a);
-    const roller = cyl(rollerRadius, width * 0.5, theme.roller, 8, { roughness: 0.35, metalness: 0.45 });
+  const rollerCount = 5;
+  const rollerGeo = new THREE.CylinderGeometry(0.055, 0.022, 1.2, 10);
+  const rollerMat = material(theme.roller, { roughness: 0.35, metalness: 0.45 });
+  for (let i = 0; i < rollerCount; i += 1) {
+    const th = th1 + (i / (rollerCount - 1)) * sweep;
+    const roller = new THREE.Mesh(rollerGeo, rollerMat);
     roller.castShadow = false;
-    roller.rotation.x = Math.PI / 2;
-    roller.position.set(x, rollerCenterY, z);
+    // 摆位必须放在外层 rig 上：Euler XYZ 序下 R = Rx·Ry·Rz，rotation.y 在 Rz 外层，
+    // 直接写 rotation.set(π/2, 0, β) 再累加 rotation.y 会把摆好的轴一起转走（滚筒翻跟头）。
+    // rig 只负责摆位（Rx(π/2)·Rz(θ−π/2) 把本体 +Y 摆到径向），自转留给 roller.rotation.y。
+    const rig = new THREE.Object3D();
+    rig.rotation.set(Math.PI / 2, 0, th - Math.PI / 2);
+    rig.position.set(cx + (R + 0.05) * Math.cos(th), rollerCenterY, cz + (R + 0.05) * Math.sin(th));
+    rig.add(roller);
     rollers.push(roller);
-    group.add(roller);
+    group.add(rig);
   }
 
-  for (const side of [-1, 1]) {
-    group.add(at(rbox(width * 0.98, 0.08, 0.05, theme.frameDark, { roughness: 0.55 }), 0, deckBottom + 0.04, side * (depth / 2 - 0.03)));
-  }
-
+  // 支腿：沿外缘三处
   const legTopY = deckBottom - 0.02;
   const legHeight = Math.max(0.08, legTopY - groundY);
   const legCenterY = (legTopY + groundY) / 2;
-  for (const sx of [-1, 1]) {
-    for (const sz of [-1, 1]) {
-      group.add(at(cyl(0.05, legHeight, theme.frameDark, 8, { roughness: 0.7 }), sx * (width / 2 - 0.18), legCenterY, sz * (depth / 2 - 0.18)));
+  for (const th of [th1, thM, th2]) {
+    group.add(
+      at(
+        cyl(0.045, legHeight, theme.frameDark, 8, { roughness: 0.7 }),
+        cx + (rOut - 0.18) * Math.cos(th),
+        legCenterY,
+        cz + (rOut - 0.18) * Math.sin(th),
+      ),
+    );
+  }
+
+  // 内侧角柱：兼支腿与内导向，顶端挂状态灯（灯不挡货）
+  const postTop = deckTop + 0.5;
+  group.add(at(cyl(0.05, Math.max(0.08, postTop - groundY), theme.frame, { roughness: 0.6 }), cx, (postTop + groundY) / 2, cz));
+  const lamp = statusLamp(postTop + 0.06, theme);
+  lamp.position.x = cx;
+  lamp.position.z = cz;
+  group.add(lamp);
+
+  // 流向箭头：贴外缘，避开货物包络（货半宽 0.3，只占到半径 1.0）
+  const arrowGeo = new THREE.ConeGeometry(0.06, 0.2, 4);
+  const arrowMat = material(theme.accent, { roughness: 0.45 });
+  for (let i = 0; i < 3; i += 1) {
+    const th = th1 + ((i + 0.5) / 3) * sweep;
+    // 行进切向 = σ·(−sinθ, 0, cosθ)；Rx(−π/2)·Rz(β) 把本体 +Y 摆到切向，β = atan2(−tx, −tz)
+    const tx = sigma * -Math.sin(th);
+    const tz = sigma * Math.cos(th);
+    const arrow = new THREE.Mesh(arrowGeo, arrowMat);
+    arrow.rotation.set(-Math.PI / 2, 0, Math.atan2(-tx, -tz));
+    arrow.position.set(cx + (rOut - 0.2) * Math.cos(th), deckTop + 0.03, cz + (rOut - 0.2) * Math.sin(th));
+    group.add(arrow);
+  }
+
+  group.userData.anim = { kind: 'transport', rollers, rollerSign: sigma, statusLight: lamp.material as THREE.MeshStandardMaterial } as EntityAnim;
+  return group;
+}
+
+/** 一条皮带上每隔多少米排一个人字形箭头。 */
+const BELT_ARROW_SPACING = 1.1;
+
+/**
+ * 皮带横断面的比例（相对带宽 W）——直段 buildConveyor 和折线 buildBeltPath **必须共用**，
+ * 否则同一条线上"直段宽、拐弯窄"，接缝处会像两条不同规格的带子。
+ *
+ * 撑满 1.0 会让皮带边缘啃进挡板、弯道内侧还会自交（内缘半径 = R − W/2·ratio ≤ 0），
+ * 所以留 9%~18% 余量。自检：R=0.7、W=1.4 时皮带内缘 +0.126、台面 +0.070、挡板 +0.030。
+ */
+const BELT_SURFACE_RATIO = 0.82; // 皮带面（箭头的载体）
+const BELT_DECK_RATIO = 0.9; // 台面底板
+const BELT_ROLLER_RATIO = 0.84; // 滚筒长度
+
+/** 折线中心线的采样点：位置 + 单位切向 + 带符号曲率 + 累积弧长。 */
+interface BeltSample {
+  x: number;
+  z: number;
+  /** 单位切向（XZ 平面），指向点列顺序方向。 */
+  tx: number;
+  tz: number;
+  /** 带符号曲率：dt/ds 在"右法向"(tz, −tx) 上的投影。直段为 0。 */
+  k: number;
+  /** 从起点起的累积弧长（米）。 */
+  s: number;
+}
+
+/**
+ * 折线倒圆：把每个拐角替换成半径 `radius` 的圆弧，返回密化后的中心线点列。
+ * 同时给出主转弯方向 `sigma`（+1 外法向取右法向，−1 取左法向）——整条线
+ * 所有滚筒必须共用它，否则自转方向会前后打架。
+ */
+function beltCenterline(
+  path: readonly unknown[],
+  radius: number,
+  arcSegments = 14,
+): { points: { x: number; z: number }[]; sigma: number } {
+  const pts: [number, number][] = [];
+  for (const raw of path) {
+    if (Array.isArray(raw) && typeof raw[0] === 'number' && typeof raw[1] === 'number') {
+      pts.push([raw[0], raw[1]]);
+    }
+  }
+  const asPoints = pts.map(([px, pz]) => ({ x: px, z: pz }));
+  if (pts.length < 3) return { points: asPoints, sigma: 1 };
+
+  const out: { x: number; z: number }[] = [];
+  const push = (x: number, z: number): void => {
+    const last = out[out.length - 1];
+    if (last && Math.hypot(x - last.x, z - last.z) < 1e-6) return;
+    out.push({ x, z });
+  };
+  push(pts[0]![0], pts[0]![1]);
+
+  let sweepSign = 0;
+  for (let i = 1; i < pts.length - 1; i += 1) {
+    const prev = pts[i - 1]!;
+    const corner = pts[i]!;
+    const next = pts[i + 1]!;
+    const lu = Math.hypot(corner[0] - prev[0], corner[1] - prev[1]);
+    const lv = Math.hypot(next[0] - corner[0], next[1] - corner[1]);
+    if (lu < 1e-6 || lv < 1e-6) continue;
+    const ux = (corner[0] - prev[0]) / lu;
+    const uz = (corner[1] - prev[1]) / lu;
+    const vx = (next[0] - corner[0]) / lv;
+    const vz = (next[1] - corner[1]) / lv;
+    const half = Math.acos(Math.max(-1, Math.min(1, ux * vx + uz * vz))) / 2;
+    if (Math.sin(half) < 1e-6) {
+      push(corner[0], corner[1]); // 共线，不用倒圆
+      continue;
+    }
+    // 切点到拐点的距离。调用方保证每个拐两侧段长都 ≥ radius（场景模板按
+    // "模块让位半个带宽"铺线，天然满足），所以这里只夹到段长本身，
+    // 不再额外打折——否则末段恰好等于 radius 时圆角会被悄悄缩小，跟下一条线对不上缝。
+    const t = Math.min(radius / Math.tan(half), lu, lv);
+    const r = t * Math.tan(half);
+    const bx = vx - ux;
+    const bz = vz - uz;
+    const lb = Math.hypot(bx, bz);
+    if (lb < 1e-6) {
+      push(corner[0], corner[1]);
+      continue;
+    }
+    const cx = corner[0] + (r / Math.sin(half)) * (bx / lb);
+    const cz = corner[1] + (r / Math.sin(half)) * (bz / lb);
+    const t1x = corner[0] - ux * t;
+    const t1z = corner[1] - uz * t;
+    const t2x = corner[0] + vx * t;
+    const t2z = corner[1] + vz * t;
+    push(t1x, t1z);
+    const a1 = Math.atan2(t1z - cz, t1x - cx);
+    const a2 = Math.atan2(t2z - cz, t2x - cx);
+    let sweep = a2 - a1;
+    while (sweep > Math.PI) sweep -= Math.PI * 2;
+    while (sweep < -Math.PI) sweep += Math.PI * 2;
+    if (sweepSign === 0 && Math.abs(sweep) > 1e-6) sweepSign = sweep > 0 ? 1 : -1;
+    for (let k = 1; k < arcSegments; k += 1) {
+      const a = a1 + (k / arcSegments) * sweep;
+      push(cx + r * Math.cos(a), cz + r * Math.sin(a));
+    }
+    push(t2x, t2z);
+  }
+  const tail = pts[pts.length - 1]!;
+  push(tail[0], tail[1]);
+  return { points: out, sigma: sweepSign === 0 ? 1 : sweepSign };
+}
+
+/** 给中心线补切向、曲率与累积弧长。 */
+function beltSamples(points: readonly { x: number; z: number }[]): BeltSample[] {
+  const n = points.length;
+  const out: BeltSample[] = [];
+  let s = 0;
+  for (let i = 0; i < n; i += 1) {
+    const p = points[i]!;
+    if (i > 0) s += Math.hypot(p.x - points[i - 1]!.x, p.z - points[i - 1]!.z);
+    const a = points[Math.max(0, i - 1)]!;
+    const b = points[Math.min(n - 1, i + 1)]!;
+    let tx = b.x - a.x;
+    let tz = b.z - a.z;
+    const len = Math.hypot(tx, tz);
+    if (len < 1e-6) {
+      tx = 1;
+      tz = 0;
+    } else {
+      tx /= len;
+      tz /= len;
+    }
+    // 曲率在下面的第二遍扫描里填（要用到已算好的切向与弧长）
+    out.push({ x: p.x, z: p.z, tx, tz, k: 0, s });
+  }
+  // 曲率单独扫一遍（要用到已算好的切向与弧长）
+  for (let i = 0; i < n; i += 1) {
+    const prev = out[Math.max(0, i - 1)]!;
+    const next = out[Math.min(n - 1, i + 1)]!;
+    const ds = next.s - prev.s;
+    if (ds < 1e-6) continue;
+    const dtx = (next.tx - prev.tx) / ds;
+    const dtz = (next.tz - prev.tz) / ds;
+    const me = out[i]!;
+    me.k = dtx * me.tz + dtz * -me.tx;
+  }
+  return out;
+}
+
+/** 沿中心线按固定间距走一遍，返回插值出的采样点（用来摆滚筒/支腿）。 */
+function beltWalk(samples: readonly BeltSample[], pitch: number, start: number): BeltSample[] {
+  const out: BeltSample[] = [];
+  let target = start;
+  for (let i = 0; i < samples.length - 1; i += 1) {
+    const a = samples[i]!;
+    const b = samples[i + 1]!;
+    const segLen = b.s - a.s;
+    if (segLen <= 1e-9) continue;
+    while (target <= b.s + 1e-9) {
+      const f = (target - a.s) / segLen;
+      out.push({
+        x: a.x + (b.x - a.x) * f,
+        z: a.z + (b.z - a.z) * f,
+        tx: a.tx,
+        tz: a.tz,
+        k: a.k,
+        s: target,
+      });
+      target += pitch;
+    }
+  }
+  return out;
+}
+
+/**
+ * 沿中心线扫掠出一条水平带（皮带面 / 台面底板）。
+ * UV.x = 弧长 × uvScale，所以箭头间距恒定、且一定顺着 path 指。
+ */
+function beltRibbonGeometry(
+  samples: readonly BeltSample[],
+  halfWidth: number,
+  y: number,
+  uvScale: number,
+): THREE.BufferGeometry {
+  const n = samples.length;
+  const pos = new Float32Array(n * 6);
+  const uv = new Float32Array(n * 4);
+  const idx: number[] = [];
+  for (let i = 0; i < n; i += 1) {
+    const p = samples[i]!;
+    const nx = -p.tz * halfWidth;
+    const nz = p.tx * halfWidth;
+    const a = i * 2;
+    const b = i * 2 + 1;
+    pos[a * 3] = p.x + nx;
+    pos[a * 3 + 1] = y;
+    pos[a * 3 + 2] = p.z + nz;
+    pos[b * 3] = p.x - nx;
+    pos[b * 3 + 1] = y;
+    pos[b * 3 + 2] = p.z - nz;
+    uv[a * 2] = p.s * uvScale;
+    uv[a * 2 + 1] = 1;
+    uv[b * 2] = p.s * uvScale;
+    uv[b * 2 + 1] = 0;
+    if (i < n - 1) idx.push(a, a + 2, b, b, a + 2, b + 2);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+/** 沿中心线扫掠出一条竖直带（两侧挡板）。 */
+function beltWallGeometry(
+  samples: readonly BeltSample[],
+  offset: number,
+  y0: number,
+  y1: number,
+): THREE.BufferGeometry {
+  const n = samples.length;
+  const pos = new Float32Array(n * 6);
+  const idx: number[] = [];
+  for (let i = 0; i < n; i += 1) {
+    const p = samples[i]!;
+    const x = p.x + -p.tz * offset;
+    const z = p.z + p.tx * offset;
+    const a = i * 2;
+    const b = i * 2 + 1;
+    pos[a * 3] = x;
+    pos[a * 3 + 1] = y0;
+    pos[a * 3 + 2] = z;
+    pos[b * 3] = x;
+    pos[b * 3 + 1] = y1;
+    pos[b * 3 + 2] = z;
+    if (i < n - 1) idx.push(a, a + 2, b, b, a + 2, b + 2);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+/**
+ * 折线输送线：一段线自带 90° 拐。
+ *
+ * 与"直段 + 独立弯道模块"的区别是皮带面一整条扫掠出来的（连续、无缝、无同高叠面），
+ * 箭头 UV 按弧长走，所以它必然顺着 path 指；滚筒在拐弯处自动换成锥形（内侧细），
+ * 且所有滚筒共用同一套朝向约定，自转方向不会前后打架。
+ */
+function buildBeltPath(
+  path: readonly unknown[],
+  width: number,
+  color: string,
+  baseY: number,
+  direction: number,
+  radius: number,
+): THREE.Group {
+  const theme = getActiveTheme();
+  const group = new THREE.Group();
+  group.userData.codePath = 'entityMeshes.ts:buildBeltPath';
+  const { points, sigma } = beltCenterline(path, radius);
+  if (points.length < 2) return buildConveyor(width, width, color, baseY, 'belt', direction);
+  const center = beltSamples(points);
+  const halfW = width / 2;
+  const groundY = -baseY;
+  const deckTop = 0.3;
+  const deckBottom = 0.2;
+  const rollerCenterY = deckTop - 0.05;
+
+  // 台面底板
+  const deck = new THREE.Mesh(
+    beltRibbonGeometry(center, halfW * BELT_DECK_RATIO, deckBottom - 0.02, 0),
+    material(theme.frameDark, { roughness: 0.7 }),
+  );
+  deck.receiveShadow = true;
+  group.add(deck);
+
+  // 皮带面：UV.x 以"米 / 箭头间距"为单位，repeat 传 1
+  const belt = new THREE.Mesh(
+    beltRibbonGeometry(center, halfW * BELT_SURFACE_RATIO, deckTop + 0.005, 1 / BELT_ARROW_SPACING),
+    beltMaterial(theme, direction, 1),
+  );
+  belt.renderOrder = 2;
+  belt.castShadow = false;
+  belt.receiveShadow = false;
+  group.add(belt);
+
+  // 两侧挡板（双面可见，内外都挡）
+  const wallMat = material(theme.frame, { roughness: 0.6 });
+  wallMat.side = THREE.DoubleSide;
+  for (const side of [1, -1]) {
+    const wall = new THREE.Mesh(
+      beltWallGeometry(center, side * (halfW - 0.03), deckBottom - 0.03, deckBottom + 0.04),
+      wallMat,
+    );
+    wall.castShadow = true;
+    group.add(wall);
+  }
+
+  // 滚筒：直段直筒、拐弯段锥形（内侧细，否则靠圆心那端互相啃）
+  const rollers: THREE.Mesh[] = [];
+  const straightGeo = new THREE.CylinderGeometry(0.05, 0.05, width * BELT_ROLLER_RATIO, 10);
+  const taperGeo = new THREE.CylinderGeometry(0.055, 0.022, width * BELT_ROLLER_RATIO, 10);
+  const rollerMat = material(theme.roller, { roughness: 0.35, metalness: 0.45 });
+  for (const sm of beltWalk(center, 0.28, 0.2)) {
+    const mesh = new THREE.Mesh(Math.abs(sm.k) > 0.05 ? taperGeo : straightGeo, rollerMat);
+    mesh.castShadow = false;
+    // 外法向 Ô = σ·右法向 = σ·(tz, −tx)；Rz(β) 后 Rx(π/2) 把本体 +Y 摆到 (−sinβ, 0, cosβ)
+    const ox = sigma * sm.tz;
+    const oz = sigma * -sm.tx;
+    const rig = new THREE.Object3D();
+    rig.rotation.set(Math.PI / 2, 0, Math.atan2(-ox, oz));
+    rig.position.set(sm.x, rollerCenterY, sm.z);
+    rig.add(mesh);
+    rollers.push(mesh);
+    group.add(rig);
+  }
+
+  // 支腿：沿路径每 1.35m 一组，落在带子两侧
+  const legTopY = deckBottom - 0.04;
+  const legHeight = Math.max(0.08, legTopY - groundY);
+  const legCenterY = (legTopY + groundY) / 2;
+  for (const sm of beltWalk(center, 1.35, 0.6)) {
+    for (const side of [1, -1]) {
+      group.add(
+        at(
+          cyl(0.045, legHeight, theme.frameDark, 8, { roughness: 0.7 }),
+          sm.x + -sm.tz * side * (halfW - 0.12),
+          legCenterY,
+          sm.z + sm.tx * side * (halfW - 0.12),
+        ),
+      );
     }
   }
 
-  const lamp = statusLamp(deckCenterY + 0.5, theme);
+  // 状态灯：立在线中点外侧，不挡货
+  const mid = center[Math.floor(center.length / 2)]!;
+  const postTop = deckTop + 0.5;
+  const side = sigma;
+  group.add(
+    at(
+      cyl(0.05, Math.max(0.08, postTop - groundY), theme.frame, { roughness: 0.6 }),
+      mid.x + -mid.tz * side * (halfW + 0.3),
+      (postTop + groundY) / 2,
+      mid.z + mid.tx * side * (halfW + 0.3),
+    ),
+  );
+  const lamp = statusLamp(postTop + 0.06, theme);
+  lamp.position.set(
+    mid.x + -mid.tz * side * (halfW + 0.3),
+    postTop + 0.06,
+    mid.z + mid.tx * side * (halfW + 0.3),
+  );
   group.add(lamp);
 
-  group.userData.anim = { kind: 'transport', rollers, statusLight: lamp.material as THREE.MeshStandardMaterial } as EntityAnim;
+  // rollerSign：+Y 取外法向时，σ 决定自转正负，再乘行进方向
+  group.userData.anim = {
+    kind: 'transport',
+    belt: belt.material as THREE.ShaderMaterial,
+    rollers,
+    rollerSign: sigma * direction,
+    statusLight: lamp.material as THREE.MeshStandardMaterial,
+  } as EntityAnim;
   return group;
 }
 
@@ -695,7 +1190,17 @@ export function buildEntityMesh(entity: EntityMeshInput): THREE.Group {
       // 箭头方向由场景模板用 `config.beltDirection` 声明（沿行进方向为 +1）。
       const raw = entity.config?.beltDirection;
       const direction = typeof raw === 'number' && raw < 0 ? -1 : 1;
-      return buildConveyor(size[0], size[2], color, baseY, entity.id, direction);
+      // 带 `config.beltPath` 的是"一条线自带拐弯"的折线输送线（连续的 90° 弯道）。
+      const path = entity.config?.beltPath;
+      if (Array.isArray(path) && path.length >= 2) {
+        const beltWidth = typeof entity.config?.beltWidth === 'number' ? (entity.config.beltWidth as number) : size[0];
+        const beltRadius = typeof entity.config?.beltRadius === 'number' ? (entity.config.beltRadius as number) : beltWidth / 2;
+        return buildBeltPath(path, beltWidth, color, baseY, direction, beltRadius);
+      }
+      // 走向按 `config.beltAxis` 的声明来；老场景没声明时退回尺寸比较（不推荐）。
+      const declared = entity.config?.beltAxis;
+      const axis = declared === 'z' || declared === 'x' ? declared : size[2] > size[0] ? 'z' : 'x';
+      return buildConveyor(size[0], size[2], color, baseY, entity.id, direction, axis);
     }
     case 'inspect':
       return buildInspection(size, color, baseY);
@@ -727,8 +1232,11 @@ export function buildEntityMesh(entity: EntityMeshInput): THREE.Group {
       const rawSign = entity.config?.divertSign;
       return buildCassette(size, color, typeof rawSign === 'number' && rawSign > 0 ? 1 : -1);
     }
-    case 'corner':
-      return buildCorner(size, color, baseY);
+    case 'corner': {
+      const din = travelDir(entity.config?.cornerIn) ?? ([1, 0] as [number, number]);
+      const dout = travelDir(entity.config?.cornerOut) ?? ([0, -1] as [number, number]);
+      return buildCurvedConveyor(size[0], size[2], color, baseY, din, dout);
+    }
     default:
       return buildCargo(size, color);
   }

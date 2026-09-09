@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import type { TwinEntity } from '@twin-platform/scene-schema';
-import { buildCenterScene } from './index';
+import { buildCenterScene, buildFactoryScene, buildLineScene } from './index';
 
 /**
  * 布局回归测试：把"输送线怎么摆"从口头约定固化成断言。
@@ -24,6 +24,8 @@ const EPS = 1e-6;
 
 interface Footprint {
   id: string;
+  /** 所属实体：折线输送线会拆成多段，同实体的段之间不算重叠。 */
+  owner: string;
   kind: string;
   x0: number;
   x1: number;
@@ -38,8 +40,38 @@ function footprints(entities: readonly TwinEntity[]): Footprint[] {
     const size = entity.visual?.size ?? [1, 1, 1];
     const px = entity.transform.position[0];
     const pz = entity.transform.position[2];
+    const path = entity.config?.beltPath;
+    // 折线输送线（一条线自带 90° 拐）：拆成若干段矩形再查。
+    // 只在**宽度方向**膨胀，长度方向不膨胀——否则端点会把相邻模块的地盘吃掉，误报重叠。
+    if (Array.isArray(path) && path.length >= 2) {
+      const beltWidth =
+        typeof entity.config?.beltWidth === 'number' ? (entity.config.beltWidth as number) : size[0];
+      for (let i = 0; i < path.length - 1; i += 1) {
+        const a = path[i] as [number, number];
+        const b = path[i + 1] as [number, number];
+        if (!Array.isArray(a) || !Array.isArray(b)) continue;
+        const ax = px + a[0];
+        const az = pz + a[1];
+        const bx = px + b[0];
+        const bz = pz + b[1];
+        const alongX = Math.abs(bx - ax) >= Math.abs(bz - az);
+        const padX = alongX ? 0 : beltWidth / 2;
+        const padZ = alongX ? beltWidth / 2 : 0;
+        out.push({
+          id: `${entity.id}#${i}`,
+          owner: entity.id,
+          kind: entity.kind,
+          x0: Math.min(ax, bx) - padX,
+          x1: Math.max(ax, bx) + padX,
+          z0: Math.min(az, bz) - padZ,
+          z1: Math.max(az, bz) + padZ,
+        });
+      }
+      continue;
+    }
     out.push({
       id: entity.id,
+      owner: entity.id,
       kind: entity.kind,
       x0: px - size[0] / 2,
       x1: px + size[0] / 2,
@@ -60,6 +92,7 @@ describe('center 场景布局', () => {
       for (let j = i + 1; j < boxes.length; j += 1) {
         const a = boxes[i]!;
         const b = boxes[j]!;
+        if (a.owner === b.owner) continue; // 同一条折线自己的段之间，拐角处必然相接
         const ox = Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0);
         const oz = Math.min(a.z1, b.z1) - Math.max(a.z0, b.z0);
         if (ox > EPS && oz > EPS) {
@@ -85,5 +118,28 @@ describe('center 场景布局', () => {
       }
     }
     expect(unsupported).toEqual([]);
+  });
+
+  it('每条直行皮带都显式声明了走向（不许靠尺寸猜）', () => {
+    // 背景：渲染层原来用 `sizeZ > sizeX` 猜长边落在哪个轴。短接驳段
+    // （0.9m 长 × 1.4m 宽）会被判成"沿 Z 铺"，整段转 90°——宽窄互换、
+    // 滚筒改推 ±Z、箭头也横着流。所以走向必须由 config.beltAxis 声明。
+    const scenes = [buildLineScene(), buildFactoryScene(), buildCenterScene()];
+    const missing: string[] = [];
+    for (const scene of scenes) {
+      for (const entity of scene.entities as TwinEntity[]) {
+        if (entity.kind !== 'transport') continue;
+        if (Array.isArray(entity.config?.beltPath)) continue; // 折线自带走向
+        const axis = entity.config?.beltAxis;
+        if (axis !== 'x' && axis !== 'z') {
+          const size = entity.visual?.size ?? [0, 0, 0];
+          missing.push(
+            `${entity.id} 未声明 beltAxis（size=[${size[0]?.toFixed(2)}, ${size[2]?.toFixed(2)}]，` +
+              `渲染层会猜成 ${(size[2] ?? 0) > (size[0] ?? 0) ? "'z'" : "'x'"}）`,
+          );
+        }
+      }
+    }
+    expect(missing).toEqual([]);
   });
 });
