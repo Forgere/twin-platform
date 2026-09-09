@@ -359,15 +359,28 @@ function buildCargo(size: TwinVector3, color: string): THREE.Group {
   return group;
 }
 
-/** 高层货架（AS/RS）：货位 + 横梁 + 部分托盘（确定性哈希，刷新同脸）。 */
-function buildAsrsRack(size: TwinVector3, color: string, baseY: number): THREE.Group {
+/**
+ * 高层货架（AS/RS）：立柱 + 每层横梁 + 顶部天轨，**不画托盘**。
+ *
+ * 以前这里按"确定性哈希"在货位上摆了几块装饰托盘，结果是：看得见、点不中、
+ * 数量也永远不变。现在托盘是真正的实体（`kind: 'pallet'`，由 `asrs-cycle`
+ * 行为搬进搬出），货架只负责画"有哪些货位"，货位有没有货由世界状态决定。
+ *
+ * 横梁高度直接读 `config.levelHeights`（与堆垛机取货高度同一份数组），
+ * 所以托盘落位一定压在横梁上，不会浮空也不会穿梁。
+ */
+function buildAsrsRack(size: TwinVector3, color: string, baseY: number, config?: Record<string, unknown>): THREE.Group {
   const theme = getActiveTheme();
   const group = new THREE.Group();
   group.userData.codePath = 'entityMeshes.ts:buildAsrsRack';
   const [width, height, depth] = size;
   const groundY = -baseY;
-  const levels = 5;
-  const bays = Math.max(3, Math.round(depth / 2.2));
+  const declaredLevels = config?.levelHeights;
+  const levelHeights =
+    Array.isArray(declaredLevels) && declaredLevels.length > 0 && declaredLevels.every((value) => typeof value === 'number')
+      ? (declaredLevels as number[])
+      : Array.from({ length: typeof config?.levels === 'number' ? (config.levels as number) : 5 }, (_, level) => (height / 5) * (level + 0.5));
+  const bays = typeof config?.bays === 'number' && config.bays > 0 ? Math.round(config.bays) : Math.max(3, Math.round(depth / 2.2));
   const bayDepth = depth / bays;
   const postX = width / 2 - 0.06;
 
@@ -378,24 +391,18 @@ function buildAsrsRack(size: TwinVector3, color: string, baseY: number): THREE.G
     }
   }
 
-  for (let level = 0; level < levels; level += 1) {
-    const y = groundY + (height / levels) * (level + 0.5);
+  // 每层两根横梁（托盘就坐在上面）+ 一层浅浅的层板，货位才看得出"格子"。
+  for (const levelY of levelHeights) {
+    const y = groundY + levelY;
     for (const sx of [-1, 1]) {
       const beam = rbox(0.07, 0.08, depth * 0.98, color, { roughness: 0.6 });
       beam.castShadow = false;
       group.add(at(beam, sx * (postX + 0.02), y, 0));
     }
-  }
-
-  for (let level = 0; level < levels; level += 1) {
-    const y = groundY + (height / levels) * (level + 0.5) + 0.24;
-    for (let bay = 0; bay < bays; bay += 1) {
-      if ((level * 7 + bay * 3) % 5 >= 3) continue;
-      const z = -depth / 2 + bayDepth * (bay + 0.5);
-      const pallet = rbox(width * 0.72, 0.4, bayDepth * 0.72, theme.cargoColors[(level + bay) % theme.cargoColors.length]!, { roughness: 0.55, metalness: 0.04 });
-      pallet.castShadow = false;
-      group.add(at(pallet, 0, y, z));
-    }
+    const deck = rbox(width * 0.94, 0.04, depth * 0.96, theme.frame, { roughness: 0.8 });
+    deck.castShadow = false;
+    deck.receiveShadow = true;
+    group.add(at(deck, 0, y - 0.03, 0));
   }
 
   group.add(at(rbox(width * 0.5, 0.08, depth * 0.98, theme.frameDark, { roughness: 0.6 }), 0, groundY + height + 0.1, 0));
@@ -1207,7 +1214,7 @@ export function buildEntityMesh(entity: EntityMeshInput): THREE.Group {
     case 'buffer':
       return buildRack(size, color, baseY);
     case 'asrs':
-      return buildAsrsRack(size, color, baseY);
+      return buildAsrsRack(size, color, baseY, entity.config);
     case 'stacker':
       return buildStacker(size, color, baseY);
     case 'carriage':

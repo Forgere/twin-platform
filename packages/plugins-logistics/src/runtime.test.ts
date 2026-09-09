@@ -59,7 +59,7 @@ function onBelt(boxes: BeltBox[], position: readonly number[]): boolean {
  * 光靠静态路径校验是抓不到的，所以这里直接驱动世界。
  */
 function runCenter(steps: number, sampleEvery = 30) {
-  const scene = buildCenterScene({ parcels: 10, asrsParcels: 3, externalLanes: 4, aisles: 2 });
+  const scene = buildCenterScene({ parcels: 10, asrsPallets: 6, externalLanes: 4, aisles: 2 });
   const behaviors = (logisticsPlugin.activate().behaviors ?? []) as WorldBehavior[];
   const world = new TwinWorld(scene as never, { seed: 20240906, step: STEP, behaviors, maxStepsPerAdvance: 8 });
 
@@ -115,7 +115,8 @@ describe('智能物流中心 · 运行时', () => {
   });
 
   test('立库存取事件会发，且层号是给 HUD 用的整数层数', () => {
-    const run = runCenter(3600); // 60 秒，跨过若干个完整循环
+    // 240 秒：托盘池（每巷道 6 块）先被搬进货架，之后队列空了才开始出库。
+    const run = runCenter(60 * 240);
     const events = run.world.getEventLog();
     const stores = events.filter((event) => event.type === 'asrs:store');
     const retrieves = events.filter((event) => event.type === 'asrs:retrieve');
@@ -123,11 +124,37 @@ describe('智能物流中心 · 运行时', () => {
     expect(retrieves.length).toBeGreaterThan(0);
 
     for (const event of stores) {
-      const payload = event.payload as { level?: number; height?: number; column?: number };
+      const payload = event.payload as { level?: number; height?: number; column?: number; pallet?: string };
       expect(Number.isInteger(payload.level), 'level 必须是整数层数，不能是高度').toBe(true);
       expect(payload.level ?? 0).toBeGreaterThanOrEqual(1);
       expect(typeof payload.height).toBe('number');
+      expect(typeof payload.pallet).toBe('string');
     }
+  });
+
+  test('托盘被搬进货架：位置落在货架占地内、且坐在声明的层高上', () => {
+    const run = runCenter(60 * 120);
+    const pallets = run.world.scene.entities.filter((entity) => entity.kind === 'pallet');
+    const racks = run.world.scene.entities.filter((entity) => entity.kind === 'asrs');
+    let stored = 0;
+    for (const pallet of pallets) {
+      const state = run.world.getEntity(pallet.id);
+      if (state?.attrs.state !== 'stored') continue;
+      stored += 1;
+      const [px, py, pz] = state.transform.position;
+      // 货位 X 必须落在某排货架的占地内（托盘不能悬在巷道里）
+      const inRack = racks.some((rack) => {
+        const size = rack.visual?.size ?? [0, 0, 0];
+        const rx = rack.transform.position[0];
+        const rz = rack.transform.position[2];
+        return Math.abs(px - rx) <= size[0] / 2 + 0.2 && Math.abs(pz - rz) <= size[2] / 2 + 0.2;
+      });
+      expect(inRack, `${pallet.id} 没落在货架里（x=${px.toFixed(2)}, z=${pz.toFixed(2)}）`).toBe(true);
+      // 层高 = 声明值 + 托盘半高，说明它坐在横梁上而不是浮空
+      const levelYs = (racks[0]?.config?.levelHeights as number[]) ?? [];
+      expect(levelYs.some((levelY) => Math.abs(py - (levelY + 0.3)) < 1e-6), `${pallet.id} 的 Y=${py} 不在层高上`).toBe(true);
+    }
+    expect(stored).toBeGreaterThan(0);
   });
 
   test('确定性：同种子跑两遍，堆垛机姿态与事件流一致', () => {

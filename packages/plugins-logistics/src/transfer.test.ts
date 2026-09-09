@@ -57,7 +57,7 @@ describe('顶升移栽机 · 单工位', () => {
   });
 
   test('整场跑 60 秒：任一移栽机同时顶起的货不超过一个', () => {
-    const scene = buildCenterScene({ parcels: 10, asrsParcels: 3, externalLanes: 4, aisles: 2 });
+    const scene = buildCenterScene({ parcels: 10, asrsPallets: 6, externalLanes: 4, aisles: 2 });
     const behaviors = (logisticsPlugin.activate().behaviors ?? []) as WorldBehavior[];
     const world = new TwinWorld(scene as never, {
       seed: 20240906,

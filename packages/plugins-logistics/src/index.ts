@@ -13,7 +13,7 @@ import { lineTemplate, factoryTemplate, centerTemplate } from './template';
  *
  * 装好之后，宿主（Studio / 回放任务）得到三样东西：
  * - 行为 `logistics-flow`：包裹流转事件 + 设备忙闲状态；
- * - 行为 `asrs-cycle`：堆垛机行走 / 起升 / 货叉伸缩 + 出入库事件；
+ * - 行为 `asrs-cycle`：堆垛机行走 / 起升 / 货叉伸缩 + **货架先入先出库存** + 出入库事件；
  * - 行为 `transfer-cycle`：顶升移栽机顶升/分流，只抬该拐弯的货，其余直着滚过去；
  * - 指标 `throughput` / `busy-duration`（其余四项由 analytics-core 的 lineMetrics 直接算）；
  * - 场景模板 `logistics-line` / `logistics-factory` / `logistics-center`。
@@ -22,11 +22,11 @@ import { lineTemplate, factoryTemplate, centerTemplate } from './template';
 export const logisticsPlugin: TwinPlugin = {
   manifest: {
     id: 'logistics',
-    version: '0.2.0',
+    version: '0.3.0',
     sdkVersion: '^0.1.0',
     name: '物流（输送线 · 工厂 · 立库）',
     description:
-      '输送线、检测、缓存、分拣、立体仓库、顶升移栽的领域语义：包裹流转事件 + 设备忙闲状态 + 堆垛机存取循环 + 顶升分流 + 产线/工厂指标。含 logistics-line、logistics-factory、logistics-center 三个场景模板。',
+      '输送线、检测、缓存、分拣、立体仓库、顶升移栽的领域语义：包裹流转事件 + 设备忙闲状态 + 堆垛机存取循环（货架先入先出库存：托盘入架/出库/回队） + 顶升分流 + 产线/工厂指标。含 logistics-line、logistics-factory、logistics-center 三个场景模板。',
     capabilities: ['behavior', 'analytics', 'scene-template'],
   },
   activate(): PluginInstance {
@@ -43,7 +43,7 @@ export const logisticsPlugin: TwinPlugin = {
 };
 
 export { createLogisticsBehavior } from './behavior';
-export { createAsrsBehavior } from './asrs';
+export { createAsrsBehavior, palletPoolCapacity, type AsrsBehaviorConfig, type CraneSpec } from './asrs';
 export { createTransferBehavior } from './transfer';
 export { createBufferFillBehavior, type BufferFillConfig } from './bufferFill';
 export { createPackingBehavior, type PackingConfig } from './packing';

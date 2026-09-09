@@ -182,10 +182,19 @@ export function parcel(id: string, path: TwinVector3[], speed: number, options: 
 export interface AsrsRackOptions {
   label?: string;
   color?: string;
-  /** 货位层数，默认 5。 */
+  /** 货位层数，默认按 `levelHeights` 的长度推，再退到 5。 */
   levels?: number;
-  /** 沿长边的货位数，默认按长度推。 */
+  /** 沿长边的货位数（列），默认按长度推。 */
   bays?: number;
+  /**
+   * 每层货位的**实际高度**（米）。必须与同一巷道堆垛机 config.levels 用同一个数组，
+   * 否则托盘会被放到横梁以外的空中——渲染层也按它铺横梁。
+   */
+  levelHeights?: number[];
+  /** 该货架排服务哪台堆垛机（= 巷道）。行为靠它把货架和堆垛机配对，写占用率。 */
+  craneId?: string;
+  /** 货架在巷道的哪一侧：0 = 堆垛机 forkX[0] 那侧，1 = forkX[1] 那侧。 */
+  side?: 0 | 1;
 }
 
 /**
@@ -193,6 +202,8 @@ export interface AsrsRackOptions {
  * 长边即货架延伸方向（巷道在它侧面）。
  *
  * 只声明几何与能力，不声明运动——它不动，动的是堆垛机。
+ * 货位上有没有托盘**不由这里声明**：托盘是场景里独立的实体（见 `pallet`），
+ * 由 `asrs-cycle` 行为按先入先出搬进搬出，所以点得中、数量也会变。
  */
 export function asrsRack(
   id: string,
@@ -200,6 +211,7 @@ export function asrsRack(
   size: TwinVector3,
   options: AsrsRackOptions = {},
 ): TwinEntity {
+  const levelHeights = options.levelHeights ?? [];
   return {
     id,
     kind: 'asrs',
@@ -208,8 +220,11 @@ export function asrsRack(
     visual: { kind: 'box', color: options.color ?? '#B5EAD7', size },
     config: {
       label: options.label ?? id,
-      levels: options.levels ?? 5,
+      levels: options.levels ?? (levelHeights.length || 5),
+      levelHeights,
       bays: options.bays ?? Math.max(2, Math.round(Math.max(size[0], size[2]) / 1.8)),
+      craneId: options.craneId ?? '',
+      side: options.side ?? 0,
     },
   };
 }
@@ -237,6 +252,16 @@ export interface StackerCycleConfig {
   reach: number;
   /** 左/右两侧货架的货位 X。 */
   forkX: [number, number];
+  /**
+   * 入库载货站台（L 形）**横段西端**的 X：托盘在这里排队等堆垛机取货。
+   * 不给就按 `aisleX - 4` 推（= 默认 IO_SPAN）。
+   */
+  stationX?: number;
+  /**
+   * 出库接驳带上的货位 Z 列表（托盘出库后在这里等待被"外部取走"）。
+   * 出库接驳带沿 X = stationX 铺开，所以只需要给 Z。
+   */
+  outfeedZ?: number[];
 }
 
 export interface StackerOptions {
@@ -281,15 +306,31 @@ export function stackerFork(id: string, position: TwinVector3, color?: string, l
   };
 }
 
-/** 堆垛机上的托盘/料箱：取货时贴在货叉上，空程时停在巷道口的交接位。 */
-export function pallet(id: string, position: TwinVector3, color?: string, label?: string): TwinEntity {
+export interface PalletOptions {
+  label?: string;
+  color?: string;
+  /**
+   * 这块托盘归哪台堆垛机（= 哪个巷道）管。`asrs-cycle` 行为按它把托盘分组：
+   * 一组托盘共享一条入库队列和一条巷道的货位。
+   */
+  carrier?: string;
+}
+
+/**
+ * 托盘（货架上的存货单位）。
+ *
+ * 托盘是**独立实体**，不是货架模型的一部分：货架只声明"有哪些货位"，
+ * 托盘由 `asrs-cycle` 行为在"入库队列 → 货位 → 出库接驳带"之间搬运，
+ * 所以它在场景里点得中、在物料列表里看得到、数量也会随存取变化。
+ */
+export function pallet(id: string, position: TwinVector3, options: PalletOptions = {}): TwinEntity {
   return {
     id,
     kind: 'pallet',
     transform: { position },
     capabilities: ['pallet'],
-    visual: { kind: 'box', color: color ?? '#FFDAC1', size: [0.8, 0.56, 1] },
-    config: { label: label ?? id },
+    visual: { kind: 'box', color: options.color ?? '#FFDAC1', size: [0.8, 0.56, 1] },
+    config: { label: options.label ?? id, carrier: options.carrier ?? '' },
   };
 }
 

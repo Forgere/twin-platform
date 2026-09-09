@@ -1,18 +1,22 @@
 import type { ConfigValue, SceneTemplateDescriptor } from '@twin-platform/plugin-sdk';
 import type { TwinEntity, TwinScene, TwinVector3 } from '@twin-platform/scene-schema';
+import { palletPoolCapacity } from './asrs';
 import {
   asrsRack,
   bufferRack,
   conveyorPolyline,
   conveyorSegment,
+  goodsSource,
   inspectionStation,
   liftTransfer,
   liftTransferCassette,
+  packingStation,
   pallet,
   parcel,
   stackerCarriage,
   stackerCrane,
   stackerFork,
+  truck,
 } from './devices';
 
 export interface LineTemplateParams {
@@ -226,8 +230,6 @@ const LINE_SPEED = {
   main: 1.3,
   /** 分流支线：与主环线共用 x5..8 段皮带，必须同速。 */
   divert: 1.3,
-  /** 立库出入库环步速。 */
-  asrs: 0.9,
   /** 外部数字孪生车道步速。 */
   ext: 1.0,
 } as const;
@@ -320,8 +322,11 @@ export function splitOpenPath(points: TwinVector3[], fraction: number): TwinVect
 export interface CenterTemplateParams {
   /** 主环线在制物料数，默认 10。 */
   parcels?: number;
-  /** 每个立库出入库环的物料数，默认 3。 */
-  asrsParcels?: number;
+  /**
+   * 每条巷道的托盘池大小，默认 6（= 入库队列能排下的块数）。
+   * 托盘是货架存货单位：它按先入先出在"队列 → 货位 → 出库带"之间循环。
+   */
+  asrsPallets?: number;
   /** 外部数字孪生车道数，默认 4。 */
   externalLanes?: number;
   /** 堆垛机巷道数（1 或 2），默认 2。 */
@@ -343,7 +348,7 @@ export const centerTemplate: SceneTemplateDescriptor<CenterTemplateParams> = {
   label: '智能物流中心（含立库）',
   build(params: CenterTemplateParams = {}) {
     const mainCount = params.parcels ?? 10;
-    const asrsCount = params.asrsParcels ?? 3;
+    const palletCount = params.asrsPallets ?? 6;
     const lanes = params.externalLanes ?? 4;
     const aisles = Math.min(2, Math.max(1, Math.round(params.aisles ?? 2)));
     const s = params.scale ?? 1;
@@ -443,7 +448,9 @@ export const centerTemplate: SceneTemplateDescriptor<CenterTemplateParams> = {
       // 会被推断成 number[][]，赋给元组类型要报错，没必要为此在每个调用点写断言。
       pts: number[][],
       label: string,
-      color = CENTER.belt,
+      // 显式标 string：不标的话类型会被推成默认值的字面量 '#8BD3C7'，
+      // 传 CENTER.pack 之类就报错。
+      color: string = CENTER.belt,
       direction: 1 | -1 = 1,
     ): void => {
       const head = pts[0]!;
@@ -646,18 +653,26 @@ export const centerTemplate: SceneTemplateDescriptor<CenterTemplateParams> = {
     const rackZ = (RACK.zFront + RACK.zBack) / 2;
     const rackLen = RACK.zBack - RACK.zFront;
     const rackY = RACK.height / 2; // 货架实体 y 取半高，模型才落在地面上
+    /** 每层货位的实际高度：货架横梁、堆垛机取货高度、托盘落位高度三者共用这一份。 */
+    const RACK_LEVELS = [1.35, 2.5, 3.65];
+    /** 沿货架长边的货位列数。 */
+    const RACK_BAYS = 5;
 
     for (const aisleX of aisleXs) {
       const tag = aisleXs.indexOf(aisleX) === 0 ? 'a' : 'b';
       const upper = tag.toUpperCase();
-      for (const [suffix, offset] of [
-        ['1', -2],
-        ['2', 2],
+      for (const [suffix, offset, side] of [
+        ['1', -2, 0],
+        ['2', 2, 1],
       ] as const) {
         entities.push(
           asrsRack(`rack-${tag}${suffix}`, [x(aisleX + offset), rackY, z(rackZ)], [1.8, RACK.height, rackLen], {
             label: `货架 ${upper}${suffix}`,
             color: CENTER.rack,
+            levelHeights: RACK_LEVELS,
+            bays: RACK_BAYS,
+            craneId: `stacker-${tag}`,
+            side,
           }),
         );
       }
@@ -679,7 +694,6 @@ export const centerTemplate: SceneTemplateDescriptor<CenterTemplateParams> = {
       // pack-01 货架、belt-outfeed-turn-back 回程带冲突叠面，故 B 暂保持原侧（西侧），
       // 仅把站台本身改成 L 形朝巷道中心伸出（见下方 belt-io-*-station）。
       const inX = ioInX(aisleX);
-      const ioCargoIds = Array.from({ length: asrsCount }, (_, i) => `asrs-${aisleX}-cargo-${i + 1}`);
       // ① 入库段：北上(+Z) → 西行(−X)，止于角落移栽机东缘（让出 HALF_T）。
       beltL(
         `belt-io-${tag}-in`,
@@ -708,20 +722,6 @@ export const centerTemplate: SceneTemplateDescriptor<CenterTemplateParams> = {
         1,
       );
 
-      // 物料路径：主线 → 北上 → 环顶西行 → 竖段进站台 → 横段伸到巷道口（掉头）→ 原路退回 → 南下出库。
-      // 横段把货送到巷道口正下方（堆垛机货叉可达范围内），堆垛机从侧面把货取走存进巷道；
-      // B 巷道镜像：横段朝 −X 伸到 x=16，与 A 的 x=8 关于 x=12 中轴左右对称。
-      const ioCorners: TwinVector3[] = [
-        [x(aisleX), DECK_Y, z(0)],
-        [x(aisleX), DECK_Y, z(IO_TOP)],
-        [x(inX), DECK_Y, z(IO_TOP)],
-        [x(inX), DECK_Y, z(STATION_END)],
-        [x(aisleX), DECK_Y, z(STATION_END)],
-        [x(inX), DECK_Y, z(STATION_END)],
-        [x(inX), DECK_Y, z(IO_TOP)],
-        [x(inX), DECK_Y, z(0)],
-      ];
-
       // 环顶两处才是真拐弯（单线、纯过路）→ 90° 弯道：
       // (aisleX) 北上(+Z) 转西行(−X)；(inX) 西行(−X) 转南下(−Z)。
       // corner-io-*-2 / -3 已撤：环顶那两个拐并进 belt-io-*-loop 了。
@@ -732,7 +732,6 @@ export const centerTemplate: SceneTemplateDescriptor<CenterTemplateParams> = {
           label: `入库移栽机 ${upper}`,
           color: CENTER.sorter,
           size: TRANSFER_SIZE,
-          divertIds: ioCargoIds,
           liftHeight: 0.13,
           beltDirection: 1, // 主线东行
           divertSign: 1, // 往北(+Z)顶进巷道
@@ -757,7 +756,6 @@ export const centerTemplate: SceneTemplateDescriptor<CenterTemplateParams> = {
           label: `出库移栽机 ${upper}`,
           color: CENTER.sorter,
           size: TRANSFER_SIZE,
-          divertIds: ioCargoIds,
           liftHeight: 0.13,
           beltDirection: 1,
           divertSign: -1,
@@ -783,7 +781,6 @@ export const centerTemplate: SceneTemplateDescriptor<CenterTemplateParams> = {
           label: `载货站台移栽机 ${upper}`,
           color: CENTER.sorter,
           size: TRANSFER_SIZE,
-          divertIds: ioCargoIds,
           liftHeight: 0.13,
           beltDirection: -1, // 台面滚向 = 环顶西行（−X）
           divertSign: 1, // 入库往北(+Z)顶进载货站台
@@ -801,45 +798,56 @@ export const centerTemplate: SceneTemplateDescriptor<CenterTemplateParams> = {
           1,
         ),
       );
-      for (let i = 0; i < asrsCount; i += 1) {
-        entities.push(
-          parcel(`asrs-${aisleX}-cargo-${i + 1}`, splitClosedLoop(ioCorners, i / asrsCount), LINE_SPEED.asrs, {
-            label: `立库物料 ${aisleX}-${i + 1}`,
-            color: CENTER.cargo[(i + 1) % CENTER.cargo.length],
-            cornerRadius: 0.35 * s,
-          }),
-        );
-      }
-
       // 堆垛机三件套：门架走 Z、载货台升降 Y、货叉伸 X，全部由 asrs-cycle 行为驱动。
       const cycle = tag === 'a' ? 14 : 16.5;
       const phase = tag === 'a' ? 0 : 0.38;
-      entities.push(
-        stackerCrane(`stacker-${tag}`, [x(aisleX), 0, z(ASRS_IO_Z)], {
-          label: `堆垛机 ${upper}`,
-          color: CENTER.stacker,
-          cycle: {
-            aisleX: x(aisleX),
-            ioZ: z(ASRS_IO_Z),
-            ioY: DECK_Y,
-            zMin: z(RACK.zFront + 0.4),
-            zMax: z(RACK.zBack - 0.4),
-            levels: [1.35, 2.5, 3.65],
-            columns: 5,
-            cycle,
-            phase,
-            reach: x(1.35),
-            forkX: [x(aisleX - 1.35), x(aisleX + 1.35)],
-          },
-        }),
-      );
+      /** 货位 X：从货架内侧面（aisleX±1.1）再往里 0.4m，0.8m 宽的托盘整个落在货架里。 */
+      const slotX = 1.5;
+      const crane = stackerCrane(`stacker-${tag}`, [x(aisleX), 0, z(ASRS_IO_Z)], {
+        label: `堆垛机 ${upper}`,
+        color: CENTER.stacker,
+        cycle: {
+          aisleX: x(aisleX),
+          ioZ: z(ASRS_IO_Z),
+          ioY: DECK_Y,
+          zMin: z(RACK.zFront + 0.4),
+          zMax: z(RACK.zBack - 0.4),
+          // 货位高度 / 列数必须和货架声明一致，否则托盘会落在横梁外面。
+          levels: RACK_LEVELS,
+          columns: RACK_BAYS,
+          cycle,
+          phase,
+          reach: x(slotX),
+          forkX: [x(aisleX - slotX), x(aisleX + slotX)],
+          // 入库队列排在 L 形载货站台上（横段西端 = inX），出库托盘停在南侧出库接驳带上。
+          stationX: x(inX),
+          outfeedZ: [z(1.6), z(0.8)],
+        },
+      });
+      entities.push(crane);
       entities.push(
         stackerCarriage(`stacker-${tag}-carriage`, [x(aisleX), DECK_Y, z(3)], CENTER.stacker, `载货台 ${upper}`),
       );
       entities.push(stackerFork(`stacker-${tag}-fork`, [x(aisleX), DECK_Y, z(3)], undefined, `货叉 ${upper}`));
-      entities.push(
-        pallet(`stacker-${tag}-load`, [x(aisleX), DECK_Y, z(2.1)], CENTER.pack, `托盘 ${upper}`),
-      );
+
+      // 托盘池：一条巷道一组，先入先出地在「入库队列 → 货位 → 出库带 → 队列」之间循环。
+      // 池子大小受入库队列长度限制（排不下的会叠在队列尾），所以取两者较小值。
+      const pool = Math.min(palletCount, palletPoolCapacity(crane));
+      for (let i = 0; i < pool; i += 1) {
+        const alongX = Math.min(i * 0.9, aisleX - 1 - inX);
+        const alongZ = i * 0.9 - alongX;
+        entities.push(
+          pallet(
+            `asrs-${aisleX}-pallet-${i + 1}`,
+            [x(aisleX - 0.5 - alongX), DECK_Y, z(STATION_END - (alongZ > 0 ? 0.4 + alongZ : 0))],
+            {
+              label: `托盘 ${upper}-${i + 1}`,
+              color: CENTER.cargo[i % CENTER.cargo.length],
+              carrier: `stacker-${tag}`,
+            },
+          ),
+        );
+      }
     }
 
     return entities;
@@ -853,6 +861,247 @@ export function buildCenterScene(params: CenterTemplateParams = {}): TwinScene {
     id: 'logistics-center',
     name: '智能物流中心',
     entities: centerTemplate.build(params),
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 生产工厂（闭环产线）：小货物 → 打包 → 立库 → 卡车运走
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface ProductionTemplateParams {
+  /** 小货物产出间隔（秒），默认 4.5。 */
+  produceInterval?: number;
+  /** 线上允许多少个小货物同时在制（背压），默认 10。 */
+  maxWip?: number;
+  /** 立库库存高水位：到线就转去出库，默认 8。 */
+  highWater?: number;
+  /** 整体缩放，默认 1。 */
+  scale?: number;
+}
+
+/**
+ * "生产工厂"场景模板：一条**闭环**产线。
+ *
+ * ```
+ *   小货物发生器 ──闭环输送线──> 打包站 ──出料带──> 立库入库队列
+ *        ↑                                              │
+ *        │                                       堆垛机入库/出库
+ *        │                                              ↓
+ *        └──── 卡车装车离场（真正消耗掉托盘） ←── 出库接驳带
+ * ```
+ *
+ * 与 `logistics-center` 的区别：
+ * - 小货物是**生成**出来的（不是场景里预置的循环物料），打完包就被消耗；
+ * - 大货物（托盘）由打包站生成，自己走到入库队列，**没有固定托盘池**；
+ * - 出库托盘沿出库带走到卡车货位，被卡车装走并 `despawn`——整条线有真实的入口和出口，
+ *   不会越堆越多（`logistics-center` 是闭环托盘池，出库后回队列）。
+ *
+ * 布局铁律（与 center 同）：皮带之间只准贴边不准叠面；出库带放在**巷道侧**
+ * （x = aisleX − 0.5），这样出库托盘从取货点一路往南走出去，不会穿过入库队列。
+ */
+export const productionTemplate: SceneTemplateDescriptor<ProductionTemplateParams> = {
+  id: 'logistics-production',
+  label: '生产工厂（小件 → 打包 → 立库 → 卡车）',
+  build(params: ProductionTemplateParams = {}) {
+    const s = params.scale ?? 1;
+    const x = (value: number): number => value * s;
+    const z = (value: number): number => value * s;
+
+    const BELT_Y = 0.6;
+    const DECK_Y = 1.2;
+    const HALF_C = 0.7;
+
+    /** 小货物闭环：西起发生器，东到打包站。 */
+    const LOOP = { x0: -14, x1: 4, z0: 0, z1: 3.6 };
+    /** 打包站在环线东北角；托盘从这里出来往东走。 */
+    const PACK_X = 4;
+    const PACK_Z = LOOP.z1;
+    /** 立库：一条巷道，两侧各一排货架。 */
+    const AISLE_X = 14;
+    const STATION_X = 10;
+    const IO_TOP = 2.6;
+    const STATION_END = 5;
+    /** 出库接驳带放在巷道侧（aisleX − 0.5），与入库队列分居两条线。 */
+    const OUTFEED_X = AISLE_X - 0.5;
+    const RACK = { zFront: 6, zBack: 15, height: 4.5 };
+    const RACK_LEVELS = [1.35, 2.5, 3.65];
+    const RACK_BAYS = 5;
+
+    const entities: TwinEntity[] = [];
+
+    // ── 小货物环线：一条折线闭环，自带倒圆，拐角不叠面 ──
+    entities.push(
+      conveyorPolyline(
+        'belt-loop',
+        [0, BELT_Y, 0],
+        [
+          [x(LOOP.x0), z(LOOP.z0)],
+          [x(LOOP.x1), z(LOOP.z0)],
+          [x(LOOP.x1), z(LOOP.z1)],
+          [x(LOOP.x0), z(LOOP.z1)],
+          [x(LOOP.x0), z(LOOP.z0)],
+        ],
+        { label: '小货物闭环输送线', width: 1.4, beltDirection: 1, radius: 0.5 * s },
+      ),
+    );
+
+    // 小货物路径：从发生器出发，逆时针绕一圈回到发生器（首尾闭合，loop:'repeat'）。
+    const goodsPath: TwinVector3[] = [
+      [x(LOOP.x0), DECK_Y, z(1.8)],
+      [x(LOOP.x0), DECK_Y, z(LOOP.z0)],
+      [x(LOOP.x1), DECK_Y, z(LOOP.z0)],
+      [x(LOOP.x1), DECK_Y, z(LOOP.z1)],
+      [x(LOOP.x0), DECK_Y, z(LOOP.z1)],
+      [x(LOOP.x0), DECK_Y, z(1.8)],
+    ];
+    entities.push(
+      goodsSource('source-1', [x(LOOP.x0), 0, z(1.8)], {
+        label: '小货物发生器',
+        interval: params.produceInterval ?? 4.5,
+        maxWip: params.maxWip ?? 10,
+        goodsPath,
+        goodsSpeed: 1.1,
+        goodsColor: CENTER.cargo[0],
+        goodsSize: [0.55, 0.55, 0.55],
+        goodsCornerRadius: 0.5 * s,
+      }),
+    );
+
+    // ── 打包站：2 个小货物 → 1 个托盘，托盘沿出料带走到立库入库队列尾 ──
+    entities.push(
+      packingStation('pack-1', [x(PACK_X), 0, z(PACK_Z)], {
+        label: '打包站',
+        color: CENTER.pack,
+        batch: 2,
+        radius: 1.8 * s,
+        // 出料带从环线东缘（x=4.7）接到载货站台竖段（x=10）；最后 0.7m 落在站台皮带上。
+        palletPath: [
+          [x(PACK_X + 0.7), DECK_Y, z(PACK_Z)],
+          [x(STATION_X), DECK_Y, z(PACK_Z)],
+        ],
+        palletSpeed: 0.9,
+        palletSize: [0.8, 0.56, 1],
+        palletColor: CENTER.pack,
+        carrier: 'stacker-p',
+      }),
+    );
+    // 出料带：从环线东缘让出半个带宽（4.7）铺到站台竖段西缘（9.3），两边只贴边不叠面。
+    entities.push(
+      conveyorSegment('belt-pack-out', [x((PACK_X + 0.7 + STATION_X - HALF_C) / 2), BELT_Y, z(PACK_Z)], {
+        label: '打包出料带',
+        color: CENTER.pack,
+        size: [x(STATION_X - HALF_C - (PACK_X + 0.7)), 0.6, 1.4],
+        axis: 'x',
+        beltDirection: 1,
+      }),
+    );
+
+    // ── 立库：载货站台（L 形）→ 堆垛机 → 两排货架；出库带走巷道侧 ──
+    entities.push(
+      conveyorPolyline(
+        'belt-station',
+        [x(STATION_X), BELT_Y, 0],
+        [
+          [0, z(IO_TOP + HALF_C)],
+          [0, z(STATION_END)],
+          [x(AISLE_X - STATION_X), z(STATION_END)],
+        ],
+        { label: '入库载货站台', width: 1.4, beltDirection: 1, radius: HALF_C },
+      ),
+    );
+    entities.push(
+      conveyorSegment('belt-outfeed', [x(OUTFEED_X), BELT_Y, z((0.7 + 4.3) / 2)], {
+        label: '出库接驳带',
+        size: [1.4, 0.6, z(4.3 - 0.7)],
+        axis: 'z',
+        beltDirection: 1,
+      }),
+    );
+
+    const rackZ = (RACK.zFront + RACK.zBack) / 2;
+    const rackLen = RACK.zBack - RACK.zFront;
+    for (const [suffix, offset, side] of [
+      ['1', -2, 0],
+      ['2', 2, 1],
+    ] as const) {
+      entities.push(
+        asrsRack(`rack-p${suffix}`, [x(AISLE_X + offset), RACK.height / 2, z(rackZ)], [1.8, RACK.height, rackLen], {
+          label: `货架 P${suffix}`,
+          color: CENTER.rack,
+          levelHeights: RACK_LEVELS,
+          bays: RACK_BAYS,
+          craneId: 'stacker-p',
+          side,
+        }),
+      );
+    }
+
+    const cycle = 12;
+    entities.push(
+      stackerCrane('stacker-p', [x(AISLE_X), 0, z(STATION_END)], {
+        label: '堆垛机 P',
+        color: CENTER.stacker,
+        cycle: {
+          aisleX: x(AISLE_X),
+          ioZ: z(STATION_END),
+          ioY: DECK_Y,
+          zMin: z(RACK.zFront + 0.4),
+          zMax: z(RACK.zBack - 0.4),
+          levels: RACK_LEVELS,
+          columns: RACK_BAYS,
+          cycle,
+          phase: 0,
+          reach: x(1.5),
+          forkX: [x(AISLE_X - 1.5), x(AISLE_X + 1.5)],
+          stationX: x(STATION_X),
+          outfeedX: x(OUTFEED_X),
+          outfeedZ: [z(1.6), z(0.8)],
+          // 出库托盘从取货点沿出库带往南走到头（队首在离卡车最近的货位），等卡车装走。
+          outboundPath: [
+            [x(OUTFEED_X), DECK_Y, z(STATION_END)],
+            [x(OUTFEED_X), DECK_Y, z(0.8)],
+          ],
+          outboundMode: 'shipped',
+          highWater: params.highWater ?? 8,
+        },
+      }),
+    );
+    entities.push(
+      stackerCarriage('stacker-p-carriage', [x(AISLE_X), DECK_Y, z(3)], CENTER.stacker, '载货台 P'),
+    );
+    entities.push(stackerFork('stacker-p-fork', [x(AISLE_X), DECK_Y, z(3)], undefined, '货叉 P'));
+
+    // ── 卡车：出库带东侧的装车货位，装满就驶离，回来再装 ──
+    entities.push(
+      truck('truck-1', [x(OUTFEED_X + 1.7), 0, z(1.2)], {
+        label: '出库卡车',
+        color: CENTER.external,
+        dock: [x(OUTFEED_X + 1.7), 0, z(1.2)],
+        route: [
+          [x(OUTFEED_X + 1.7), 0, z(1.2)],
+          [x(OUTFEED_X + 1.7), 0, z(-5)],
+          [x(6), 0, z(-5)],
+        ],
+        speed: 2.4,
+        // 等货等到装满或等够 40s：出库节拍约 30s 一块，等 40s 才凑得满一车。
+        capacity: 4,
+        dwell: 40,
+        awayTime: 20,
+        loadRadius: 2.4 * s,
+      }),
+    );
+
+    return entities;
+  },
+};
+
+/** 把生产工厂模板产出的实体组装成可直接喂给 `TwinWorld` 的场景。 */
+export function buildProductionScene(params: ProductionTemplateParams = {}): TwinScene {
+  return {
+    version: 1,
+    id: 'logistics-production',
+    name: '生产工厂 · 闭环产线',
+    entities: productionTemplate.build(params),
   };
 }
 

@@ -143,6 +143,9 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .entity-detail strong { color: var(--ink); }
 .entity-detail span, .entity-detail p { margin: 0; color: var(--ink-soft); font-size: 0.85rem; }
 .entity-detail button { margin-top: 4px; }
+/* 实时状态（托盘货位 / 货架占用 / 堆垛机任务）：来自世界 attrs，按采样节拍刷新 */
+.entity-state { display: grid; gap: 4px; margin: 2px 0 0; padding: 8px 10px; border-radius: 10px; background: var(--cream-card); border: 1px solid var(--line); }
+.entity-state dd { margin: 0; color: var(--ink); font-size: 0.82rem; font-variant-numeric: tabular-nums; }
 
 h2 { margin: 0 0 12px; color: var(--accent); font-size: 0.82rem; letter-spacing: 0.06em; }
 

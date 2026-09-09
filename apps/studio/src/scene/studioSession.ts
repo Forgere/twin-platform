@@ -33,7 +33,7 @@ export const SAMPLE_CSV = ['t,id,x,y,z', '0,cargo-01,-5.2,1.15,0', '1,cargo-01,-
  * 默认物流中心场景参数：主环线 10 个在制物料、每个立库环 3 个、4 条外部车道、2 条巷道。
  * 注意：`compare()` 也复用同一组参数，两处必须保持一致，否则分叉对比跑的不是同一套场景。
  */
-const CENTER_PARAMS = { parcels: 10, asrsParcels: 3, externalLanes: 4, aisles: 2 } as const;
+const CENTER_PARAMS = { parcels: 10, asrsPallets: 6, externalLanes: 4, aisles: 2 } as const;
 
 /** HUD 用的实时遥测快照（由世界事件日志派生，不在 Studio 里重算语义）。 */
 export interface StudioTelemetry {
@@ -53,6 +53,11 @@ export interface StudioTelemetry {
   /** 立库累计入库 / 出库次数。 */
   asrsStore: number;
   asrsRetrieve: number;
+  /** 立库当前库存（已上架托盘数）与总库容。 */
+  stock: number;
+  capacity: number;
+  /** 每排货架的占用情况，给 HUD 逐排显示。 */
+  racks: { id: string; label: string; used: number; capacity: number }[];
   /** 外部车道条数。 */
   externalLanes: number;
   /** 外部在途物料数。 */
@@ -165,6 +170,18 @@ export class StudioSession {
           stores: mine.filter((event) => event.type === 'asrs:store').length,
         };
       });
+    // 货架占用由 asrs-cycle 行为写进 rack.attrs（used / capacity），这里只读不重算。
+    const racks = this.world.scene.entities
+      .filter((entity) => entity.kind === 'asrs')
+      .map((rack) => {
+        const attrs = this.world.getEntity(rack.id)?.attrs ?? {};
+        return {
+          id: rack.id,
+          label: typeof rack.config?.label === 'string' ? rack.config.label : rack.id,
+          used: typeof attrs.used === 'number' ? attrs.used : 0,
+          capacity: typeof attrs.capacity === 'number' ? attrs.capacity : 0,
+        };
+      });
     const externalLanes = this.world.scene.entities.filter((entity) => entity.kind === 'transport' && entity.id.startsWith('ext-')).length;
     const externalActive = this.world.scene.entities.filter((entity) => entity.id.startsWith('ext-cargo')).length;
     return {
@@ -177,6 +194,9 @@ export class StudioSession {
       stackers,
       asrsStore: events.filter((event) => event.type === 'asrs:store').length,
       asrsRetrieve: events.filter((event) => event.type === 'asrs:retrieve').length,
+      stock: racks.reduce((sum, rack) => sum + rack.used, 0),
+      capacity: racks.reduce((sum, rack) => sum + rack.capacity, 0),
+      racks,
       externalLanes,
       externalActive,
       recent: events.slice(-6).reverse(),

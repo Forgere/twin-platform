@@ -70,6 +70,8 @@ export default function TwinViewport() {
   }>({ time: 0, duration: 0, playing: true, speed: 1, events: [], stored: 0 });
   const [metrics, setMetrics] = createSignal<LineMetrics>(session.metrics());
   const [telemetry, setTelemetry] = createSignal<StudioTelemetry>(session.telemetry());
+  /** 采样节拍：实体详情里的实时状态（货位、库存、当前任务）按它刷新。 */
+  const [tick, setTick] = createSignal(0);
   /** 右键菜单：记下弹在哪、对哪个实体，以及刚复制了什么（用来给个即时反馈）。 */
   const [menu, setMenu] = createSignal<{ x: number; y: number; entity: TwinEntityView; note?: string } | null>(
     null,
@@ -125,6 +127,7 @@ export default function TwinViewport() {
     });
     setMetrics(session.metrics());
     setTelemetry(session.telemetry());
+    setTick((value) => value + 1);
   };
   const timer = setInterval(() => void refresh(), 120);
 
@@ -132,6 +135,18 @@ export default function TwinViewport() {
     clearInterval(timer);
     controller?.dispose();
   });
+
+  /**
+   * 当前选中实体的实时状态行。
+   *
+   * 读一下 `tick()` 是为了让这段在采样节拍上重算——状态存在世界 attrs 里，
+   * 不经过信号，必须靠节拍显式拉取（和遥测 HUD 同一个套路）。
+   */
+  const selectedState = (): string[] => {
+    tick();
+    const entity = selected();
+    return entity && controller ? controller.describeEntity(entity.id) : [];
+  };
 
   const visibleEntities = (): TwinEntityView[] =>
     filter() === 'device'
@@ -200,6 +215,12 @@ export default function TwinViewport() {
                   <div class="tele-cell">
                     <span class="tele-label">已消耗</span>
                     <span class="tele-value">{telemetry().consumed}</span>
+                  </div>
+                  <div class="tele-cell">
+                    <span class="tele-label">立库库存</span>
+                    <span class="tele-value">
+                      {telemetry().stock}/{telemetry().capacity}
+                    </span>
                   </div>
                 </div>
 
@@ -326,6 +347,13 @@ export default function TwinViewport() {
                       <span>
                         {entity().kind} · {entity().id}
                       </span>
+                      <Show when={selectedState().length > 0}>
+                        <dl class="entity-state">
+                          <For each={selectedState()}>
+                            {(line) => <dd>{line}</dd>}
+                          </For>
+                        </dl>
+                      </Show>
                       <span class="code-path">
                         渲染来源：{controller ? controller.codePath(entity().id) : '—'}
                       </span>
