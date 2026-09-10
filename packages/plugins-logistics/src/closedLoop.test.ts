@@ -177,7 +177,10 @@ describe('智能物流中心 · 闭环产线', () => {
     let total = 0;
     for (const event of departures) {
       const load = Number((event.payload as { load?: number }).load ?? 0);
-      expect(load).toBeGreaterThanOrEqual(1);
+      // 攒批发车：装一件就走是 bug（发货窗口没在每次装货后重置，等第一件货的
+      // 时间被算进了等待窗口）。正常应该攒满 capacity 才发车，这里退一步要求
+      // 至少 2 件，容忍场景末尾断流导致的半车发车。
+      expect(load, `单趟只装了 ${load} 件就发车（装一件就走）`).toBeGreaterThanOrEqual(2);
       expect(load).toBeLessThanOrEqual(capacity);
       total += load;
     }
@@ -187,6 +190,42 @@ describe('智能物流中心 · 闭环产线', () => {
     for (const event of shipments) {
       expect(world.getEntity((event.payload as { cargo: string }).cargo)).toBeUndefined();
     }
+  });
+
+  test('卡车车头朝着行驶方向（不会车身横着平移）', () => {
+    const { world } = makeWorld(60 * 300);
+    const prev = new Map<string, { x: number; z: number; rot: number }>();
+    let worstCos = 1;
+    let samples = 0;
+    for (let i = 0; i < 60 * 300; i += 1) {
+      world.step(STEP);
+      if (i % 10 !== 0) continue;
+      for (const id of ['truck-a', 'truck-b']) {
+        const truck = world.getEntity(id);
+        // 只看离场：回场是原路倒回来，车头本来就朝着反方向。
+        if (!truck || String(truck.attrs.truckState ?? '') !== 'departing') {
+          prev.delete(id);
+          continue;
+        }
+        const [px, , pz] = truck.transform.position as [number, number, number];
+        const rot = Number((truck.transform.rotation as number[] | undefined)?.[1] ?? 0);
+        const before = prev.get(id);
+        prev.set(id, { x: px, z: pz, rot });
+        if (!before) continue;
+        const dx = px - before.x;
+        const dz = pz - before.z;
+        const dist = Math.hypot(dx, dz);
+        if (dist < 1e-3) continue;
+        // 车头（模型长边 local +Z）绕 Y 转 rot 后指向 (sinθ, 0, cosθ)
+        const cos = (Math.sin(rot) * dx + Math.cos(rot) * dz) / dist;
+        samples += 1;
+        if (cos < worstCos) worstCos = cos;
+      }
+    }
+    expect(samples, '没采到卡车离场过程').toBeGreaterThan(0);
+    // cos>0.999 ≈ 夹角<2.6°。修 headingAt 之前车身比行驶方向少转 90°（cos≈0），
+    // 看起来就是卡车横着平移出去。
+    expect(worstCos, `车头与行驶方向最大夹角 cos=${worstCos.toFixed(4)}`).toBeGreaterThan(0.999);
   });
 
   test('货物全程贴着皮带 / 货架走，不会飘在空中', () => {

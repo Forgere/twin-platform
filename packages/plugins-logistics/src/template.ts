@@ -713,9 +713,15 @@ export const centerTemplate: SceneTemplateDescriptor<CenterTemplateParams> = {
        */
       /** 卸货点 X：货叉伸出 `slotX` 后托盘落在这里，也是出库带的起点。 */
       const outDropX = aisleX + OUT_DROP_DX;
-      /** 缓存台中心 X（= 卡车停车位 X）：卸货点往东半个排队段，车尾正对装车区。 */
+      /** 缓存台中心 X：卸货点往东半个排队段，台面要覆盖"卸货点 → 队首"整段。 */
       const dockX = outDropX + OUT_LANE_LEN / 2;
-      const truckX = dockX;
+      /**
+       * 卡车停车位 X = **队首（装车位）**：车尾正对出库带末端那一格。
+       *
+       * 装车半径只圈住这一格（见 `loadRadius`），所以托盘必须先沿带子走到队首
+       * 才能被装走——在带上会真的排成一列等着，而不是一落到台上就凭空消失。
+       */
+      const truckX = outDropX + OUT_LANE_LEN;
 
       for (const [suffix, offset, side] of [
         ['1', -2, 0],
@@ -876,21 +882,24 @@ export const centerTemplate: SceneTemplateDescriptor<CenterTemplateParams> = {
         truck(`truck-${tag}`, [x(truckX), 0, z(TRUCK_Z)], {
           label: `出库卡车 ${upper}`,
           color: CENTER.external,
-          // 装货区取**出库缓存台**而不是车位本身：车位在 z=20、货在 z=16，
-          // 以车位为圆心要 5m 半径才够得着队尾，容易越过 3.2m 的巷道间隔
-          // 误装隔壁巷道的货。以台面中心为圆心，半径只需覆盖台面长度。
-          dock: [x(dockX), 0, z(OUT_Z)],
+          // 装车点 = 车位正南的**队首那一格**（不是整条台面）：
+          // 半径只圈住这一格，托盘得先沿出库带走到位才上得了车，于是会在带上
+          // 排成一列；半径一大就会"落地即被吸走"，台面永远是空的。
+          dock: [x(truckX), 0, z(OUT_Z)],
           route: [
             [x(truckX), 0, z(TRUCK_Z)],
             [x(truckX), 0, z(28)],
           ],
           speed: 2.4,
           capacity: 4,
-          // 装满 4 件要 3 个循环：A 42s / B 49.5s。窗口给 60s，保证是"装满才走"
-          // 而不是"攒到一半超时发车"；真断货了也有兜底，不会永久趴窝。
-          dwell: 60,
+          // 装满 4 件受堆垛机出库速率限制：存取出交替，每台约 2 个 cycle 才出一件
+          // （A≈28s / B≈33s），攒满一车要 ~2 分钟。窗口给 120s（远大于出一件的时间），
+          // 保证是"攒满才走"而不是"装一件、等超时、半车发车"；真断货也有兜底，不会趴窝。
+          dwell: 120,
           awayTime: 20,
-          loadRadius: (OUT_LANE_LEN / 2 + 1.4) * s,
+          // 只够到队首一格（节距 0.9 的一半再多一点）：后面排队的托盘够不着，
+          // 等队首被装走后整体前移一格，下一块才进入装车范围。
+          loadRadius: 0.8 * s,
         }),
       );
     }
