@@ -55,7 +55,16 @@ export function samplePolyline(line: Polyline, s: number): [number, number] {
   return [last[0], last[1]];
 }
 
-/** 沿折线的朝向（弧度，绕 Y）：卡车转弯时车身要跟着摆。 */
+/**
+ * 沿折线的朝向（弧度，绕 Y）：卡车转弯时车身要跟着摆。
+ *
+ * 约定：**车头（模型长边，即 local +Z）对齐行驶方向**。绕 Y 转 θ 后
+ * local +Z `(0,0,1)` 落到 `(sinθ, 0, cosθ)`，要它等于切线 `(dx, dz)`，
+ * 就得 `θ = atan2(dx, dz)`。
+ *
+ * 注意别写成 `atan2(-dz, dx)`（atan2 的"数学极角"直觉）：那算出来的是
+ * 切线**左转 90°**，车身会永远侧着走——卡车横着平移，看着就像在飘。
+ */
 export function headingAt(line: Polyline, s: number): number {
   let remaining = Math.max(0, s);
   for (let i = 0; i < line.lengths.length; i += 1) {
@@ -63,7 +72,7 @@ export function headingAt(line: Polyline, s: number): number {
     if (remaining <= length || i === line.lengths.length - 1) {
       const a = line.points[i]!;
       const b = line.points[i + 1]!;
-      return Math.atan2(-(b[1] - a[1]), b[0] - a[0]);
+      return Math.atan2(b[0] - a[0], b[1] - a[1]);
     }
     remaining -= length;
   }

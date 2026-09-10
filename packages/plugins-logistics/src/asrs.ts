@@ -42,6 +42,13 @@ const PALLET_SEAT = 0.3;
 const CARRIED_SEAT = 0.32;
 /** 放货/取货发生在这一圈相位的哪一点。 */
 const HANDOVER_U = 0.54;
+/**
+ * 载货出巷时，货叉伸出后在哪一点把托盘卸到出库位。
+ *
+ * 卸下之后货叉缩回、门架空车返回巷道口，托盘留在出库位上——所以出库货是
+ * **被堆垛机真正载出去**的，不会出现在巷道口"凭空瞬移"到缓存台。
+ */
+const DROP_U = 0.78;
 
 export interface AsrsBehaviorConfig {
   /** 门架实体的能力标记，默认 `stacker`。 */
@@ -96,6 +103,16 @@ interface CraneLayout {
   queue: QueueLine;
   /** 出库接驳带上的货位（XZ）。 */
   outfeed: [number, number][];
+  /**
+   * 出库卸货点 Z：声明后，取货任务**不再回巷道口**，而是载着托盘沿巷道走到
+   * 这个 Z（通常在货架另一端之外）再放下，然后空车返回。
+   *
+   * 不声明则沿用旧行为：回到 `ioZ` 卸货——出库口与入库队列同侧时只能这样，
+   * 但托盘会从巷道口瞬移到缓存台（见 `releaseCarriedOut` 的"退化落位"）。
+   */
+  outfeedTravelZ?: number;
+  /** 出库卸货时货叉伸向哪一侧：+1 朝 +X，-1 朝 -X。 */
+  outfeedDir: number;
   /** 出库托盘从取货点走到货位的路径（XZ），空数组表示直接落位。 */
   outbound: QueueLine;
   /** 出库托盘去向：回收（闭环托盘池）还是被卡车拉走。 */
@@ -179,13 +196,34 @@ function craneLayout(crane: CraneSpec, queuePitch: number): CraneLayout {
   const outfeedX = num(conf.outfeedX, stationX);
   const outfeedZ = numList(conf.outfeedZ, [1.6, 0.8]);
   const outfeed: [number, number][] = outfeedZ.map((z) => [outfeedX, z]);
+  // 载货出巷：只有显式声明了 outfeedTravelZ 才启用（不声明 = 旧行为，回 ioZ 卸货）。
+  const travelRaw = conf.outfeedTravelZ;
+  const outfeedTravelZ =
+    typeof travelRaw === 'number' && Number.isFinite(travelRaw) ? travelRaw : undefined;
+  const outfeedDir = num(conf.outfeedDir, 1) < 0 ? -1 : 1;
 
   // 出库路径：从取货点出发（默认直接落到货位，即"没有路径"）。
   const outbound = measurePolyline(toXZ(vectorList(conf.outboundPath)));
   const outboundMode: 'recycle' | 'shipped' = str(conf.outboundMode, 'recycle') === 'shipped' ? 'shipped' : 'recycle';
   const highWater = num(conf.highWater, Number.POSITIVE_INFINITY);
 
-  return { aisleX, ioZ, ioY, cycle, phase, reach, forkX, slots, queue, outfeed, outbound, outboundMode, highWater };
+  return {
+    aisleX,
+    ioZ,
+    ioY,
+    cycle,
+    phase,
+    reach,
+    forkX,
+    slots,
+    queue,
+    outfeed,
+    outfeedTravelZ,
+    outfeedDir,
+    outbound,
+    outboundMode,
+    highWater,
+  };
 }
 
 /** 托盘池里能排进队列的最大块数（受队列长度限制）。场景模板靠它决定生成几块托盘。 */
@@ -487,15 +525,28 @@ export function createAsrsBehavior(config: AsrsBehaviorConfig = {}): WorldBehavi
         const zTarget = slot ? slot.position[2] : layout.ioZ;
         const levelY = slot ? slot.levelY : layout.ioY;
 
-        // 六拍：出车 / 起升 / 伸叉 / 换载 / 收叉 / 回程 / 下降
-        const outTravel = ramp(u, 0.06, 0.4);
-        const backTravel = ramp(u, 0.64, 0.92);
-        const up = ramp(u, 0.12, 0.44);
-        const down = ramp(u, 0.66, 0.94);
-        const extend = slot ? layout.reach * (ramp(u, 0.44, 0.52) - ramp(u, 0.56, 0.64)) : 0;
+        // 取货任务要不要"载货出巷"：声明了 outfeedTravelZ 就一路走到卸货点。
+        const trip = task.kind === 'retrieve' && layout.outfeedTravelZ !== undefined;
+        const outZ = layout.outfeedTravelZ ?? layout.ioZ;
+        // 卸货时货叉要伸多远：取 `outfeedX` 与巷道的距离（和货位共用同一套 reach 语义）。
+        const outReach = layout.outfeed.length ? Math.abs(layout.outfeed[0]![0] - layout.aisleX) : 0;
 
-        const z = layout.ioZ + (zTarget - layout.ioZ) * (outTravel - backTravel);
+        // 六拍：出车 / 起升 / 伸叉 / 换载 / 收叉 / 回程 / 下降
+        // 载货出巷时多两拍：换载后先走到卸货点（并同步下降），伸叉卸货，再空车回巷道口。
+        const outTravel = ramp(u, 0.06, trip ? 0.38 : 0.4);
+        const up = ramp(u, 0.12, trip ? 0.4 : 0.44);
+        const down = ramp(u, trip ? 0.6 : 0.66, trip ? 0.76 : 0.94);
+        const z = trip
+          ? layout.ioZ +
+            (zTarget - layout.ioZ) * outTravel +
+            (outZ - zTarget) * ramp(u, 0.6, 0.76) -
+            (outZ - layout.ioZ) * ramp(u, 0.8, 0.97)
+          : layout.ioZ + (zTarget - layout.ioZ) * (outTravel - ramp(u, 0.64, 0.92));
         const y = layout.ioY + (levelY - layout.ioY) * (up - down);
+
+        const pickExtend = slot ? layout.reach * (ramp(u, 0.44, 0.52) - ramp(u, 0.56, 0.64)) : 0;
+        const dropExtend = trip ? outReach * (ramp(u, 0.68, 0.76) - ramp(u, 0.8, 0.88)) : 0;
+        const forkAt = layout.aisleX + dir * pickExtend + layout.outfeedDir * dropExtend;
 
         ctx.setTransform(crane.id, { position: [layout.aisleX, 0, z] });
 
@@ -503,15 +554,19 @@ export function createAsrsBehavior(config: AsrsBehaviorConfig = {}): WorldBehavi
         if (carriage) ctx.setTransform(carriage.id, { position: [layout.aisleX, y, z] });
 
         const fork = derived(ctx, crane.id, forkSuffix);
-        if (fork) ctx.setTransform(fork.id, { position: [layout.aisleX + dir * extend, y, z] });
+        if (fork) ctx.setTransform(fork.id, { position: [forkAt, y, z] });
 
-        // 托盘：入库时全程坐在货叉上（前半圈），出库时后半圈才被叉起来。
+        // 托盘：入库时全程坐在货叉上（前半圈），出库时后半圈才被叉起来；
+        // 载货出巷时到 DROP_U 就卸下——之后货叉缩回、门架空车返回，托盘留在卸货点。
         const carried = task.palletId ? ctx.entity(task.palletId) : undefined;
         if (carried && slot) {
-          const onFork = task.kind === 'store' ? u < HANDOVER_U : u >= HANDOVER_U;
+          const onFork = task.kind === 'store' ? u < HANDOVER_U : u >= HANDOVER_U && u < (trip ? DROP_U : 1);
           if (onFork) {
+            // 卸货时不加偏移：让放下那一刻的位置正好等于 outfeedX，
+            // 下一圈 releaseCarriedOut 落位时才是零位移（否则会有 0.1m 的跳变）。
+            const seat = trip && u >= 0.68 ? 0 : dir * 0.1;
             ctx.setTransform(carried.id, {
-              position: [layout.aisleX + dir * (extend + 0.1), y + CARRIED_SEAT, z],
+              position: [forkAt + seat, y + CARRIED_SEAT, z],
             });
           }
         }

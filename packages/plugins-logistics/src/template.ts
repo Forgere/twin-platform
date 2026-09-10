@@ -672,6 +672,27 @@ export const centerTemplate: SceneTemplateDescriptor<CenterTemplateParams> = {
     const RACK_LEVELS = [1.35, 2.5, 3.65];
     /** 沿货架长边的货位列数。 */
     const RACK_BAYS = 5;
+    /**
+     * 出库口 Z：货架北端（zBack=15）再往外 1.0m。
+     *
+     * 巷道在北侧是敞开的，堆垛机载货走出货架北端把托盘放到这里的出库缓存台上，
+     * 卡车停它北面装货——**南进北出**的贯通式流，出库不再和入库抢同一条走廊。
+     */
+    const OUT_Z = 16.0;
+    /**
+     * 卡车停车位 Z：出库缓存台北面，**纵置停车**（6m 长边沿 Z，车头朝北）。
+     *
+     * 车尾（南端）停在 z=17，和缓存台北沿（16.8）留 0.2m 净距——车尾正对装车区，
+     * 装满后沿 +Z 直线驶离，不用先横移再转弯。
+     */
+    const TRUCK_Z = 20.0;
+    /**
+     * 出库缓存台：堆垛机**卸货点**在巷道东侧 `aisleX+1.6`（货叉够得着的最远处），
+     * 托盘落台后沿 +X 被送到排队段，队首停在 `aisleX+1.6+OUT_LANE_LEN` 处等卡车。
+     */
+    const OUT_DROP_DX = 1.6;
+    /** 排队段长度：节距 0.9 → 能排 4 块（+ 卸货点 1 块），比卡车容量多一位，卸货点不会堵。 */
+    const OUT_LANE_LEN = 3.6;
 
     for (const aisleX of aisleXs) {
       const tag = aisleXs.indexOf(aisleX) === 0 ? 'a' : 'b';
@@ -682,9 +703,19 @@ export const centerTemplate: SceneTemplateDescriptor<CenterTemplateParams> = {
       /** 出料带绕行用的东侧通道：从打包站东行、北上、再西行插进队列尾。 */
       const outLaneX = aisleX + 0.5;
       const outLaneZ = 3.6;
-      /** 出库缓存台放在巷道外侧：卡车停它旁边装货，走廊里没有皮带，开得出去。 */
-      const dockX = tag === 'a' ? aisleX - 5 : aisleX + 3;
-      const truckX = tag === 'a' ? dockX - 3.8 : dockX + 3.8;
+      /**
+       * 出库缓存台与卡车都搬到**货架北端之外**（z=OUT_Z），停在巷道正北偏东 2m：
+       * - 偏东 2m 是为了让开门架（占 aisleX±0.5）和缓存台（半宽 1.3）不叠面，
+       *   同时货叉（伸 aisleX+1.5）正好够得着卸货位；
+       * - 原来放在巷道西侧 z=1.5 的走廊里，那条走廊只有 1.6m 宽，2.2m 宽的卡车
+       *   停那儿必定压住主线皮带（实测压 0.3m），而且出库路径会穿过入库队列，
+       *   只能退化成"托盘从巷道口瞬移到缓存台"。
+       */
+      /** 卸货点 X：货叉伸出 `slotX` 后托盘落在这里，也是出库带的起点。 */
+      const outDropX = aisleX + OUT_DROP_DX;
+      /** 缓存台中心 X（= 卡车停车位 X）：卸货点往东半个排队段，车尾正对装车区。 */
+      const dockX = outDropX + OUT_LANE_LEN / 2;
+      const truckX = dockX;
 
       for (const [suffix, offset, side] of [
         ['1', -2, 0],
@@ -769,12 +800,14 @@ export const centerTemplate: SceneTemplateDescriptor<CenterTemplateParams> = {
         1,
       );
 
-      // 出库缓存台：出库托盘停在这里等卡车（托盘位由堆垛机 config 的 outfeedX/Z 声明）。
+      // 出库缓存台（= 出库输送线）：货架北端之外，堆垛机载货出巷后把托盘放这，
+      // 托盘再沿 +X 往东排队，队首停到卡车车尾前等装车。
+      // 台面要够长：卸货点 + 排队段 + 两端余量，否则排到第 5 块就会叠在一起。
       entities.push(
-        conveyorSegment(`dock-${tag}`, [x(dockX), BELT_Y, z(1.5)], {
+        conveyorSegment(`dock-${tag}`, [x(dockX), BELT_Y, z(OUT_Z)], {
           label: `出库缓存台 ${upper}`,
           color: CENTER.reject,
-          size: [2.6, 0.6, 1.6],
+          size: [OUT_LANE_LEN + 1.2, 0.6, 1.6],
           axis: 'x',
           beltDirection: 1,
         }),
@@ -803,10 +836,25 @@ export const centerTemplate: SceneTemplateDescriptor<CenterTemplateParams> = {
             reach: x(slotX),
             forkX: [x(aisleX - slotX), x(aisleX + slotX)],
             // 入库队列排在 L 形载货站台上（横段西端 = inX）；
-            // 出库托盘停到外侧缓存台，等卡车装走（shipped 模式，不回流）。
+            // 出库：载货走出货架**北端**，货叉朝东把托盘放到北侧出库缓存台，
+            // 等卡车装走（shipped 模式，不回流）。
+            // `outfeedTravelZ` 是让门架真的把货载出去的关键——不声明它就只会
+            // 回到巷道口卸货，托盘等于从巷道口瞬移到缓存台。
             stationX: x(inX),
-            outfeedX: x(dockX),
-            outfeedZ: [z(1.9), z(1.1)],
+            // +0.1 已并进 outDropX：托盘放下时正好在 outfeedX 上（零跳变）。
+            outfeedX: x(outDropX),
+            outfeedZ: [z(OUT_Z)],
+            outfeedTravelZ: z(OUT_Z),
+            outfeedDir: 1,
+            // 出库带：托盘落到缓存台后**沿 +X 自己走出去**排成一列（队列头在东端，
+            // 离卡车最近；后面的依次退一个节距）。
+            //
+            // 不声明这段路径，asrs 就退化成"所有出库托盘直接落在同一个点上"——
+            // 缓存台上永远只有一件货可装，卡车自然只能装一件就走。
+            outboundPath: [
+              [x(outDropX), 0, z(OUT_Z)],
+              [x(outDropX + OUT_LANE_LEN), 0, z(OUT_Z)],
+            ],
             outboundMode: 'shipped',
             highWater,
           },
@@ -817,30 +865,32 @@ export const centerTemplate: SceneTemplateDescriptor<CenterTemplateParams> = {
       );
       entities.push(stackerFork(`stacker-${tag}-fork`, [x(aisleX), DECK_Y, z(3)], undefined, `货叉 ${upper}`));
 
-      // 卡车：停在缓存台外侧，装满（或等够时间）就沿路线驶离，回来再装。
-      // 路线刻意避开所有皮带：先沿走廊开出场地，再北上离场。
+      // 卡车：停在**仓库北面**的出库缓存台后面装货（不再挤在主线走廊里），
+      // 攒满一车（或出库带断流 dwell 秒）才沿 +Z 直线驶离，回来再装。
+      //
+      // 纵置停车：车尾朝南正对缓存台，车头朝北。6m 长边沿 Z（占 TRUCK_Z±3），
+      // 2.2m 宽沿 X（占 truckX±1.1）。起步就是直行向北，不用先横移再拐 90°——
+      // 之前是横置 + 侧向平移，加上 heading 算错 90°，看起来像车在横着飘。
+      // 离场路线整段都在货架以北的空地，不压任何皮带。
       entities.push(
-        truck(`truck-${tag}`, [x(truckX), 0, z(1.5)], {
+        truck(`truck-${tag}`, [x(truckX), 0, z(TRUCK_Z)], {
           label: `出库卡车 ${upper}`,
           color: CENTER.external,
-          dock: [x(truckX), 0, z(1.5)],
-          route:
-            tag === 'a'
-              ? [
-                  [x(truckX), 0, z(1.5)],
-                  [x(-9), 0, z(1.5)],
-                  [x(-9), 0, z(9)],
-                ]
-              : [
-                  [x(truckX), 0, z(1.5)],
-                  [x(28), 0, z(1.5)],
-                  [x(28), 0, z(9)],
-                ],
+          // 装货区取**出库缓存台**而不是车位本身：车位在 z=20、货在 z=16，
+          // 以车位为圆心要 5m 半径才够得着队尾，容易越过 3.2m 的巷道间隔
+          // 误装隔壁巷道的货。以台面中心为圆心，半径只需覆盖台面长度。
+          dock: [x(dockX), 0, z(OUT_Z)],
+          route: [
+            [x(truckX), 0, z(TRUCK_Z)],
+            [x(truckX), 0, z(28)],
+          ],
           speed: 2.4,
           capacity: 4,
-          dwell: 40,
+          // 装满 4 件要 3 个循环：A 42s / B 49.5s。窗口给 60s，保证是"装满才走"
+          // 而不是"攒到一半超时发车"；真断货了也有兜底，不会永久趴窝。
+          dwell: 60,
           awayTime: 20,
-          loadRadius: 4.2 * s,
+          loadRadius: (OUT_LANE_LEN / 2 + 1.4) * s,
         }),
       );
     }

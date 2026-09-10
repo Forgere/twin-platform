@@ -142,6 +142,72 @@ describe('center 场景布局', () => {
     }
     expect(missing).toEqual([]);
   });
+
+  it('卡车按转向后的真实占位不压任何输送线/设备', () => {
+    // 背景：卡车 6m 长 × 2.2m 宽，**起步朝向决定长边落在哪个轴**，所以占位必须
+    // 按路线第一段的方向旋转后再算。而 `FOOTPRINT_KINDS` 不含 truck，这块一直是
+    // 盲区——实测卡车停在 z=1.5 时会压住主线皮带 0.3m、压住出库缓存台 0.5m，
+    // 却没人报错。这里把这个盲区补上。
+    const trucks = scene.entities.filter((entity) => entity.kind === 'truck');
+    expect(trucks.length).toBe(2);
+    const clashes: string[] = [];
+    for (const t of trucks) {
+      const size = t.visual?.size ?? [0, 0, 0];
+      const [px, , pz] = t.transform.position;
+      const route = (t.config?.route as number[][]) ?? [];
+      const dx = (route[1]?.[0] ?? px) - px;
+      const dz = (route[1]?.[2] ?? pz) - pz;
+      const alongX = Math.abs(dx) >= Math.abs(dz);
+      const halfLen = size[2] / 2;
+      const halfWid = size[0] / 2;
+      const x0 = alongX ? px - halfLen : px - halfWid;
+      const x1 = alongX ? px + halfLen : px + halfWid;
+      const z0 = alongX ? pz - halfWid : pz - halfLen;
+      const z1 = alongX ? pz + halfWid : pz + halfLen;
+      for (const b of boxes) {
+        const ox = Math.min(x1, b.x1) - Math.max(x0, b.x0);
+        const oz = Math.min(z1, b.z1) - Math.max(z0, b.z0);
+        if (ox > EPS && oz > EPS) {
+          clashes.push(`${t.id} 压 ${b.id}(${b.kind})：X 叠 ${ox.toFixed(3)}m，Z 叠 ${oz.toFixed(3)}m`);
+        }
+      }
+    }
+    expect(clashes).toEqual([]);
+  });
+
+  it('堆垛机载货出巷：卸货点在货架北端之外，且落在出库缓存台上', () => {
+    // 回归：出库口原来和入库队列挤在巷道同一侧，出库路径必然穿过入库队列，
+    // 于是 `releaseCarriedOut` 只能退化成"托盘从巷道口瞬移到缓存台"。
+    // 现在靠 `outfeedTravelZ` 让门架真的把货载出货架北端，这里把约束钉死。
+    const racks = scene.entities.filter((entity) => entity.kind === 'asrs');
+    const rackBack = Math.max(
+      ...racks.map((r) => r.transform.position[2] + (r.visual?.size?.[2] ?? 0) / 2),
+    );
+    const cranes = scene.entities.filter((entity) => entity.kind === 'stacker');
+    const docks = scene.entities.filter((entity) => entity.id.startsWith('dock-'));
+    expect(cranes.length).toBe(2);
+    expect(docks.length).toBe(2);
+    for (const crane of cranes) {
+      const travelZ = crane.config?.outfeedTravelZ;
+      expect(typeof travelZ, `${crane.id} 没声明 outfeedTravelZ，出库会退化成瞬移`).toBe('number');
+      expect(travelZ as number, `${crane.id} 卸货点没走出货架北端（rackBack=${rackBack}）`).toBeGreaterThan(rackBack);
+
+      // 卸货点必须落在某块出库缓存台上，否则托盘卸下来是悬空的
+      const outX = crane.config?.outfeedX as number;
+      const onDock = docks.some((dock) => {
+        const size = dock.visual?.size ?? [0, 0, 0];
+        const px = dock.transform.position[0];
+        const pz = dock.transform.position[2];
+        return (
+          outX >= px - size[0] / 2 - EPS &&
+          outX <= px + size[0] / 2 + EPS &&
+          (travelZ as number) >= pz - size[2] / 2 - EPS &&
+          (travelZ as number) <= pz + size[2] / 2 + EPS
+        );
+      });
+      expect(onDock, `${crane.id} 卸货点 (${outX}, ${travelZ}) 不在任何出库缓存台上`).toBe(true);
+    }
+  });
 });
 
 /**

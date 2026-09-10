@@ -52,6 +52,7 @@ export function createTruckBehavior(config: TruckConfig = {}): WorldBehavior {
 
         if (state === 'docked') {
           // 装车：把货位附近的出库托盘搬上车（真正移除实体）。
+          let loaded = 0;
           if (load < capacity) {
             for (const cargo of ctx.entities) {
               if (load >= capacity) break;
@@ -62,9 +63,17 @@ export function createTruckBehavior(config: TruckConfig = {}): WorldBehavior {
               if (dx * dx + dz * dz > loadRadius * loadRadius) continue;
               ctx.despawn(cargo.id);
               load += 1;
+              loaded += 1;
               ctx.emit(shipType, { entityId: truck.id, payload: { cargo: cargo.id, load } });
             }
           }
+          // 发货窗口：每装上一件就重新计时。
+          //
+          // 不加这句就会退化成"装一件就走"——`since` 是上次回到货位的时间，
+          // 等第一件货（堆垛机一个循环十几秒）的时间全算进了等待窗口，
+          // 于是货刚上车就"等够了"直接发车。改成"最后一件之后还等 dwell 秒"，
+          // 只要出库带还在陆续送货就继续攒，攒满 capacity 才走。
+          if (loaded > 0) since = ctx.time;
           if (load >= capacity || (load > 0 && ctx.time - since >= dwell)) {
             state = 'departing';
             since = ctx.time;
