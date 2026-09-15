@@ -40,19 +40,19 @@ button { font: inherit; color: var(--ink); }
 .studio-shell {
   height: 100vh;
   height: 100dvh;
-  padding: 12px 16px 14px;
+  padding: 10px 14px 12px;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  gap: 12px;
+  gap: 10px;
   overflow: hidden;
 }
 
-.studio-heading { display: flex; align-items: center; gap: 14px; min-width: 0; }
-.eyebrow { margin: 0; color: var(--accent); font-size: 0.68rem; font-weight: 800; letter-spacing: 0.14em; }
-.studio-heading h1 { margin: 0; color: var(--ink); font-size: 1.25rem; letter-spacing: -0.03em; white-space: nowrap; }
-.scene-status { display: flex; align-items: center; gap: 9px; margin-left: auto; padding: 7px 12px; border: 1px solid var(--frame); border-radius: 999px; color: var(--ink-soft); font-size: 0.78rem; white-space: nowrap; background: var(--cream-card); backdrop-filter: blur(4px); }
-.status-dot { width: 8px; height: 8px; border-radius: 50%; background: #4caf7d; box-shadow: 0 0 12px #4caf7d; }
-.hud-toggle { flex: none; padding: 7px 12px; font-size: 0.78rem; }
+/* 标题行只留一行矮条：品牌 + 场景名 + 状态胶囊，高度 ~30px。 */
+.studio-heading { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.brand { flex: none; padding: 3px 8px; border-radius: 999px; background: var(--mint-tint); border: 1px solid var(--mint-line); color: var(--accent); font-size: 0.6rem; font-weight: 800; letter-spacing: 0.12em; }
+.studio-heading h1 { margin: 0; color: var(--ink); font-size: 0.95rem; letter-spacing: -0.02em; white-space: nowrap; }
+/* .status-dot 保留：画布左下角的时间胶囊还在用 */
+.status-dot { width: 7px; height: 7px; border-radius: 50%; background: #4caf7d; box-shadow: 0 0 10px #4caf7d; }
 
 .studio-grid {
   display: grid;
@@ -64,7 +64,7 @@ button { font: inherit; color: var(--ink); }
 /* ── 视口：画布吃满剩余高度，机位条与时间轴固定高度 ─────────────────────── */
 .viewport-panel {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto auto;
+  grid-template-rows: minmax(0, 1fr) auto;
   min-height: 0;
   border: 1px solid var(--frame);
   border-radius: var(--radius);
@@ -77,12 +77,8 @@ button { font: inherit; color: var(--ink); }
 .viewport { height: 100%; min-height: 0; cursor: crosshair; }
 .viewport canvas { display: block; width: 100%; height: 100%; outline: none; }
 
-/* 浮于画布的标题卡 + Sim Telemetry HUD */
-.title-card { position: absolute; left: 14px; top: 14px; z-index: 2; max-width: 220px; padding: 10px 14px; border: 1px solid var(--frame); border-radius: 14px; background: var(--cream-card); box-shadow: var(--shadow); backdrop-filter: blur(6px); pointer-events: none; }
-.title-card h2 { margin: 0; font-size: 1.05rem; letter-spacing: -0.03em; color: var(--ink); }
-.title-card p { margin: 4px 0 0; color: var(--ink-soft); font-size: 0.72rem; }
-
-.telemetry-hud { position: absolute; right: 14px; top: 14px; z-index: 2; width: 252px; max-height: calc(100% - 28px); overflow: hidden; padding: 12px 14px; border: 1px solid var(--frame); border-radius: 14px; background: var(--cream-card); box-shadow: var(--shadow); backdrop-filter: blur(6px); pointer-events: none; }
+/* 浮于画布的 Sim Telemetry HUD（默认收起，点工具条 📡 才显示） */
+.telemetry-hud { position: absolute; right: 12px; top: 12px; z-index: 2; width: 236px; max-height: calc(100% - 24px); overflow: hidden; padding: 10px 12px; border: 1px solid var(--frame); border-radius: 14px; background: var(--cream-card); box-shadow: var(--shadow); backdrop-filter: blur(6px); pointer-events: none; }
 .telemetry-hud h3 { margin: 0 0 9px; color: var(--accent); font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; }
 .telemetry-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
 .tele-cell { display: flex; flex-direction: column; gap: 1px; padding: 6px 9px; border-radius: 10px; background: var(--mint-tint); border: 1px solid var(--mint-line); }
@@ -103,10 +99,66 @@ button { font: inherit; color: var(--ink); }
 .tele-event { display: flex; justify-content: space-between; gap: 8px; font-family: var(--mono); font-size: 0.7rem; color: var(--ink-soft); }
 .tele-event em { font-style: normal; color: var(--accent); }
 
-/* 相机机位条：单行，放不下时横向滚动，不换行占高度 */
-.camera-bar { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-top: 1px solid var(--frame); background: var(--cream-soft); overflow-x: auto; scrollbar-width: thin; }
-.camera-bar button { flex: none; padding: 6px 10px; font-size: 0.76rem; white-space: nowrap; }
-.camera-hint { flex: none; margin-left: auto; padding-left: 10px; color: var(--ink-soft); font-size: 0.7rem; white-space: nowrap; }
+/* ── 画布上的小按钮工具条（竖排，浮在左上角） ───────────────────────────── */
+/* z-index 高于遮罩(3)与浮层(4)：区域浮层展开时，其余小按钮仍然点得到。 */
+.vp-toolbar { position: absolute; left: 12px; top: 12px; z-index: 5; display: grid; gap: 6px; }
+.vp-btn {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  font-size: 0.85rem;
+  line-height: 1;
+  border-radius: 9px;
+  background: var(--cream-card);
+  backdrop-filter: blur(6px);
+  box-shadow: var(--shadow-sm);
+}
+.vp-btn:hover { border-color: var(--mint); background: #eef8f5; }
+.vp-btn-on { border-color: var(--accent); background: #e6f5f1; box-shadow: 0 0 0 1px var(--accent) inset; }
+
+/* 区域浮层：点相机按钮呼出，选完即关 */
+.vp-backdrop { position: absolute; inset: 0; z-index: 3; }
+.vp-popover {
+  position: absolute;
+  left: 48px;
+  top: 12px;
+  z-index: 4;
+  width: 156px;
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--frame);
+  border-radius: 12px;
+  background: var(--cream-card);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(6px);
+}
+.vp-popover-head { color: var(--accent); font-size: 0.62rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
+.vp-regions { display: grid; gap: 4px; }
+.vp-region { padding: 5px 8px; font-size: 0.76rem; text-align: left; }
+.vp-hint { margin: 0; padding-top: 6px; border-top: 1px solid var(--frame); color: var(--ink-soft); font-size: 0.64rem; line-height: 1.5; }
+
+/* 控制条收起时的时间胶囊（画布左下角） */
+.vp-clock {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-soft);
+  background: var(--cream-card);
+  backdrop-filter: blur(6px);
+  box-shadow: var(--shadow-sm);
+}
+.vp-clock em { font-style: normal; color: var(--accent); font-weight: 700; }
 
 /* ── 右侧检视区：标签条固定，内容区内部滚动 ─────────────────────────────── */
 .inspector {
@@ -120,8 +172,8 @@ button { font: inherit; color: var(--ink); }
   box-shadow: var(--shadow);
   backdrop-filter: blur(4px);
 }
-.tab-bar { display: flex; gap: 4px; padding: 8px; border-bottom: 1px solid var(--frame); background: var(--cream-soft); overflow-x: auto; scrollbar-width: thin; }
-.tab { flex: 1 0 auto; padding: 7px 10px; font-size: 0.76rem; white-space: nowrap; border-color: transparent; background: transparent; box-shadow: none; }
+.tab-bar { display: flex; gap: 3px; padding: 6px; border-bottom: 1px solid var(--frame); background: var(--cream-soft); overflow-x: auto; scrollbar-width: thin; }
+.tab { flex: 1 0 auto; padding: 6px 8px; font-size: 0.72rem; white-space: nowrap; border-color: transparent; background: transparent; box-shadow: none; }
 .tab:hover { background: #fffdf7; }
 .tab-active { border-color: var(--accent); background: #e6f5f1; color: var(--ink); font-weight: 700; box-shadow: 0 0 0 1px var(--accent) inset; }
 .tab-panel { min-height: 0; overflow-y: auto; padding: 14px; }
@@ -141,6 +193,8 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .entity-detail { display: grid; gap: 8px; margin-top: 16px; }
 .entity-detail h2 { margin-bottom: 0; }
 .entity-detail strong { color: var(--ink); }
+/* 渲染来源：等宽小字，原本没有样式，补一条和整体小字风格一致 */
+.code-path { color: var(--ink-soft); font-family: var(--mono); font-size: 0.7rem; word-break: break-all; }
 .entity-detail span, .entity-detail p { margin: 0; color: var(--ink-soft); font-size: 0.85rem; }
 .entity-detail button { margin-top: 4px; }
 /* 实时状态（托盘货位 / 货架占用 / 堆垛机任务）：来自世界 attrs，按采样节拍刷新 */
@@ -149,14 +203,15 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 h2 { margin: 0 0 12px; color: var(--accent); font-size: 0.82rem; letter-spacing: 0.06em; }
 
-/* 时间轴：播放控制 + 拖拽定位 */
-.timeline { padding: 10px 12px; border-top: 1px solid var(--frame); background: var(--cream-soft); display: grid; gap: 9px; }
-.timeline-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.timeline-controls button { padding: 6px 11px; font-size: 0.82rem; }
-.speed-select { display: flex; align-items: center; gap: 7px; margin-left: auto; color: var(--ink-soft); font-size: 0.82rem; }
-.speed-select select { border: 1px solid var(--frame); border-radius: 8px; padding: 5px 8px; background: #fffdf7; color: var(--ink); font: inherit; }
+/* 时间轴：播放控制 + 拖拽定位（默认不渲染，点 ⏱ 才展开） */
+.timeline { padding: 8px 10px; border-top: 1px solid var(--frame); background: var(--cream-soft); display: grid; gap: 6px; }
+.timeline-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.timeline-controls button { padding: 4px 9px; font-size: 0.74rem; }
+.timeline-collapse { margin-left: 2px; padding: 4px 8px !important; color: var(--ink-soft); }
+.speed-select { display: flex; align-items: center; gap: 6px; margin-left: auto; color: var(--ink-soft); font-size: 0.74rem; }
+.speed-select select { border: 1px solid var(--frame); border-radius: 8px; padding: 3px 6px; background: #fffdf7; color: var(--ink); font: inherit; font-size: 0.74rem; }
 .timeline-range { width: 100%; accent-color: var(--accent); }
-.timeline-readout { margin: 0; color: var(--ink-soft); font-size: 0.74rem; }
+.timeline-readout { margin: 0; color: var(--ink-soft); font-size: 0.68rem; }
 
 /* 事件流 */
 .event-log ul { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
@@ -212,14 +267,14 @@ h2 { margin: 0 0 12px; color: var(--accent); font-size: 0.82rem; letter-spacing:
 /* ── 断点：窄屏改为上下分栏，仍然保持一屏不整页滚动 ─────────────────────── */
 @media (max-width: 1180px) {
   .studio-grid { grid-template-columns: minmax(0, 1fr) 300px; }
-  .telemetry-hud { width: 224px; }
+  .telemetry-hud { width: 214px; }
 }
 @media (max-width: 960px) {
   .studio-shell { padding: 10px; }
-  .studio-heading h1 { font-size: 1.05rem; }
-  .scene-status { font-size: 0.72rem; }
+  .studio-heading h1 { font-size: 0.85rem; }
   .studio-grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(160px, 34vh); }
-  .telemetry-hud { width: calc(100% - 28px); }
+  /* 窄屏时 HUD 铺开，但要给左上角工具条让出位置 */
+  .telemetry-hud { left: 52px; width: auto; }
 }
 
 /* ── 右键菜单（列表里的设备/物料名字） ── */

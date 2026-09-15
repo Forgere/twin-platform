@@ -21,7 +21,8 @@ import ScenarioComparePanel from './ScenarioComparePanel';
  * 布局约束（本轮改动的重点）：
  * - 整页锁在 100vh 内，只有视口与右侧面板内部可以滚动，页面本身不滚；
  * - 右侧检视区是**互斥标签页**，一次只显示一个面板；实体页内设备/物料也是互斥切换；
- * - 画布浮层（标题卡、遥测 HUD）可整体收起，把画面让给场景。
+ * - 画布上常驻的只有左上角一列小按钮，其余（遥测浮层、仿真控制条、区域列表）
+ *   默认全部收起，点了才展开，把画面尽量让给场景。
  */
 
 type InspectorTab = 'entity' | 'metrics' | 'compare' | 'data' | 'events' | 'plugins';
@@ -30,7 +31,11 @@ type EntityFilter = 'device' | 'cargo';
 /** 属于"物料"的实体类型，其余都算设备。 */
 const CARGO_KINDS = new Set(['parcel', 'pallet']);
 
-const CAMERA_PRESETS: { id: CameraPreset; icon: string; label: string }[] = [
+/** 画布操作提示：只在区域浮层底部出现，不再常驻占一条高度。 */
+const VIEW_HINT = '拖动旋转 · 右键平移 · 滚轮缩放 · 点击可选中';
+
+/** 区域 / 机位：点工具条上的相机按钮呼出。 */
+const REGIONS: { id: CameraPreset; icon: string; label: string }[] = [
   { id: 'overview', icon: '🌐', label: '全局' },
   { id: 'infeed', icon: '📥', label: '入料' },
   { id: 'inspection', icon: '🔎', label: '质检' },
@@ -58,7 +63,12 @@ export default function TwinViewport() {
   const [entities, setEntities] = createSignal<TwinEntityView[]>([]);
   const [tab, setTab] = createSignal<InspectorTab>('entity');
   const [filter, setFilter] = createSignal<EntityFilter>('device');
-  const [hud, setHud] = createSignal(true);
+  /** 遥测浮层：默认**收起**，点工具条的小按钮才显示（"隐藏浮层"的默认值）。 */
+  const [hud, setHud] = createSignal(false);
+  /** 仿真控制条：不常用，默认收起；点工具条按钮或画布左下角的时间胶囊才展开。 */
+  const [controls, setControls] = createSignal(false);
+  /** 区域 / 机位浮层：点相机按钮呼出，选完即关。 */
+  const [regions, setRegions] = createSignal(false);
   const [theme, setTheme] = createSignal<ThemeName>('pastel');
   const [view, setView] = createSignal<{
     time: number;
@@ -165,34 +175,8 @@ export default function TwinViewport() {
   return (
     <main class="studio-shell">
       <header class="studio-heading">
-        <p class="eyebrow">TWIN PLATFORM / STUDIO</p>
+        <span class="brand">TWIN STUDIO</span>
         <h1>智能物流中心</h1>
-        <div class="scene-status" aria-label="场景状态">
-          <span class="status-dot" />
-          仿真 t = {view().time.toFixed(1)}s · 入库 {telemetry().asrsStore} · 出库 {telemetry().asrsRetrieve}
-        </div>
-        <button
-          type="button"
-          class="hud-toggle"
-          aria-pressed={hud()}
-          onClick={() => setHud(!hud())}
-          title="显示 / 隐藏画布浮层"
-        >
-          {hud() ? '🫥 隐藏浮层' : '📡 显示浮层'}
-        </button>
-        <button
-          type="button"
-          class="theme-toggle"
-          aria-pressed={theme() === 'industrial'}
-          onClick={() => {
-            const next: ThemeName = theme() === 'pastel' ? 'industrial' : 'pastel';
-            controller?.setTheme(next);
-            setTheme(next);
-          }}
-          title="切换设备主题：玩具工厂 / 工业涂装"
-        >
-          {theme() === 'pastel' ? '🎨 玩具工厂' : '🏭 工业涂装'}
-        </button>
       </header>
 
       <div class="studio-grid">
@@ -200,10 +184,85 @@ export default function TwinViewport() {
           <div class="viewport-frame">
             <div ref={mountViewport} class="viewport" aria-label="数字孪生三维场景" />
 
+            {/* 画布左上角一列小按钮：区域 / 遥测 / 主题 / 仿真控制，各自点了才展开内容。 */}
+            <div class="vp-toolbar" aria-label="视图工具">
+              <button
+                type="button"
+                class={regions() ? 'vp-btn vp-btn-on' : 'vp-btn'}
+                aria-expanded={regions()}
+                aria-label="选择区域 / 机位"
+                title={`选择区域 / 机位（${VIEW_HINT}）`}
+                onClick={() => setRegions(!regions())}
+              >
+                📷
+              </button>
+              <button
+                type="button"
+                class={hud() ? 'vp-btn vp-btn-on' : 'vp-btn'}
+                aria-pressed={hud()}
+                aria-label="显示 / 隐藏遥测浮层"
+                title={hud() ? '隐藏浮层' : '显示浮层'}
+                onClick={() => setHud(!hud())}
+              >
+                📡
+              </button>
+              <button
+                type="button"
+                class={theme() === 'industrial' ? 'vp-btn vp-btn-on' : 'vp-btn'}
+                aria-pressed={theme() === 'industrial'}
+                aria-label="切换设备主题"
+                title={`设备主题：${theme() === 'pastel' ? '玩具工厂' : '工业涂装'}（点击切换）`}
+                onClick={() => {
+                  const next: ThemeName = theme() === 'pastel' ? 'industrial' : 'pastel';
+                  controller?.setTheme(next);
+                  setTheme(next);
+                }}
+              >
+                🎨
+              </button>
+              <button
+                type="button"
+                class={controls() ? 'vp-btn vp-btn-on' : 'vp-btn'}
+                aria-pressed={controls()}
+                aria-label="显示 / 隐藏仿真控制条"
+                title={controls() ? '收起仿真控制条' : '展开仿真控制条'}
+                onClick={() => setControls(!controls())}
+              >
+                ⏱
+              </button>
+            </div>
+
+            {/* 区域列表：点相机呼出，选一个就飞过去并关掉，不常驻占高度。 */}
+            <Show when={regions()}>
+              <>
+                <div class="vp-backdrop" onMouseDown={() => setRegions(false)} />
+                <div class="vp-popover" aria-label="选择区域">
+                  <div class="vp-popover-head">区域 / 机位</div>
+                  <div class="vp-regions">
+                    <For each={REGIONS}>
+                      {(region) => (
+                        <button
+                          type="button"
+                          class="vp-region"
+                          onClick={() => {
+                            controller?.setCameraPreset(region.id);
+                            setRegions(false);
+                          }}
+                        >
+                          <span aria-hidden="true">{region.icon}</span> {region.label}
+                        </button>
+                      )}
+                    </For>
+                  </div>
+                  <p class="vp-hint">{VIEW_HINT}</p>
+                </div>
+              </>
+            </Show>
+
             <Show when={hud()}>
 
               <div class="telemetry-hud" aria-label="仿真遥测">
-                <h3>📡 Sim Telemetry</h3>
+                <h3>📡 Sim Telemetry · t = {view().time.toFixed(1)}s</h3>
                 <div class="telemetry-grid">
                   <div class="tele-cell">
                     <span class="tele-label">在制小件</span>
@@ -230,6 +289,15 @@ export default function TwinViewport() {
                     <span class="tele-value">
                       {telemetry().stock}/{telemetry().capacity}
                     </span>
+                  </div>
+                  {/* 原来顶栏状态条里的两个计数，移到遥测里统一展示 */}
+                  <div class="tele-cell">
+                    <span class="tele-label">累计入库</span>
+                    <span class="tele-value">{telemetry().asrsStore}</span>
+                  </div>
+                  <div class="tele-cell">
+                    <span class="tele-label">累计出库</span>
+                    <span class="tele-value">{telemetry().asrsRetrieve}</span>
                   </div>
                 </div>
 
@@ -284,30 +352,37 @@ export default function TwinViewport() {
                 </div>
               </div>
             </Show>
+
+            {/* 控制条收起时，左下角只留一枚时间胶囊；点它（或工具条 ⏱）才展开完整控制条。 */}
+            <Show when={!controls()}>
+              <button
+                type="button"
+                class="vp-clock"
+                title="展开仿真控制条"
+                onClick={() => setControls(true)}
+              >
+                <span class="status-dot" />
+                t {view().time.toFixed(1)}s
+                <em>{view().playing ? `▶ ${view().speed}×` : '⏸'}</em>
+              </button>
+            </Show>
           </div>
 
-          <div class="camera-bar" aria-label="相机机位">
-            <For each={CAMERA_PRESETS}>
-              {(preset) => (
-                <button type="button" onClick={() => controller?.setCameraPreset(preset.id)}>
-                  <span aria-hidden="true">{preset.icon}</span> {preset.label}
-                </button>
-              )}
-            </For>
-            <span class="camera-hint">拖动旋转 · 右键平移 · 滚轮缩放 · 点击可选中</span>
-          </div>
-
-          <TimelineBar
-            time={view().time}
-            duration={view().duration}
-            playing={view().playing}
-            speed={view().speed}
-            onPlay={() => session.controller.play()}
-            onPause={() => session.controller.pause()}
-            onSpeed={(speed) => session.controller.setSpeed(speed)}
-            onSeek={(time) => void session.controller.seek(time)}
-            onStep={(steps) => session.controller.stepFrames(steps)}
-          />
+          {/* 仿真控制不常用：默认不渲染，明确点开才出现。 */}
+          <Show when={controls()}>
+            <TimelineBar
+              time={view().time}
+              duration={view().duration}
+              playing={view().playing}
+              speed={view().speed}
+              onPlay={() => session.controller.play()}
+              onPause={() => session.controller.pause()}
+              onSpeed={(speed) => session.controller.setSpeed(speed)}
+              onSeek={(time) => void session.controller.seek(time)}
+              onStep={(steps) => session.controller.stepFrames(steps)}
+              onCollapse={() => setControls(false)}
+            />
+          </Show>
         </section>
 
         <aside class="inspector" aria-label="场景控制与实体详情">
