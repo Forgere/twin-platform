@@ -207,6 +207,20 @@ export class TwinWorld {
     return this.log.takePending();
   }
 
+  /**
+   * 把事件 sequence 游标对到已落库的进度上，之后新事件从它之后开始编号。
+   *
+   * 服务端的仓储是持久的：一个场景第二次被录制时，库里已经有上一次的事件。
+   * 不对齐就会撞上 `sequence 必须严格单调`，或者更糟——拼出一条由两条时间线
+   * 接起来的假历史。见 `EventLog.resumeFrom`。
+   *
+   * @returns 对齐后的下一条 sequence。
+   */
+  resumeFrom(sequence: number): number {
+    this.log.resumeFrom(sequence);
+    return this.log.nextSequence;
+  }
+
   // ---------------------------------------------------------------------------
   // 实体读写
   // ---------------------------------------------------------------------------

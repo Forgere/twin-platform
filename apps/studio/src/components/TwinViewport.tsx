@@ -1,11 +1,13 @@
-import { createSignal, For, onCleanup, Show } from 'solid-js';
+import { createSignal, For, onCleanup, onMount, Show } from 'solid-js';
 import type { WorldEvent } from '@twin-platform/world-kernel';
 import type { LineMetrics } from '@twin-platform/analytics-core';
 import { StudioSession, type StudioTelemetry } from '../scene/studioSession';
 import { TwinSceneController, type CameraPreset, type TwinEntityView } from '../scene/TwinSceneController';
 import type { ThemeName } from '../scene/theme';
 import { parseSceneDocument, sceneFileName, serializeSceneDocument } from '@twin-platform/scene-schema';
-import ScenePanel, { type SceneExportPayload, type SceneImportOutcome } from './ScenePanel';
+import { createHttpStorage, defaultServerUrl, pingServer } from '@twin-platform/storage-http';
+import type { SceneSummary as StoredSceneSummary } from '@twin-platform/storage-contracts';
+import ScenePanel, { type SceneExportPayload, type SceneImportOutcome, type ServerState } from './ScenePanel';
 import DataSourcePanel from './DataSourcePanel';
 import EventLogPanel from './EventLogPanel';
 import TimelineBar from './TimelineBar';
@@ -174,8 +176,98 @@ export default function TwinViewport() {
     return { text: serializeSceneDocument(scene), fileName: sceneFileName(scene) };
   };
 
-  /** 还原到插件模板场景。 */
-  const resetScene = () => replaceSession(new StudioSession());
+  /** 还原到插件模板场景（服务端在线时继续用服务端仓储）。 */
+  const resetScene = () => replaceSession(new StudioSession(undefined, serverStorage()));
+
+  // ---------------------------------------------------------------------------
+  // 服务端：在就接管存储（场景能存下来），不在就纯静态跑（导入导出仍可用）。
+  // ---------------------------------------------------------------------------
+  const [server, setServer] = createSignal<ServerState>();
+  const [serverStorage, setServerStorage] = createSignal<ReturnType<typeof createHttpStorage>>();
+
+  const refreshServerScenes = async (): Promise<void> => {
+    const storage = serverStorage();
+    if (!storage) return;
+    try {
+      const scenes = await storage.scenes.listScenes();
+      setServer((current) => (current ? { ...current, scenes } : current));
+    } catch (error) {
+      setServer((current) =>
+        current ? { ...current, note: `读取列表失败：${error instanceof Error ? error.message : String(error)}` } : current,
+      );
+    }
+  };
+
+  const withBusy = async (note: string, action: () => Promise<string>): Promise<void> => {
+    setServer((current) => (current ? { ...current, busy: true, note: '处理中…' } : current));
+    try {
+      const message = await action();
+      setServer((current) => (current ? { ...current, busy: false, note: message } : current));
+    } catch (error) {
+      setServer((current) =>
+        current
+          ? { ...current, busy: false, note: `${note}失败：${error instanceof Error ? error.message : String(error)}` }
+          : current,
+      );
+    }
+    await refreshServerScenes();
+  };
+
+  const saveToServer = () =>
+    withBusy('保存', async () => {
+      const storage = serverStorage();
+      if (!storage) throw new Error('服务端未连接。');
+      const scene = session().currentScene();
+      await storage.scenes.putScene(scene);
+      return `已保存「${scene.name}」（${scene.entities.length} 个实体）。`;
+    });
+
+  const loadFromServer = (id: string) =>
+    withBusy('加载', async () => {
+      const storage = serverStorage();
+      if (!storage) throw new Error('服务端未连接。');
+      const scene = await storage.scenes.getScene(id);
+      if (!scene) throw new Error(`服务端上没有场景 ${id}。`);
+      const next = new StudioSession(scene, storage);
+      replaceSession(next);
+      // 这个场景可能已经被录制过，事件要接着写而不是从头覆盖。
+      await next.resumeFromStorage();
+      return `已加载「${scene.name}」。`;
+    });
+
+  const deleteFromServer = (id: string) =>
+    withBusy('删除', async () => {
+      const storage = serverStorage();
+      if (!storage) throw new Error('服务端未连接。');
+      await (storage.scenes as unknown as { remove(id: string): Promise<boolean> }).remove(id);
+      return `已删除 ${id}。`;
+    });
+
+  /**
+   * 启动时探一次服务端。
+   *
+   * 探不到是**正常状态**（纯静态部署），不报错、不弹提示，只是场景面板少了
+   * "服务端"那一块。探到了就把会话换成 HTTP 仓储，之后场景与事件都落服务端。
+   */
+  onMount(async () => {
+    const url = defaultServerUrl();
+    const health = await pingServer(url);
+    if (!health) return;
+    const storage = createHttpStorage({ baseUrl: url });
+    setServerStorage(storage);
+    setServer({ url, scenes: [], busy: false });
+    // 换仓储要重建会话（录制器绑定着 storage 实例）。
+    const next = new StudioSession(undefined, storage);
+    replaceSession(next);
+    // 事件流是 append-only 的：库里已有历史就接着写，不能从头覆盖。
+    await next.resumeFromStorage();
+    await refreshServerScenes();
+  });
+
+  onCleanup(() => {
+    // 攒批的事件别丢在页面关闭这一刻。
+    void serverStorage()?.flush();
+  });
 
   // 面板按固定频率采样，而不是每帧刷新：UI 不需要 60Hz 的事件流，
   // 每帧写信号只会把渲染循环拖进响应式更新里。
@@ -569,6 +661,11 @@ export default function TwinViewport() {
                 onImport={importScene}
                 onExport={exportScene}
                 onReset={resetScene}
+                server={server()}
+                onSaveToServer={saveToServer}
+                onLoadFromServer={loadFromServer}
+                onDeleteFromServer={deleteFromServer}
+                onRefreshServer={refreshServerScenes}
               />
             </Show>
 

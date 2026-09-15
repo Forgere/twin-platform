@@ -26,3 +26,6 @@ gitignore
 # System Files
 .DS_Store
 Thumbs.db
+
+# 服务端运行时数据（场景库 / 事件流）
+data/

@@ -1,6 +1,7 @@
 import { CsvFrameSource, type CsvParseIssue } from '@twin-platform/data-source-csv';
 import { ReplayController, SessionRecorder } from '@twin-platform/replay-core';
 import { createMemoryStorage } from '@twin-platform/storage-memory';
+import type { TwinStorage } from '@twin-platform/storage-contracts';
 import { TwinWorld, type WorldEvent } from '@twin-platform/world-kernel';
 import { lineMetrics, seriesLatest, type LineMetrics } from '@twin-platform/analytics-core';
 import { PluginHost } from '@twin-platform/plugin-sdk';
@@ -104,7 +105,7 @@ export interface StudioTelemetry {
 }
 
 export class StudioSession {
-  readonly storage = createMemoryStorage();
+  readonly storage: TwinStorage;
   readonly host: PluginHost;
   readonly world: TwinWorld;
   readonly recorder: SessionRecorder;
@@ -116,8 +117,11 @@ export class StudioSession {
    * @param scene 外部场景。不传则用插件模板生成默认产线；
    *   传入的场景必须已经过 `parseSceneDocument`（校验 + 迁移），
    *   这里不再重复校验——调用方负责保证它合法。
+   * @param storage 仓储。默认内存（纯静态可跑）；服务端在的时候传 HTTP 仓储，
+   *   场景与事件就能真的存下来、刷新不丢。
    */
-  constructor(scene?: TwinScene) {
+  constructor(scene?: TwinScene, storage: TwinStorage = createMemoryStorage()) {
+    this.storage = storage;
     // 1) 安装物流插件：拿到行为、指标、场景模板（故障隔离在宿主里）。
     this.host = new PluginHost();
     this.host.install(logisticsPlugin);
@@ -167,6 +171,20 @@ export class StudioSession {
   /** 当前场景（声明部分）。导出与摘要都从它取，保证 UI 与内核看到的是同一份。 */
   currentScene(): TwinScene {
     return this.world.scene;
+  }
+
+  /**
+   * 把事件 sequence 对到仓储里已有的进度（**续写**，不覆盖历史）。
+   *
+   * 服务端是持久的：场景第二次被录制时库里已有上一次的事件，不对齐就会撞上
+   * "sequence 必须严格单调"。会话构造是同步的（不能 await 仓储），
+   * 所以这一步由调用方显式调一次。
+   *
+   * @returns 对齐后的下一条 sequence；仓储里没有历史时为 1。
+   */
+  async resumeFromStorage(): Promise<number> {
+    const latest = await this.storage.events.latestSequence(this.world.scene.id);
+    return this.world.resumeFrom(latest);
   }
 
   /** 场景摘要：规模、类型构成、包围盒。导入后给用户一眼确认"装对了没有"。 */

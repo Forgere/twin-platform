@@ -5,6 +5,7 @@ import type {
   TwinScene,
 } from '@twin-platform/scene-schema';
 import type { SceneSource } from '../scene/studioSession';
+import type { SceneSummary as StoredSceneSummary } from '@twin-platform/storage-contracts';
 
 /**
  * 场景面板：把"布局"从代码里解放出来的那一层 UI。
@@ -34,6 +35,17 @@ export interface SceneExportPayload {
   fileName: string;
 }
 
+/** 服务端那一侧的当前状态。不在线时为 undefined。 */
+export interface ServerState {
+  url: string;
+  /** 服务端已有的场景（id / 名称 / 版本 / 更新时间）。 */
+  scenes: StoredSceneSummary[];
+  /** 正在与服务端通信（保存/加载/删除）时置位，按钮禁用防连点。 */
+  busy: boolean;
+  /** 最近一次操作的一句话结果，成功失败都显示。 */
+  note?: string;
+}
+
 export interface ScenePanelProps {
   sceneId: string;
   sceneName: string;
@@ -47,6 +59,16 @@ export interface ScenePanelProps {
   onExport: () => SceneExportPayload | undefined;
   /** 还原到插件模板场景。 */
   onReset: () => void;
+  /** 服务端状态；undefined 表示"当前是纯静态模式，没有服务端"。 */
+  server?: ServerState;
+  /** 把当前场景保存到服务端。 */
+  onSaveToServer?: () => Promise<void>;
+  /** 从服务端加载某个场景。 */
+  onLoadFromServer?: (id: string) => Promise<void>;
+  /** 删除服务端上的场景。 */
+  onDeleteFromServer?: (id: string) => Promise<void>;
+  /** 刷新服务端场景列表。 */
+  onRefreshServer?: () => Promise<void>;
 }
 
 const formatBounds = (summary: SceneSummary): string => {
@@ -177,6 +199,67 @@ export default function ScenePanel(props: ScenePanelProps) {
             取消
           </button>
         </div>
+      </Show>
+
+      {/* 服务端：在线才出现。纯静态部署时整块不渲染，不打扰。 */}
+      <Show when={props.server}>
+        <section class="scene-server">
+          <h3>
+            服务端 <span class="scene-server-url">{props.server?.url}</span>
+          </h3>
+          <div class="button-row">
+            <button type="button" disabled={props.server?.busy} onClick={() => void props.onSaveToServer?.()}>
+              保存到服务端
+            </button>
+            <button type="button" disabled={props.server?.busy} onClick={() => void props.onRefreshServer?.()}>
+              刷新列表
+            </button>
+          </div>
+
+          <Show when={props.server?.note}>
+            <p class="scene-server-note">{props.server?.note}</p>
+          </Show>
+
+          <Show
+            when={(props.server?.scenes.length ?? 0) > 0}
+            fallback={<p class="scene-server-note">服务端还没有场景——点上面的"保存到服务端"存一份。</p>}
+          >
+            <ul class="scene-server-list">
+              <For each={props.server?.scenes ?? []}>
+                {(scene) => (
+                  <li>
+                    <button
+                      type="button"
+                      class="scene-server-load"
+                      disabled={props.server?.busy}
+                      title={`加载 ${scene.id}`}
+                      onClick={() => void props.onLoadFromServer?.(scene.id)}
+                    >
+                      {scene.name}
+                    </button>
+                    <span class="scene-server-meta">v{scene.version}</span>
+                    <button
+                      type="button"
+                      class="scene-server-del"
+                      disabled={props.server?.busy}
+                      title="从服务端删除"
+                      onClick={() => void props.onDeleteFromServer?.(scene.id)}
+                    >
+                      ✕
+                    </button>
+                  </li>
+                )}
+              </For>
+            </ul>
+          </Show>
+        </section>
+      </Show>
+
+      <Show when={!props.server}>
+        <p class="scene-server-offline">
+          未连接服务端（纯静态模式）：场景能导入导出，但刷新即丢。
+          起服务端后场景可存下来：<code>bun run dev:server</code>
+        </p>
       </Show>
 
       <Show when={result()}>

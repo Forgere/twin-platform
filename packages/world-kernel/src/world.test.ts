@@ -449,3 +449,53 @@ describe('行为生成 / 销毁实体', () => {
     expect(() => world.step(1 / 60)).toThrow(/已存在/);
   });
 });
+
+describe('resumeFrom / 事件续写', () => {
+  /**
+   * 服务端是持久的：一个场景被第二次录制时，仓库里已经有上一次的事件。
+   * 不对齐 sequence 就会撞上"必须严格单调"，或者更糟——拼出一条由两条
+   * 时间线接起来的假历史。
+   */
+  test('对齐后新事件从库里的最新 sequence 之后开始编号', () => {
+    const world = new TwinWorld(makeScene());
+    world.resumeFrom(100);
+    world.dispatch('goods:produced', { entityId: 'source' });
+    const last = world.getEventLog().at(-1);
+    expect(last?.sequence).toBe(101);
+  });
+
+  test('对齐到 0（空库）时行为与全新会话一致', () => {
+    const world = new TwinWorld(makeScene());
+    expect(world.resumeFrom(0)).toBe(1);
+    world.dispatch('goods:produced', { entityId: 'source' });
+    expect(world.getEventLog().at(-1)?.sequence).toBe(1);
+  });
+
+  test('只推进不回退：往小对齐不会把已有事件重新编号', () => {
+    const world = new TwinWorld(makeScene());
+    world.dispatch('a');
+    world.dispatch('b');
+    expect(world.getEventLog().map((event) => event.sequence)).toEqual([1, 2]);
+
+    world.resumeFrom(0); // 库里其实是空的，但这个调用不该把游标拉回去
+    world.dispatch('c');
+    expect(world.getEventLog().map((event) => event.sequence)).toEqual([1, 2, 3]);
+  });
+
+  test('对齐后 drainEvents 不会重复吐出"已落库"的事件', () => {
+    const world = new TwinWorld(makeScene());
+    world.resumeFrom(50);
+    world.dispatch('goods:produced', { entityId: 'source' });
+    // 50 及以前的被认为已落库，只有 51 是待写的。
+    const pending = world.drainEvents();
+    expect(pending.map((event) => event.sequence)).toEqual([51]);
+    expect(world.drainEvents()).toEqual([]);
+  });
+
+  test('负数与非数字是无效输入，安全忽略', () => {
+    const world = new TwinWorld(makeScene());
+    const before = world.resumeFrom(0);
+    expect(world.resumeFrom(-5)).toBe(before);
+    expect(world.resumeFrom(Number.NaN)).toBe(before);
+  });
+});

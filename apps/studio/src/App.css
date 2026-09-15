@@ -248,6 +248,17 @@ h2 { margin: 0 0 12px; color: var(--accent); font-size: 0.82rem; letter-spacing:
 .scene-migrations, .scene-issues { margin: 6px 0 0; padding-left: 18px; color: var(--ink-soft); }
 .scene-issues { color: var(--bad); }
 .scene-issues code { color: var(--ink); font-family: var(--mono); }
+.scene-server { margin-top: 13px; padding-top: 11px; border-top: 1px dashed var(--frame); }
+.scene-server h3 { margin: 0 0 8px; font-size: 0.82rem; }
+.scene-server-url { color: var(--ink-soft); font-family: var(--mono); font-size: 0.68rem; font-weight: 400; }
+.scene-server-note { margin: 8px 0 0; color: var(--ink-soft); font-size: 0.74rem; line-height: 1.5; }
+.scene-server-list { margin: 9px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+.scene-server-list li { display: flex; align-items: center; gap: 6px; }
+.scene-server-load { flex: 1 1 auto; min-width: 0; padding: 5px 8px; font-size: 0.74rem; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scene-server-meta { flex: none; color: var(--ink-soft); font-size: 0.68rem; font-variant-numeric: tabular-nums; }
+.scene-server-del { flex: none; padding: 4px 7px; font-size: 0.7rem; color: var(--bad); }
+.scene-server-offline { margin: 11px 0 0; color: var(--ink-soft); font-size: 0.72rem; line-height: 1.5; }
+.scene-server-offline code { font-family: var(--mono); }
 
 /* 插件状态 */
 .plugin-list { display: grid; gap: 10px; }

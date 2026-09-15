@@ -39,6 +39,8 @@
     "@twin-platform/replay-core": "workspace:*",
     "@twin-platform/scenario-compare": "workspace:*",
     "@twin-platform/scene-schema": "workspace:*",
+    "@twin-platform/storage-contracts": "workspace:*",
+    "@twin-platform/storage-http": "workspace:*",
     "@twin-platform/storage-memory": "workspace:*",
     "@twin-platform/world-kernel": "workspace:*",
     "camera-controls": "^3.1.2",
