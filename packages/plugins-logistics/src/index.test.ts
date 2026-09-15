@@ -19,7 +19,7 @@ describe('logistics 插件', () => {
     const host = new PluginHost();
     const record = host.install(logisticsPlugin);
     expect(record.state).toBe('active');
-    // 顺序即契约：流转 → 发生器 → 立库 → 打包 → 卡车 → 移栽 → 缓存填充。
+    // 顺序即契约：流转 → 发生器 → 立库 → 打包 → 卡车 → 移栽 → 缓存填充 → 打标。
     expect(host.behaviors.map((behavior) => behavior.id)).toEqual([
       'logistics-flow',
       'goods-source',
@@ -28,6 +28,7 @@ describe('logistics 插件', () => {
       'truck-cycle',
       'transfer-cycle',
       'buffer-fill',
+      'labeler-cycle',
     ]);
     expect(host.metrics.map((metric) => metric.id)).toEqual(['throughput', 'busy-duration']);
     expect(host.templates.map((template) => template.id)).toEqual([

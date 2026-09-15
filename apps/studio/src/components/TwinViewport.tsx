@@ -201,10 +201,6 @@ export default function TwinViewport() {
             <div ref={mountViewport} class="viewport" aria-label="数字孪生三维场景" />
 
             <Show when={hud()}>
-              <div class="title-card">
-                <h2>智能物流中心 🏭</h2>
-                <p>小货物发生器 → 2 合 1 打包 → 立库 → 卡车运走（闭环）</p>
-              </div>
 
               <div class="telemetry-hud" aria-label="仿真遥测">
                 <h3>📡 Sim Telemetry</h3>

@@ -7,6 +7,7 @@ import {
   conveyorSegment,
   goodsSource,
   inspectionStation,
+  labelingMachine,
   liftTransfer,
   liftTransferCassette,
   packingStation,
@@ -236,6 +237,7 @@ const CENTER = {
   belt: '#8BD3C7',
   sorter: '#8BD3C7',
   inspect: '#9FD8F0',
+  labeler: '#A5D8F3',
   reject: '#F7E3A4',
   pack: '#F4A261',
   external: '#C4B5E0',
@@ -805,6 +807,17 @@ export const centerTemplate: SceneTemplateDescriptor<CenterTemplateParams> = {
         CENTER.pack,
         1,
       );
+      // 打标机：跨在出料带**末段**（西行那一段）上，托盘进立库站台排队前先贴一张标签。
+      // 位置取 inX+2.0：再往西会压到 L 形站台的竖直段（占 inX±0.7），再往东就
+      // 贴不到"出料带与站台之间"这个位置了。半径只罩住皮带上的货，不会误贴
+      // 已经排到站台队列里的托盘。
+      entities.push(
+        labelingMachine(`labeler-${tag}`, [x(inX + 2), 0, z(outLaneZ)], {
+          label: `打标机 ${upper}`,
+          color: CENTER.labeler,
+          radius: 1.2 * s,
+        }),
+      );
 
       // 出库缓存台（= 出库输送线）：货架北端之外，堆垛机载货出巷后把托盘放这，
       // 托盘再沿 +X 往东排队，队首停到卡车车尾前等装车。
@@ -866,10 +879,21 @@ export const centerTemplate: SceneTemplateDescriptor<CenterTemplateParams> = {
           },
         }),
       );
+      // 载货台 / 货叉的**初始位姿必须落在门架上**：它们是靠 id 后缀（`stacker-a-carriage`）
+      // 与门架关联、每步由 `asrs-cycle` 写位姿的，但场景刚加载、第一步还没跑时
+      // 渲染的是这里给的初值。写错（比如 z=3 而门架在 z=5）开局就会看到载货台
+      // 孤零零悬在巷道中间，跟门架毫无关系。初值 = 门架位置 + 载货台高度。
       entities.push(
-        stackerCarriage(`stacker-${tag}-carriage`, [x(aisleX), DECK_Y, z(3)], CENTER.stacker, `载货台 ${upper}`),
+        stackerCarriage(
+          `stacker-${tag}-carriage`,
+          [x(aisleX), DECK_Y, z(ASRS_IO_Z)],
+          CENTER.stacker,
+          `载货台 ${upper}`,
+        ),
       );
-      entities.push(stackerFork(`stacker-${tag}-fork`, [x(aisleX), DECK_Y, z(3)], undefined, `货叉 ${upper}`));
+      entities.push(
+        stackerFork(`stacker-${tag}-fork`, [x(aisleX), DECK_Y, z(ASRS_IO_Z)], undefined, `货叉 ${upper}`),
+      );
 
       // 卡车：停在**仓库北面**的出库缓存台后面装货（不再挤在主线走廊里），
       // 攒满一车（或出库带断流 dwell 秒）才沿 +Z 直线驶离，回来再装。

@@ -258,4 +258,59 @@ describe('闭环产线布局（center 场景）', () => {
       expect(clash, `${dock.id} 和别的皮带叠面了`).toBe(false);
     }
   });
+
+  it('堆垛机载货台 / 货叉的初始位姿贴在门架上（开局不脱节）', () => {
+    for (const tag of ['a', 'b']) {
+      const crane = scene.entities.find((entity) => entity.id === `stacker-${tag}`)!;
+      const carriage = scene.entities.find((entity) => entity.id === `stacker-${tag}-carriage`)!;
+      const fork = scene.entities.find((entity) => entity.id === `stacker-${tag}-fork`)!;
+      // 载货台 / 货叉靠 id 后缀（`stacker-a-carriage`）跟门架关联，每步由
+      // `asrs-cycle` 写位姿；但场景刚加载、第一步还没跑时渲染的是声明里的
+      // **初值**。初值不在门架上，开局就会看到载货台孤零零悬在巷道中间，
+      // 跟门架毫无关系（踩过：初值 z=3，门架在 z=5）。
+      for (const part of [carriage, fork]) {
+        expect(
+          Math.abs(part.transform.position[0] - crane.transform.position[0]),
+          `${part.id} 与门架 X 不重合`,
+        ).toBeLessThan(0.01);
+        expect(
+          Math.abs(part.transform.position[2] - crane.transform.position[2]),
+          `${part.id} 与门架 Z 不重合`,
+        ).toBeLessThan(0.01);
+      }
+    }
+  });
+
+  it('打标机跨在打包出料带末段上，且不压到立库站台', () => {
+    const labelers = scene.entities.filter((entity) => entity.kind === 'labeler');
+    expect(labelers.length).toBe(2);
+    for (const labeler of labelers) {
+      const tag = labeler.id.endsWith('-a') ? 'a' : 'b';
+      const belt = scene.entities.find((entity) => entity.id === `belt-pack-out-${tag}`)!;
+      const path = (belt.config?.beltPath as [number, number][]) ?? [];
+      expect(path.length).toBeGreaterThanOrEqual(2);
+      const [bx, , bz] = belt.transform.position;
+      const [ax, az] = [bx + path[path.length - 2]![0]!, bz + path[path.length - 2]![1]!];
+      const [cx, cz] = [bx + path[path.length - 1]![0]!, bz + path[path.length - 1]![1]!];
+      const [lx, , lz] = labeler.transform.position;
+      // 中心必须落在出料带**最后一段**上——打标机的语义就是"出料带与站台之间"。
+      const onTail =
+        lx >= Math.min(ax, cx) - EPS &&
+        lx <= Math.max(ax, cx) + EPS &&
+        lz >= Math.min(az, cz) - EPS &&
+        lz <= Math.max(az, cz) + EPS;
+      expect(onTail, `${labeler.id} 中心 (${lx}, ${lz}) 不在出料带末段 [${ax},${az}]→[${cx},${cz}] 上`).toBe(true);
+
+      // 龙门可以骑在出料带上，但不能压到 L 形站台的皮面
+      const size = labeler.visual?.size ?? [0, 0, 0];
+      const lx0 = lx - size[0] / 2;
+      const lx1 = lx + size[0] / 2;
+      const lz0 = lz - size[2] / 2;
+      const lz1 = lz + size[2] / 2;
+      const clash = boxes
+        .filter((b) => b.owner === `belt-io-${tag}-station`)
+        .some((b) => Math.min(lx1, b.x1) - Math.max(lx0, b.x0) > EPS && Math.min(lz1, b.z1) - Math.max(lz0, b.z0) > EPS);
+      expect(clash, `${labeler.id} 压到了 belt-io-${tag}-station`).toBe(false);
+    }
+  });
 });

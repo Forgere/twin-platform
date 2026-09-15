@@ -7,6 +7,7 @@ import { createBufferFillBehavior } from './bufferFill';
 import { createPackingBehavior } from './packing';
 import { createGoodsSourceBehavior } from './source';
 import { createTruckBehavior } from './truck';
+import { createLabelerBehavior } from './labeler';
 import { lineMetricsDescriptors } from './metrics';
 import { lineTemplate, factoryTemplate, centerTemplate } from './template';
 
@@ -43,6 +44,7 @@ export const logisticsPlugin: TwinPlugin = {
         createTruckBehavior(),
         createTransferBehavior(),
         createBufferFillBehavior(),
+        createLabelerBehavior(),
       ],
       metrics: lineMetricsDescriptors,
       templates: [
@@ -61,6 +63,7 @@ export { createBufferFillBehavior, type BufferFillConfig } from './bufferFill';
 export { createPackingBehavior, type PackingConfig } from './packing';
 export { createGoodsSourceBehavior, type GoodsSourceConfig } from './source';
 export { createTruckBehavior, type TruckConfig } from './truck';
+export { createLabelerBehavior, type LabelerConfig } from './labeler';
 export { buildLineScene, lineTemplate, type LineTemplateParams } from './template';
 export { buildFactoryScene, factoryTemplate, type FactoryTemplateParams } from './template';
 export { buildCenterScene, centerTemplate, splitClosedLoop, type CenterTemplateParams } from './template';
@@ -72,6 +75,7 @@ export {
   conveyorPolyline,
   goodsSource,
   inspectionStation,
+  labelingMachine,
   liftTransfer,
   liftTransferCassette,
   packingStation,

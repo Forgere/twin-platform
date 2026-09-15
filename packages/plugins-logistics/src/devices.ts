@@ -450,6 +450,40 @@ export function packingStation(id: string, position: TwinVector3, options: Packi
   };
 }
 
+export interface LabelingMachineOptions {
+  label?: string;
+  color?: string;
+  /** 贴标触发半径（米）：货物中心进入这个圆圈就贴一张标签。 */
+  radius?: number;
+  /** 被贴标的货物能力标记，默认 `pallet`。 */
+  cargoCapability?: string;
+}
+
+/**
+ * 打标机 / 贴标机：跨在输送线上的龙门工位，货物从底下经过就贴一张标签。
+ *
+ * 和检测站（`inspect`）的区别：检测站只判忙闲，打标机会**真的改状态**——
+ * 给经过的货物打上 `labeled`，并发出 `label:applied` 事件，所以"这箱货贴没贴标"
+ * 是能查、能回放的。每块货只贴一次（`labeled` 打上就不再触发），
+ * 货被卡车拉走后新货重新贴。
+ */
+export function labelingMachine(id: string, position: TwinVector3, options: LabelingMachineOptions = {}): TwinEntity {
+  return {
+    id,
+    kind: 'labeler',
+    transform: { position },
+    capabilities: ['labeler'],
+    // Z 向深度取 1.4 = 一条皮带的宽度：龙门骑在带上，再深就会蹭到旁边
+    // 平行铺的皮带（立库 L 形站台的水平段就在 z=5，离这条带只有 1.4m）。
+    visual: { kind: 'box', color: options.color ?? '#9FD8F0', size: [1.8, 2.2, 1.4] },
+    config: {
+      label: options.label ?? id,
+      radius: options.radius ?? 1.2,
+      cargoCapability: options.cargoCapability ?? 'pallet',
+    },
+  };
+}
+
 export interface TruckOptions {
   label?: string;
   color?: string;

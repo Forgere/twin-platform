@@ -192,6 +192,26 @@ describe('智能物流中心 · 闭环产线', () => {
     }
   });
 
+  test('托盘进立库站台前经过打标机，每块只贴一次标', () => {
+    const { world } = makeWorld(60 * 300);
+    const applied = world.getEventLog().filter((event) => event.type === 'label:applied');
+    expect(applied.length, '整条线跑完一次标都没贴').toBeGreaterThan(0);
+
+    const perCargo = new Map<string, number>();
+    for (const event of applied) {
+      const cargo = (event.payload as { cargo?: string }).cargo ?? '';
+      expect(cargo, `贴标事件没带货物 id: ${event.entityId}`).not.toBe('');
+      perCargo.set(cargo, (perCargo.get(cargo) ?? 0) + 1);
+    }
+    // 经过式工位最容易出的错：货在工位附近来回时被反复贴标
+    const dupes = [...perCargo.entries()].filter(([, n]) => n > 1);
+    expect(dupes.map(([id, n]) => `${id}×${n}`).join(', '), '有货被重复贴标').toBe('');
+
+    // 贴过标的托盘在场上能查到标记（不只是发了个事件）
+    const marked = world.listEntities().filter((entity) => entity.attrs.labeled === true);
+    expect(marked.length).toBeGreaterThan(0);
+  });
+
   test('卡车车头朝着行驶方向（不会车身横着平移）', () => {
     const { world } = makeWorld(60 * 300);
     const prev = new Map<string, { x: number; z: number; rot: number }>();
