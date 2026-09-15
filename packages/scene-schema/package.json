@@ -3,6 +3,6 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "exports": { ".": "./src/index.ts" },
+  "exports": { ".": "./src/index.ts", "./io": "./src/io.ts" },
   "scripts": { "typecheck": "tsc --noEmit -p tsconfig.json" }
 }

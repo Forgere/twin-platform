@@ -16,6 +16,7 @@ import {
   logisticsPlugin,
 } from '@twin-platform/plugins-logistics';
 import { compareScenarios, type ScenarioDiff } from '@twin-platform/scenario-compare';
+import { sceneSummary, type SceneSummary, type TwinScene } from '@twin-platform/scene-schema';
 
 /**
  * Studio 的一次运行会话：插件宿主 + 世界 + 仓储 + 录制器 + 时间轴控制器。
@@ -37,6 +38,14 @@ export interface CsvLoadResult {
   entities: string[];
 }
 
+/**
+ * 运行时生成的物料类型。
+ *
+ * 它们由行为凭空造出来（发生器产小货物、打包出托盘），场景文件里没有，
+ * 也没有能力声明——统计"有没有行为认领"时必须排除，否则会误报成未识别设备。
+ */
+const CARGO_KINDS = new Set(['parcel', 'pallet']);
+
 export const SAMPLE_CSV = ['t,id,x,y,z', '0,cargo-01,-5.2,1.15,0', '1,cargo-01,-2.4,1.15,0', '2,cargo-01,0.6,1.15,0', '3,cargo-01,3.4,1.15,0', '4,cargo-01,5.2,1.15,0'].join('\n');
 
 /**
@@ -45,7 +54,15 @@ export const SAMPLE_CSV = ['t,id,x,y,z', '0,cargo-01,-5.2,1.15,0', '1,cargo-01,-
  * 注意：`compare()` 也复用同一组参数，两处必须保持一致，
  * 否则分叉对比跑的不是同一套场景。
  */
-const CENTER_PARAMS = { produceInterval: 6, maxWip: 10, highWater: 8, aisles: 2, externalLanes: 4 } as const;
+export const CENTER_PARAMS = { produceInterval: 6, maxWip: 10, highWater: 8, aisles: 2, externalLanes: 4 } as const;
+
+/** 场景从哪来：`template` 是插件模板生成的，`imported` 是外部 JSON 导入的。 */
+export type SceneSource = 'template' | 'imported';
+
+/** 模板场景：插件提供的默认产线，作为"导入前"的基准，也是"还原"的目标。 */
+export function buildDefaultScene(): TwinScene {
+  return buildCenterScene(CENTER_PARAMS);
+}
 
 /** HUD 用的实时遥测快照（由世界事件日志派生，不在 Studio 里重算语义）。 */
 export interface StudioTelemetry {
@@ -92,15 +109,23 @@ export class StudioSession {
   readonly world: TwinWorld;
   readonly recorder: SessionRecorder;
   readonly controller: ReplayController;
+  /** 当前场景的来源：模板生成还是外部导入。UI 靠它提示"你正在跑别人的布局"。 */
+  readonly sceneSource: SceneSource;
 
-  constructor() {
+  /**
+   * @param scene 外部场景。不传则用插件模板生成默认产线；
+   *   传入的场景必须已经过 `parseSceneDocument`（校验 + 迁移），
+   *   这里不再重复校验——调用方负责保证它合法。
+   */
+  constructor(scene?: TwinScene) {
     // 1) 安装物流插件：拿到行为、指标、场景模板（故障隔离在宿主里）。
     this.host = new PluginHost();
     this.host.install(logisticsPlugin);
 
     // 2) 用插件模板生成场景，用插件行为驱动世界。
-    const scene = buildCenterScene(CENTER_PARAMS);
-    this.world = new TwinWorld(scene, {
+    const resolved = scene ?? buildCenterScene(CENTER_PARAMS);
+    this.sceneSource = scene ? 'imported' : 'template';
+    this.world = new TwinWorld(resolved, {
       seed: 20240906,
       maxStepsPerAdvance: 600,
       behaviors: this.host.behaviors,
@@ -137,6 +162,35 @@ export class StudioSession {
   useSimulation(): void {
     this.controller.attachSource(undefined);
     this.world.setMode('sim');
+  }
+
+  /** 当前场景（声明部分）。导出与摘要都从它取，保证 UI 与内核看到的是同一份。 */
+  currentScene(): TwinScene {
+    return this.world.scene;
+  }
+
+  /** 场景摘要：规模、类型构成、包围盒。导入后给用户一眼确认"装对了没有"。 */
+  describeScene(): SceneSummary {
+    return sceneSummary(this.world.scene);
+  }
+
+  /**
+   * 当前场景里，能被已安装插件的行为识别的设备占比。
+   *
+   * 导入外部布局时最容易踩的坑是：几何进来了，但没有行为认得这些 `kind`，
+   * 于是场景"跑不动"却毫无提示。这里给出一个粗略的可驱动率，UI 据此提醒。
+   */
+  drivableKinds(): { known: number; unknown: string[] } {
+    // 行为靠 `capabilities` 认领实体，而不是靠 kind——所以按能力统计。
+    // 物流插件认领的是 move/transfer/source/sink/store/load 这几类能力。
+    const knownCapabilities = new Set(['move', 'transfer', 'source', 'sink', 'store', 'load', 'pack', 'inspect', 'fill']);
+    const unknown = new Set<string>();
+    let known = 0;
+    for (const entity of this.world.scene.entities) {
+      if (entity.capabilities.some((capability) => knownCapabilities.has(capability))) known += 1;
+      else if (!CARGO_KINDS.has(entity.kind)) unknown.add(entity.kind);
+    }
+    return { known, unknown: [...unknown].sort() };
   }
 
   /** 时间轴上的最近事件（世界内存日志的尾部）。 */
@@ -260,8 +314,10 @@ export class StudioSession {
       createBufferFillBehavior(),
     ];
     const batch = Math.max(1, Math.round(batchB));
+    // 用**当前**场景做基准：导入外部布局后，对比的也得是这份布局，
+    // 否则比的是"模板场景的两个变体"，跟用户眼前看到的对不上。
     return compareScenarios({
-      scene: buildCenterScene(CENTER_PARAMS),
+      scene: structuredClone(this.world.scene),
       forkAt,
       horizon,
       variants: [

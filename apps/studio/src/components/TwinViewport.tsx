@@ -4,6 +4,8 @@ import type { LineMetrics } from '@twin-platform/analytics-core';
 import { StudioSession, type StudioTelemetry } from '../scene/studioSession';
 import { TwinSceneController, type CameraPreset, type TwinEntityView } from '../scene/TwinSceneController';
 import type { ThemeName } from '../scene/theme';
+import { parseSceneDocument, sceneFileName, serializeSceneDocument } from '@twin-platform/scene-schema';
+import ScenePanel, { type SceneExportPayload, type SceneImportOutcome } from './ScenePanel';
 import DataSourcePanel from './DataSourcePanel';
 import EventLogPanel from './EventLogPanel';
 import TimelineBar from './TimelineBar';
@@ -25,7 +27,7 @@ import ScenarioComparePanel from './ScenarioComparePanel';
  *   默认全部收起，点了才展开，把画面尽量让给场景。
  */
 
-type InspectorTab = 'entity' | 'metrics' | 'compare' | 'data' | 'events' | 'plugins';
+type InspectorTab = 'entity' | 'metrics' | 'compare' | 'data' | 'scene' | 'events' | 'plugins';
 type EntityFilter = 'device' | 'cargo';
 
 /** 属于"物料"的实体类型，其余都算设备。 */
@@ -51,13 +53,19 @@ const TABS: { id: InspectorTab; icon: string; label: string }[] = [
   { id: 'metrics', icon: '📊', label: '指标' },
   { id: 'compare', icon: '⚖️', label: '对比' },
   { id: 'data', icon: '📡', label: '数据' },
+  { id: 'scene', icon: '🗂️', label: '场景' },
   { id: 'events', icon: '📜', label: '事件' },
   { id: 'plugins', icon: '🔌', label: '插件' },
 ];
 
 export default function TwinViewport() {
-  const session = new StudioSession();
+  /**
+   * 会话是**可替换**的信号，不是常量：导入外部场景要整个换掉（世界、录制器、
+   * 时间轴控制器全得重建），旧的那一份必须停掉，否则两个世界会同时推进。
+   */
+  const [session, setSession] = createSignal(new StudioSession());
   let controller: TwinSceneController | undefined;
+  let hostEl: HTMLDivElement | undefined;
 
   const [selected, setSelected] = createSignal<TwinEntityView>();
   const [entities, setEntities] = createSignal<TwinEntityView[]>([]);
@@ -78,8 +86,8 @@ export default function TwinViewport() {
     events: WorldEvent[];
     stored: number;
   }>({ time: 0, duration: 0, playing: true, speed: 1, events: [], stored: 0 });
-  const [metrics, setMetrics] = createSignal<LineMetrics>(session.metrics());
-  const [telemetry, setTelemetry] = createSignal<StudioTelemetry>(session.telemetry());
+  const [metrics, setMetrics] = createSignal<LineMetrics>(session().metrics());
+  const [telemetry, setTelemetry] = createSignal<StudioTelemetry>(session().telemetry());
   /** 采样节拍：实体详情里的实时状态（货位、库存、当前任务）按它刷新。 */
   const [tick, setTick] = createSignal(0);
   /** 右键菜单：记下弹在哪、对哪个实体，以及刚复制了什么（用来给个即时反馈）。 */
@@ -110,33 +118,79 @@ export default function TwinViewport() {
     setMenu({ x: event.clientX, y: event.clientY, entity });
   };
 
-  const mountViewport = (host: HTMLDivElement) => {
+  /** 在同一个挂载点上（重新）建三维控制器。换场景与首次挂载共用这条路径。 */
+  const buildController = () => {
+    if (!hostEl) return;
+    controller?.dispose();
     controller = new TwinSceneController(
-      host,
+      hostEl,
       (entity) => {
         setSelected(entity);
         // 点中场景里的东西就把实体页翻出来，不然选中了也看不见。
         if (entity) setTab('entity');
       },
-      { scene: session.world.scene, controller: session.controller },
+      { scene: session().world.scene, controller: session().controller },
     );
     setEntities(controller.entities);
     setTheme(controller.themeName);
   };
 
+  const mountViewport = (host: HTMLDivElement) => {
+    hostEl = host;
+    buildController();
+  };
+
+  /**
+   * 换掉整个会话：旧的先暂停（否则两个世界同时推进、同时写录），
+   * 再重建三维控制器把新场景画出来。
+   */
+  const replaceSession = (next: StudioSession) => {
+    session().controller.pause();
+    setSession(next);
+    setSelected(undefined);
+    buildController();
+  };
+
+  /** 导入场景 JSON：解析 + 迁移 + 校验，成功才换会话。 */
+  const importScene = (raw: string): SceneImportOutcome => {
+    const parsed = parseSceneDocument(raw);
+    if (!parsed.ok || !parsed.scene) {
+      return { ok: false, applied: parsed.applied, issues: parsed.issues };
+    }
+    replaceSession(new StudioSession(parsed.scene));
+    return {
+      ok: true,
+      name: parsed.scene.name,
+      scene: parsed.scene,
+      applied: parsed.applied,
+      issues: parsed.issues,
+      summary: parsed.summary,
+    };
+  };
+
+  /** 导出当前场景。 */
+  const exportScene = (): SceneExportPayload | undefined => {
+    const scene = session().currentScene();
+    return { text: serializeSceneDocument(scene), fileName: sceneFileName(scene) };
+  };
+
+  /** 还原到插件模板场景。 */
+  const resetScene = () => replaceSession(new StudioSession());
+
   // 面板按固定频率采样，而不是每帧刷新：UI 不需要 60Hz 的事件流，
   // 每帧写信号只会把渲染循环拖进响应式更新里。
   const refresh = async () => {
+    const current = session();
     setView({
-      time: session.controller.time,
-      duration: session.controller.duration,
-      playing: session.controller.playing,
-      speed: session.controller.speed,
-      events: session.recentEvents(8),
-      stored: await session.storedEventCount(),
+      time: current.controller.time,
+      duration: current.controller.duration,
+      playing: current.controller.playing,
+      speed: current.controller.speed,
+      events: current.recentEvents(8),
+      stored: await current.storedEventCount(),
     });
-    setMetrics(session.metrics());
-    setTelemetry(session.telemetry());
+    setMetrics(current.metrics());
+    setTelemetry(current.telemetry());
     setTick((value) => value + 1);
   };
   const timer = setInterval(() => void refresh(), 120);
@@ -176,7 +230,8 @@ export default function TwinViewport() {
     <main class="studio-shell">
       <header class="studio-heading">
         <span class="brand">TWIN STUDIO</span>
-        <h1>智能物流中心</h1>
+        {/* 标题跟着场景走：导入外部布局后，这里显示的就是那个场景的名字。 */}
+        <h1>{session().world.scene.name}</h1>
       </header>
 
       <div class="studio-grid">
@@ -229,6 +284,16 @@ export default function TwinViewport() {
                 onClick={() => setControls(!controls())}
               >
                 ⏱
+              </button>
+              <button
+                type="button"
+                class={tab() === 'scene' ? 'vp-btn vp-btn-on' : 'vp-btn'}
+                aria-pressed={tab() === 'scene'}
+                aria-label="场景导入导出"
+                title={`场景导入 / 导出（当前：${session().sceneSource === 'imported' ? '外部导入' : '插件模板'}）`}
+                onClick={() => setTab(tab() === 'scene' ? 'entity' : 'scene')}
+              >
+                🗂
               </button>
             </div>
 
@@ -375,11 +440,11 @@ export default function TwinViewport() {
               duration={view().duration}
               playing={view().playing}
               speed={view().speed}
-              onPlay={() => session.controller.play()}
-              onPause={() => session.controller.pause()}
-              onSpeed={(speed) => session.controller.setSpeed(speed)}
-              onSeek={(time) => void session.controller.seek(time)}
-              onStep={(steps) => session.controller.stepFrames(steps)}
+              onPlay={() => session().controller.play()}
+              onPause={() => session().controller.pause()}
+              onSpeed={(speed) => session().controller.setSpeed(speed)}
+              onSeek={(time) => void session().controller.seek(time)}
+              onStep={(steps) => session().controller.stepFrames(steps)}
               onCollapse={() => setControls(false)}
             />
           </Show>
@@ -476,21 +541,34 @@ export default function TwinViewport() {
             </Show>
 
             <Show when={tab() === 'compare'}>
-              <ScenarioComparePanel onCompare={(forkAt, horizon, zoneB) => session.compare(forkAt, horizon, zoneB)} />
+              <ScenarioComparePanel onCompare={(forkAt, horizon, zoneB) => session().compare(forkAt, horizon, zoneB)} />
             </Show>
 
             <Show when={tab() === 'data'}>
               <DataSourcePanel
                 onLoad={(text) => {
-                  const loaded = session.loadCsv(text);
-                  void session.controller.seek(0);
-                  session.controller.play();
+                  const loaded = session().loadCsv(text);
+                  void session().controller.seek(0);
+                  session().controller.play();
                   return loaded;
                 }}
                 onReset={() => {
-                  session.useSimulation();
-                  void session.controller.seek(0);
+                  session().useSimulation();
+                  void session().controller.seek(0);
                 }}
+              />
+            </Show>
+
+            <Show when={tab() === 'scene'}>
+              <ScenePanel
+                sceneId={session().world.scene.id}
+                sceneName={session().world.scene.name}
+                source={session().sceneSource}
+                summary={session().describeScene()}
+                unknownKinds={session().drivableKinds().unknown}
+                onImport={importScene}
+                onExport={exportScene}
+                onReset={resetScene}
               />
             </Show>
 
@@ -499,7 +577,7 @@ export default function TwinViewport() {
             </Show>
 
             <Show when={tab() === 'plugins'}>
-              <PluginsPanel host={session.host} />
+              <PluginsPanel host={session().host} />
             </Show>
           </div>
         </aside>
