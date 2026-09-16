@@ -1,4 +1,4 @@
-import { createSignal, For, onCleanup, onMount, Show } from 'solid-js';
+import { createSignal, For, onCleanup, onSettled, Show, untrack } from 'solid-js';
 import type { WorldEvent } from '@twin-platform/world-kernel';
 import type { LineMetrics } from '@twin-platform/analytics-core';
 import { StudioSession, type StudioTelemetry } from '../scene/studioSession';
@@ -88,8 +88,8 @@ export default function TwinViewport() {
     events: WorldEvent[];
     stored: number;
   }>({ time: 0, duration: 0, playing: true, speed: 1, events: [], stored: 0 });
-  const [metrics, setMetrics] = createSignal<LineMetrics>(session().metrics());
-  const [telemetry, setTelemetry] = createSignal<StudioTelemetry>(session().telemetry());
+  const [metrics, setMetrics] = createSignal<LineMetrics>(untrack(() => session().metrics()));
+  const [telemetry, setTelemetry] = createSignal<StudioTelemetry>(untrack(() => session().telemetry()));
   /** 采样节拍：实体详情里的实时状态（货位、库存、当前任务）按它刷新。 */
   const [tick, setTick] = createSignal(0);
   /** 右键菜单：记下弹在哪、对哪个实体，以及刚复制了什么（用来给个即时反馈）。 */
@@ -131,7 +131,7 @@ export default function TwinViewport() {
         // 点中场景里的东西就把实体页翻出来，不然选中了也看不见。
         if (entity) setTab('entity');
       },
-      { scene: session().world.scene, controller: session().controller },
+      { scene: untrack(() => session().world.scene), controller: untrack(() => session().controller) },
     );
     setEntities(controller.entities);
     setTheme(controller.themeName);
@@ -249,19 +249,23 @@ export default function TwinViewport() {
    * 探不到是**正常状态**（纯静态部署），不报错、不弹提示，只是场景面板少了
    * "服务端"那一块。探到了就把会话换成 HTTP 仓储，之后场景与事件都落服务端。
    */
-  onMount(async () => {
-    const url = defaultServerUrl();
-    const health = await pingServer(url);
-    if (!health) return;
-    const storage = createHttpStorage({ baseUrl: url });
-    setServerStorage(storage);
-    setServer({ url, scenes: [], busy: false });
-    // 换仓储要重建会话（录制器绑定着 storage 实例）。
-    const next = new StudioSession(undefined, storage);
-    replaceSession(next);
-    // 事件流是 append-only 的：库里已有历史就接着写，不能从头覆盖。
-    await next.resumeFromStorage();
-    await refreshServerScenes();
+  onSettled(() => {
+    // onSettled 要求回调返回「清理函数或 undefined」；原 onMount 是 fire-and-forget，
+    // 这里把异步体包成 IIFE 再以 void 返回，等价于挂载后只探一次服务端。
+    void (async () => {
+      const url = defaultServerUrl();
+      const health = await pingServer(url);
+      if (!health) return;
+      const storage = createHttpStorage({ baseUrl: url });
+      setServerStorage(storage);
+      setServer({ url, scenes: [], busy: false });
+      // 换仓储要重建会话（录制器绑定着 storage 实例）。
+      const next = new StudioSession(undefined, storage);
+      replaceSession(next);
+      // 事件流是 append-only 的：库里已有历史就接着写，不能从头覆盖。
+      await next.resumeFromStorage();
+      await refreshServerScenes();
+    })();
   });
 
   onCleanup(() => {

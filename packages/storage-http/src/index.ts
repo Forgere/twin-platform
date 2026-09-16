@@ -55,10 +55,13 @@ export interface ServerHealth {
 const encode = (value: string): string => encodeURIComponent(value);
 
 class Transport {
-  constructor(
-    private readonly baseUrl: string,
-    private readonly fetchImpl: typeof fetch,
-  ) {}
+  private readonly fetchImpl: typeof fetch;
+  constructor(private readonly baseUrl: string, fetchImpl?: typeof fetch) {
+    // 必须绑定到 globalThis：浏览器里 fetch 依赖 Window 作为 this，
+    // 当作裸引用存进 this.fetchImpl 后再 this.fetchImpl(...) 调用会抛
+    // "Illegal invocation"（fetch 的 this 丢失）。
+    this.fetchImpl = (fetchImpl ?? globalThis.fetch).bind(globalThis);
+  }
 
   private url(path: string, params: Record<string, string | number | undefined> = {}): string {
     const search = new URLSearchParams();
@@ -297,7 +300,7 @@ class HttpMetricRepository implements MetricRepository {
 
 /** 建一个走 HTTP 的仓储。 */
 export function createHttpStorage(options: HttpStorageOptions): HttpStorage {
-  const transport = new Transport(options.baseUrl, options.fetchImpl ?? fetch);
+  const transport = new Transport(options.baseUrl, options.fetchImpl);
   const events = new HttpEventRepository(transport, options.batchSize ?? 64, options.flushMs ?? 400);
   return {
     baseUrl: options.baseUrl,
