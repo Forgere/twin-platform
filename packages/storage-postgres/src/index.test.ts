@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, expect, test } from 'bun:test';
+import { afterAll, describe, expect, test } from 'bun:test';
 import type { WorldEvent } from '@twin-platform/world-kernel';
 import { runStorageContractTests } from '@twin-platform/storage-testkit';
 import { createPostgresStorage, type SqlExecutor, type SqlRow } from './index';
@@ -122,7 +122,7 @@ describe('createPostgresStorage / SQL 生成', () => {
 
     expect(executor.sql).toContain('value = metric_rollups.value + excluded.value');
     expect(executor.sql).toContain('count = metric_rollups.count + excluded.count');
-    expect(executor.last.params).toEqual(['line-a', 'event.count', '', 0, 60, 1, 1, 'line-a', 'event.count', 'cargo-01', 60, 60, 2, 3]);
+    expect(executor.last.params).toEqual(['line-a', 'event.count', '', 0, 60, 1, 1, expect.anything(), 'line-a', 'event.count', 'cargo-01', 60, 60, 2, 3, expect.anything()]);
     expect(await storage.metrics.put([])).toBe(0);
   });
 
@@ -185,11 +185,7 @@ const driver = await import('pg')
   .then((module) => module)
   .catch(() => undefined);
 
-if (!url) {
-  console.warn('[storage-postgres] 未设置 DATABASE_URL，跳过与内存实现同款的契约测试。');
-} else if (!driver) {
-  console.warn('[storage-postgres] 未安装 pg 驱动，跳过契约测试：先执行 bun add -d pg。');
-} else {
+if (url && driver) {
   const pool = new driver.Pool({ connectionString: url });
   const resetSql = `truncate table twin_events, world_snapshots, replay_sessions, entity_state_latest, metric_rollups, scene_versions`;
 
@@ -205,7 +201,90 @@ if (!url) {
     };
   });
 
-  test.afterAll(async () => {
+  afterAll(async () => {
     await pool.end();
   });
+} else if (url && !driver) {
+  console.warn('[storage-postgres] 未安装 pg 驱动，跳过契约测试：先执行 bun add -d pg。');
+} else {
+  console.warn('[storage-postgres] 未设置 DATABASE_URL，跳过 pg 契约测试（可装 @electric-sql/pglite 跑零依赖真 PG 验证）。');
 }
+
+// ---------------------------------------------------------------------------
+// 零依赖真 PostgreSQL 验证（PGlite / WASM）
+// ---------------------------------------------------------------------------
+// PGlite 是编译进 WASM 的真实 PostgreSQL，给没有装 PostgreSQL 的机器一个零依赖的
+// 真引擎来验证我们的 SQL。注意：PGlite 0.5 对含动态 DDL 的 `$$` plpgsql 函数体有
+// 解析局限（真实 PostgreSQL 18 完全合法），迁移里那条分区维护函数在此跳过——
+// `twin_events` 已有 DEFAULT 分区兜底，不影响入库与契约。
+
+const pgliteMod = await import('@electric-sql/pglite')
+  .then((module) => module)
+  .catch(() => undefined);
+
+if (pgliteMod) {
+  const { PGlite } = pgliteMod as { PGlite: { create: (o?: { dataDir?: string }) => Promise<PGliteLike> } };
+  const db = await PGlite.create({ dataDir: 'memory://' });
+  const executor: SqlExecutor = {
+    async query(text, params) {
+      if (params && params.length > 0) {
+        const res = await db.query(text, params as unknown[]);
+        return (res.rows ?? []) as SqlRow[];
+      }
+      const res = await db.exec(text);
+      return (res[res.length - 1]?.rows ?? []) as SqlRow[];
+    },
+  };
+
+  // 迁移：跳过 `$$` 分区维护函数（PGlite 解析局限），其余建表照常。
+  const { readMigrations, splitSqlStatements, applyMigrations } = await import('./migrate');
+  const migrations = readMigrations().map((m) => ({
+    name: m.name,
+    sql: splitSqlStatements(m.sql)
+      .filter((s) => !s.includes('twin_ensure_event_partitions'))
+      .join(';\n'),
+  }));
+  await applyMigrations(executor, { migrations });
+
+  runStorageContractTests('postgres/pglite', async () => {
+    // 清空全部派生数据（逐表 delete，PGlite 不支持 truncate 分区父表，也非标准多表 delete）。
+    for (const table of ['twin_events', 'world_snapshots', 'replay_sessions', 'entity_state_latest', 'metric_rollups', 'scene_versions']) {
+      await executor.query(`delete from ${table}`);
+    }
+    return {
+      storage: createPostgresStorage(executor),
+      async reset() {
+        for (const table of ['twin_events', 'world_snapshots', 'replay_sessions', 'entity_state_latest', 'metric_rollups', 'scene_versions']) {
+          await executor.query(`delete from ${table}`);
+        }
+      },
+    };
+  });
+
+  test('remove 级联清理事件/快照/状态/指标/会话', async () => {
+    const storage = createPostgresStorage(executor);
+    await storage.scenes.putScene({ version: 1, id: 'rm', name: '待删', entities: [] });
+    await storage.events.append('rm', [{ sequence: 1, occurredAt: 0.5, type: 'e', entityId: 'x' }]);
+    await storage.snapshots.put('rm', { sceneId: 'rm', sequence: 1, time: 0.5, step: 1 / 60, seed: 1, rngState: 1, mode: 'sim', entities: [] });
+    await storage.state.upsert('rm', [{ entityId: 'x', kind: 'k', attrs: {}, transform: { position: [0, 0, 0] }, dataSource: 'sim', updatedSequence: 1, updatedAt: 0.5 }]);
+    await storage.metrics.put([{ sceneId: 'rm', metric: 'c', bucketStart: 0, bucketSize: 60, value: 1, count: 1 }]);
+    expect(await storage.scenes.remove('rm')).toBe(true);
+    expect(await storage.scenes.getScene('rm')).toBeNull();
+    expect(await storage.events.query('rm')).toEqual([]);
+    expect(await storage.snapshots.latest('rm')).toBeNull();
+    expect(await storage.state.list('rm')).toEqual([]);
+    expect(await storage.metrics.query('rm')).toEqual([]);
+    expect(await storage.scenes.remove('missing')).toBe(false);
+  });
+
+  afterAll(async () => {
+    await db.close();
+  });
+}
+
+interface PGliteLike {
+  query(text: string, params?: readonly unknown[]): Promise<{ rows?: unknown[] }>;
+  exec(text: string): Promise<{ rows?: unknown[] }[]>;
+  close(): Promise<void>;
+}
+

@@ -11,6 +11,8 @@
     "@twin-platform/world-kernel": "workspace:*"
   },
   "devDependencies": {
-    "@twin-platform/storage-testkit": "workspace:*"
+    "@twin-platform/storage-testkit": "workspace:*",
+    "@electric-sql/pglite": "^0.5.8",
+    "pg": "^8.13.0"
   }
 }

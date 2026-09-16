@@ -50,6 +50,18 @@ export interface PostgresStorageOptions {
   schema?: string;
 }
 
+/**
+ * 场景仓储多一个 `remove`：契约里没有，但服务端 DELETE 需要连带清理派生数据。
+ * 与 `storage-file` 的 `FileSceneRepository` 保持一致。
+ * 直接让 `PostgresSceneRepository` 类实现 `SceneRepository` 并额外提供 `remove`，
+ * 不再单独声明同名 interface（否则与 class 合并声明时的导出一致性会报错 TS2395）。
+ */
+
+/** 完整的 PostgreSQL 仓储，`scenes` 带 `remove`。 */
+export interface PostgresStorage extends TwinStorage {
+  readonly scenes: PostgresSceneRepository;
+}
+
 const num = (value: unknown): number => (typeof value === 'number' ? value : Number(value ?? 0));
 
 const str = (value: unknown): string => (value === null || value === undefined ? '' : String(value));
@@ -111,7 +123,7 @@ function toState(row: SqlRow): EntityStateRecord {
     transform: json<EntityStateRecord['transform']>(row.transform),
     dataSource: str(row.data_source) as EntityStateRecord['dataSource'],
     updatedSequence: num(row.updated_sequence),
-    updatedAt: num(row.updated_at),
+    updatedAt: row.updated_at === undefined || row.updated_at === null ? num(row.updated_wall_at) : num(row.updated_at),
   };
 }
 
@@ -127,7 +139,7 @@ function toRollup(row: SqlRow): MetricRollup {
   };
 }
 
-class PostgresSceneRepository implements SceneRepository {
+export class PostgresSceneRepository implements SceneRepository {
   constructor(
     private readonly sql: SqlExecutor,
     private readonly name: (table: string) => string,
@@ -174,6 +186,18 @@ class PostgresSceneRepository implements SceneRepository {
       version: num(row.version),
       updatedAt: iso(row.created_at),
     }));
+  }
+
+  async remove(id: string): Promise<boolean> {
+    const rows = await this.sql.query(`delete from ${this.name('scene_versions')} where scene_id = $1 returning scene_id`, [id]);
+    if (rows.length === 0) return false;
+    // 级联清理：场景版本是父行，其余都是它的派生数据。
+    await this.sql.query(`delete from ${this.name('twin_events')} where scene_id = $1`, [id]);
+    await this.sql.query(`delete from ${this.name('world_snapshots')} where scene_id = $1`, [id]);
+    await this.sql.query(`delete from ${this.name('entity_state_latest')} where scene_id = $1`, [id]);
+    await this.sql.query(`delete from ${this.name('metric_rollups')} where scene_id = $1`, [id]);
+    await this.sql.query(`delete from ${this.name('replay_sessions')} where scene_id = $1`, [id]);
+    return true;
   }
 }
 
@@ -370,7 +394,7 @@ class PostgresEntityStateRepository implements EntityStateRepository {
     if (records.length === 0) return 0;
     const params: unknown[] = [sceneId];
     const tuples = records.map((record, index) => {
-      const base = index * 7 + 2;
+      const base = index * 8 + 2;
       params.push(
         record.entityId,
         record.kind,
@@ -379,18 +403,20 @@ class PostgresEntityStateRepository implements EntityStateRepository {
         JSON.stringify(record.transform),
         record.dataSource,
         record.updatedSequence,
+        record.updatedAt,
       );
-      return `( $1, $${base}, $${base + 1}, $${base + 2}, $${base + 3}::jsonb, $${base + 4}::jsonb, $${base + 5}, $${base + 6}, now() )`;
+      return `( $1, $${base}, $${base + 1}, $${base + 2}, $${base + 3}::jsonb, $${base + 4}::jsonb, $${base + 5}, $${base + 6}, $${base + 7}, now() )`;
     });
 
     await this.sql.query(
       `insert into ${this.name('entity_state_latest')}
-         (scene_id, entity_id, kind, status, attrs, transform, data_source, updated_sequence, updated_wall_at)
+         (scene_id, entity_id, kind, status, attrs, transform, data_source, updated_sequence, updated_at, updated_wall_at)
        values ${tuples.join(', ')}
        on conflict (scene_id, entity_id) do update
          set kind = excluded.kind, status = excluded.status, attrs = excluded.attrs,
              transform = excluded.transform, data_source = excluded.data_source,
-             updated_sequence = excluded.updated_sequence, updated_wall_at = now()`,
+             updated_sequence = excluded.updated_sequence, updated_at = excluded.updated_at,
+             updated_wall_at = now()`,
       params,
     );
     return records.length;
@@ -424,20 +450,28 @@ class PostgresMetricRepository implements MetricRepository {
     if (rollups.length === 0) return 0;
     const params: unknown[] = [];
     const tuples = rollups.map((rollup, index) => {
-      const base = index * 6 + 1;
-      params.push(rollup.sceneId, rollup.metric, rollup.entityId ?? '', rollup.bucketStart, rollup.bucketSize, rollup.value, rollup.count);
-      // 注意：这里 7 个值，占位符要连续
-      return `( $${base}, $${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6} )`;
+      const base = index * 8 + 1;
+      params.push(
+        rollup.sceneId,
+        rollup.metric,
+        rollup.entityId ?? '',
+        rollup.bucketStart,
+        rollup.bucketSize,
+        rollup.value,
+        rollup.count,
+        new Date(),
+      );
+      return `( $${base}, $${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7} )`;
     });
 
     await this.sql.query(
       `insert into ${this.name('metric_rollups')}
-         (scene_id, metric, entity_id, bucket_start, bucket_size, value, count)
+         (scene_id, metric, entity_id, bucket_start, bucket_size, value, count, updated_at)
        values ${tuples.join(', ')}
        on conflict (scene_id, metric, entity_id, bucket_start, bucket_size) do update
          set value = ${this.name('metric_rollups')}.value + excluded.value,
              count = ${this.name('metric_rollups')}.count + excluded.count,
-             updated_at = now()`,
+             updated_at = excluded.updated_at`,
       params,
     );
     return rollups.length;
@@ -469,7 +503,7 @@ class PostgresMetricRepository implements MetricRepository {
  *
  * @param executor 任意能执行 `query(sql, params)` 的对象（`pg.Pool` / `pg.Client` 都行）。
  */
-export function createPostgresStorage(executor: SqlExecutor, options: PostgresStorageOptions = {}): TwinStorage {
+export function createPostgresStorage(executor: SqlExecutor, options: PostgresStorageOptions = {}): PostgresStorage {
   const name = table(options.schema);
   return {
     scenes: new PostgresSceneRepository(executor, name),
@@ -480,3 +514,7 @@ export function createPostgresStorage(executor: SqlExecutor, options: PostgresSt
     metrics: new PostgresMetricRepository(executor, name),
   };
 }
+
+// 驱动解析与连接装配（依赖 `connect.ts`）统一从包根导出，避免调用方走受限的子路径导入。
+export { connectPostgresStorage } from './connect';
+export type { ConnectPostgresOptions, ConnectPostgresResult, PostgresDriver, PostgresDriverKind } from './connect';
