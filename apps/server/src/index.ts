@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { createFileStorage } from '@twin-platform/storage-file';
 import { parseSceneDocument, type TwinScene } from '@twin-platform/scene-schema';
+import { createServerStorage, removeScene, type ServerStorage } from './storage';
 
 /**
  * Twin Platform 服务端。
@@ -10,9 +10,10 @@ import { parseSceneDocument, type TwinScene } from '@twin-platform/scene-schema'
  * 在浏览器里都无从落地；场景导入靠 File API，刷新即丢。有了服务端，场景才真的
  * 有"存下来"这回事，接 MQTT / OPC-UA 也才有个能常驻的进程。
  *
- * 刻意做成零外部依赖：数据默认落在单个 JSON 文件（`storage-file`），
- * 不需要装数据库就能跑起来；换 Postgres 只是换一个 `TwinStorage` 实现，
- * 本文件一行都不用改。
+ * 默认零外部依赖：数据落在单个 JSON 文件（`storage-file`），不装数据库就能跑。
+ * 设置 `TWIN_STORAGE=postgres`（或 `DATABASE_URL`）即切换到 PostgreSQL——
+ * 服务端只通过 `createServerStorage` 这一个工厂选后端，路由代码完全无感，
+ * 连接、迁移、驱动选择都收在 `storage-postgres` 里。
  *
  * 路由一律 `/api/*`，与前端同源部署时由本进程一并托管 `apps/studio/dist`。
  */
@@ -21,8 +22,8 @@ const PORT = Number(process.env.PORT ?? 8787);
 const DATA_PATH = resolve(process.env.TWIN_DATA ?? 'data/twin.json');
 const STUDIO_DIST = resolve(process.env.TWIN_STUDIO_DIST ?? 'apps/studio/dist');
 
-const storage = createFileStorage({ path: DATA_PATH });
-await storage.ready();
+const serverStorage = await createServerStorage({ dataPath: DATA_PATH });
+const storage = serverStorage.storage;
 
 const CORS_HEADERS: Record<string, string> = {
   // 开发时 Studio 跑在 vite 的另一个端口上，必须放行。
@@ -66,8 +67,9 @@ const server = Bun.serve({
     if (path === '/api/health') {
       return json({
         ok: true,
-        backend: 'file',
+        backend: serverStorage.backend,
         dataPath: DATA_PATH,
+        ...serverStorage.detail,
         scenes: (await storage.scenes.listScenes()).length,
       });
     }
@@ -99,7 +101,7 @@ const server = Bun.serve({
         return scene ? json(scene) : fail('场景不存在。', 404);
       }
       if (request.method === 'DELETE') {
-        const removed = await storage.scenes.remove(id);
+        const removed = await removeScene(serverStorage.storage, id);
         return removed ? json({ removed: true }) : fail('场景不存在。', 404);
       }
     }
@@ -273,9 +275,9 @@ console.log(
 );
 
 const shutdown = async () => {
-  // 落盘窗口里可能还有未写入的改动，退出前必须 flush，否则最后几百毫秒的数据会丢。
-  await storage.flush();
-  console.log('\n[twin-server] 已落盘，退出。');
+  // 文件后端退出前必须 flush（落盘窗口里可能还有未写入的改动）；postgres 端点连接释放。
+  await serverStorage.close();
+  console.log('\n[twin-server] 已关闭存储，退出。');
   process.exit(0);
 };
 process.on('SIGINT', () => void shutdown());

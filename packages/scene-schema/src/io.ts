@@ -267,7 +267,7 @@ const toDocumentIssue = (issue: SceneValidationIssue): SceneDocumentIssue => ({
 });
 
 interface ValidationErrorLike {
-  issues?: SceneValidationIssue[];
+  issues: SceneValidationIssue[];
 }
 
 const isValidationError = (error: unknown): error is ValidationErrorLike =>

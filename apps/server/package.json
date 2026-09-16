@@ -9,6 +9,8 @@
   },
   "dependencies": {
     "@twin-platform/scene-schema": "workspace:*",
-    "@twin-platform/storage-file": "workspace:*"
+    "@twin-platform/storage-contracts": "workspace:*",
+    "@twin-platform/storage-file": "workspace:*",
+    "@twin-platform/storage-postgres": "workspace:*"
   }
 }
