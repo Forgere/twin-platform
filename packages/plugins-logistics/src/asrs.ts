@@ -447,11 +447,17 @@ export function createAsrsBehavior(config: AsrsBehaviorConfig = {}): WorldBehavi
    *
    * 只在这些值真的变了才写，避免每步刷帧差量（渲染层按 attrs 变化更新）。
    */
-  const publishStatus = (ctx: BehaviorContext, crane: WorldEntityState, pallets: WorldEntityState[], layout: CraneLayout): void => {
+  const publishStatus = (
+    ctx: BehaviorContext,
+    crane: WorldEntityState,
+    pallets: WorldEntityState[],
+    layout: CraneLayout,
+    racks: WorldEntityState[],
+  ): void => {
     const capacityPerSide = layout.slots.length / 2;
     const stored = pallets.filter((pallet) => pallet.attrs.state === 'stored');
-    for (const rack of ctx.entities) {
-      if (rack.kind !== 'asrs' || str(rack.config?.craneId, '') !== crane.id) continue;
+    // 只遍历这台吊车名下的货架（已按 craneId 预分组），不再扫全部实体。
+    for (const rack of racks) {
       const side = num(rack.config?.side, 0) === 1 ? 1 : 0;
       const used = stored.filter((pallet) => str(pallet.attrs.slot, '').startsWith(`${side}:`)).length;
       if (num(rack.attrs.used, -1) !== used || num(rack.attrs.capacity, -1) !== capacityPerSide) {
@@ -492,6 +498,18 @@ export function createAsrsBehavior(config: AsrsBehaviorConfig = {}): WorldBehavi
         const list = byCrane.get(carrier);
         if (list) list.push(entity);
         else byCrane.set(carrier, [entity]);
+      }
+
+      // 货架按归属的堆垛机分组：同理一次性建索引，避免 publishStatus 里每台吊车扫描
+      // 全部实体（O(吊车数 × 实体数) = O(N²)，副本翻倍时平方级恶化）。
+      const racksByCrane = new Map<string, WorldEntityState[]>();
+      for (const entity of ctx.entities) {
+        if (entity.kind !== 'asrs') continue;
+        const owner = str(entity.config?.craneId, '');
+        if (!owner) continue;
+        const list = racksByCrane.get(owner);
+        if (list) list.push(entity);
+        else racksByCrane.set(owner, [entity]);
       }
 
       for (const crane of cranes) {
@@ -618,7 +636,7 @@ export function createAsrsBehavior(config: AsrsBehaviorConfig = {}): WorldBehavi
         }
 
         rollQueue(ctx, pallets, layout);
-        publishStatus(ctx, crane, pallets, layout);
+        publishStatus(ctx, crane, pallets, layout, racksByCrane.get(crane.id) ?? []);
       }
     },
   };

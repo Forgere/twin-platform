@@ -37,6 +37,24 @@ import type {
  * 一期假定同一场景只有一个写入者。
  */
 
+/**
+ * 单条 INSERT 的安全分块上限。PostgreSQL 扩展协议用 16 位长度字段承载参数个数，
+ * 硬上限 65535；再算上语句本身长度，这里取保守值：upsert 每行 8 参数 → 1000 行
+ * 仅 8001 个参数，远低于上限，且单条语句不至于撑爆网络包。
+ *
+ * 此前一次性把所有记录拼成一条巨型 INSERT，1000+ 实体时参数总数突破协议上限，
+ * PGlite / PostgreSQL 直接报 `bind message has N parameter formats but 0 parameters`。
+ */
+const BULK_CHUNK = 1000;
+
+function chunk<T>(items: readonly T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let start = 0; start < items.length; start += size) {
+    out.push(items.slice(start, start + size));
+  }
+  return out;
+}
+
 export interface SqlRow {
   [column: string]: unknown;
 }
@@ -210,30 +228,30 @@ class PostgresEventRepository implements EventRepository {
   async append(sceneId: string, events: readonly WorldEvent[]): Promise<number> {
     if (events.length === 0) return 0;
     let cursor = await this.latestSequence(sceneId);
-    for (const event of events) {
-      if (event.sequence <= cursor) throw new Error(`事件 sequence 必须严格单调：${event.sequence} <= ${cursor}。`);
-      cursor = event.sequence;
-    }
+    for (const batch of chunk(events, BULK_CHUNK)) {
+      const params: unknown[] = [sceneId];
+      const tuples = batch.map((event, index) => {
+        // 严格单调检查必须跨分块保持：cursor 在批次之间持续累加。
+        if (event.sequence <= cursor) throw new Error(`事件 sequence 必须严格单调：${event.sequence} <= ${cursor}。`);
+        cursor = event.sequence;
+        const base = index * 6 + 2;
+        params.push(
+          event.sequence,
+          event.occurredAt,
+          event.type,
+          event.entityId ?? null,
+          event.detail ?? null,
+          JSON.stringify(event.payload ?? {}),
+        );
+        return `( $1, $${base}, $${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}::jsonb )`;
+      });
 
-    const params: unknown[] = [sceneId];
-    const tuples = events.map((event, index) => {
-      const base = index * 6 + 2;
-      params.push(
-        event.sequence,
-        event.occurredAt,
-        event.type,
-        event.entityId ?? null,
-        event.detail ?? null,
-        JSON.stringify(event.payload ?? {}),
+      await this.sql.query(
+        `insert into ${this.name('twin_events')} (scene_id, sequence, occurred_at, type, entity_id, detail, payload)
+         values ${tuples.join(', ')}`,
+        params,
       );
-      return `( $1, $${base}, $${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}::jsonb )`;
-    });
-
-    await this.sql.query(
-      `insert into ${this.name('twin_events')} (scene_id, sequence, occurred_at, type, entity_id, detail, payload)
-       values ${tuples.join(', ')}`,
-      params,
-    );
+    }
     return events.length;
   }
 
@@ -392,34 +410,38 @@ class PostgresEntityStateRepository implements EntityStateRepository {
 
   async upsert(sceneId: string, records: readonly EntityStateRecord[]): Promise<number> {
     if (records.length === 0) return 0;
-    const params: unknown[] = [sceneId];
-    const tuples = records.map((record, index) => {
-      const base = index * 8 + 2;
-      params.push(
-        record.entityId,
-        record.kind,
-        record.status ?? null,
-        JSON.stringify(record.attrs),
-        JSON.stringify(record.transform),
-        record.dataSource,
-        record.updatedSequence,
-        record.updatedAt,
-      );
-      return `( $1, $${base}, $${base + 1}, $${base + 2}, $${base + 3}::jsonb, $${base + 4}::jsonb, $${base + 5}, $${base + 6}, $${base + 7}, now() )`;
-    });
+    let written = 0;
+    for (const batch of chunk(records, BULK_CHUNK)) {
+      const params: unknown[] = [sceneId];
+      const tuples = batch.map((record, index) => {
+        const base = index * 8 + 2;
+        params.push(
+          record.entityId,
+          record.kind,
+          record.status ?? null,
+          JSON.stringify(record.attrs),
+          JSON.stringify(record.transform),
+          record.dataSource,
+          record.updatedSequence,
+          record.updatedAt,
+        );
+        return `( $1, $${base}, $${base + 1}, $${base + 2}, $${base + 3}::jsonb, $${base + 4}::jsonb, $${base + 5}, $${base + 6}, $${base + 7}, now() )`;
+      });
 
-    await this.sql.query(
-      `insert into ${this.name('entity_state_latest')}
-         (scene_id, entity_id, kind, status, attrs, transform, data_source, updated_sequence, updated_at, updated_wall_at)
-       values ${tuples.join(', ')}
-       on conflict (scene_id, entity_id) do update
-         set kind = excluded.kind, status = excluded.status, attrs = excluded.attrs,
-             transform = excluded.transform, data_source = excluded.data_source,
-             updated_sequence = excluded.updated_sequence, updated_at = excluded.updated_at,
-             updated_wall_at = now()`,
-      params,
-    );
-    return records.length;
+      await this.sql.query(
+        `insert into ${this.name('entity_state_latest')}
+           (scene_id, entity_id, kind, status, attrs, transform, data_source, updated_sequence, updated_at, updated_wall_at)
+         values ${tuples.join(', ')}
+         on conflict (scene_id, entity_id) do update
+           set kind = excluded.kind, status = excluded.status, attrs = excluded.attrs,
+               transform = excluded.transform, data_source = excluded.data_source,
+               updated_sequence = excluded.updated_sequence, updated_at = excluded.updated_at,
+               updated_wall_at = now()`,
+        params,
+      );
+      written += batch.length;
+    }
+    return written;
   }
 
   async get(sceneId: string, entityId: string): Promise<EntityStateRecord | null> {
@@ -448,33 +470,38 @@ class PostgresMetricRepository implements MetricRepository {
 
   async put(rollups: readonly MetricRollup[]): Promise<number> {
     if (rollups.length === 0) return 0;
-    const params: unknown[] = [];
-    const tuples = rollups.map((rollup, index) => {
-      const base = index * 8 + 1;
-      params.push(
-        rollup.sceneId,
-        rollup.metric,
-        rollup.entityId ?? '',
-        rollup.bucketStart,
-        rollup.bucketSize,
-        rollup.value,
-        rollup.count,
-        new Date(),
-      );
-      return `( $${base}, $${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7} )`;
-    });
+    const table = this.name('metric_rollups');
+    let written = 0;
+    for (const batch of chunk(rollups, BULK_CHUNK)) {
+      const params: unknown[] = [];
+      const tuples = batch.map((rollup, index) => {
+        const base = index * 8 + 1;
+        params.push(
+          rollup.sceneId,
+          rollup.metric,
+          rollup.entityId ?? '',
+          rollup.bucketStart,
+          rollup.bucketSize,
+          rollup.value,
+          rollup.count,
+          new Date(),
+        );
+        return `( $${base}, $${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7} )`;
+      });
 
-    await this.sql.query(
-      `insert into ${this.name('metric_rollups')}
-         (scene_id, metric, entity_id, bucket_start, bucket_size, value, count, updated_at)
-       values ${tuples.join(', ')}
-       on conflict (scene_id, metric, entity_id, bucket_start, bucket_size) do update
-         set value = ${this.name('metric_rollups')}.value + excluded.value,
-             count = ${this.name('metric_rollups')}.count + excluded.count,
-             updated_at = excluded.updated_at`,
-      params,
-    );
-    return rollups.length;
+      await this.sql.query(
+        `insert into ${table}
+           (scene_id, metric, entity_id, bucket_start, bucket_size, value, count, updated_at)
+         values ${tuples.join(', ')}
+         on conflict (scene_id, metric, entity_id, bucket_start, bucket_size) do update
+           set value = ${table}.value + excluded.value,
+               count = ${table}.count + excluded.count,
+               updated_at = excluded.updated_at`,
+        params,
+      );
+      written += batch.length;
+    }
+    return written;
   }
 
   async query(sceneId: string, query: MetricQuery = {}): Promise<MetricRollup[]> {

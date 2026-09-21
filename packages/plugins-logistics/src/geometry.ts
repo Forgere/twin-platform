@@ -112,3 +112,59 @@ export function vectorList(value: unknown): TwinVector3[] {
       Array.isArray(item) && item.length === 3 && item.every((part) => typeof part === 'number' && Number.isFinite(part)),
   );
 }
+
+// ---------------------------------------------------------------------------
+// 空间网格索引：把 O(机器数 × 实体数) 的"逐个机器扫全部实体"降到 O(实体数)。
+//
+// 规模化的关键瓶颈：物流行为普遍用"外层遍历每个工位/机器，内层遍历全部实体
+// 找附近/相关的物料"的双层循环。当场景被复制成 N 份时，机器数与实体数都随 N 涨，
+// 总成本 O(N²)。但副本之间相距数百米、工位认领半径仅 1~2 米，跨副本扫描纯属浪费。
+// 按位置哈希到粗网格后，每个机器只需查自己所在桶（及相邻桶），跨副本实体自然落到
+// 远处桶里，被彻底排除——整体回到 O(实体数)。
+// ---------------------------------------------------------------------------
+
+/** 能被网格索引的实体：必须有 XZ 平面坐标。 */
+export interface GridItem {
+  transform: { position: readonly [number, number, number] };
+}
+
+/** 把实体按 XZ 坐标哈希进网格桶；`cell` 为桶边长（米）。 */
+export function bucketEntities<T extends GridItem>(items: readonly T[], cell: number): Map<string, T[]> {
+  const c = cell > 0 ? cell : 1;
+  const grid = new Map<string, T[]>();
+  for (const item of items) {
+    const key = `${Math.floor(item.transform.position[0] / c)},${Math.floor(item.transform.position[2] / c)}`;
+    const bucket = grid.get(key);
+    if (bucket) bucket.push(item);
+    else grid.set(key, [item]);
+  }
+  return grid;
+}
+
+/** 取某点 `radius` 米半径内的实体（含相邻桶；`cell ≥ radius` 时 ±1 桶即够）。 */
+export function neighborsWithinRadius<T extends GridItem>(
+  grid: Map<string, T[]>,
+  x: number,
+  z: number,
+  cell: number,
+  radius: number,
+): T[] {
+  const c = cell > 0 ? cell : 1;
+  const out: T[] = [];
+  const r2 = radius * radius;
+  const xi = Math.floor(x / c);
+  const zi = Math.floor(z / c);
+  const span = Math.max(1, Math.ceil(radius / c));
+  for (let dx = -span; dx <= span; dx += 1) {
+    for (let dz = -span; dz <= span; dz += 1) {
+      const bucket = grid.get(`${xi + dx},${zi + dz}`);
+      if (!bucket) continue;
+      for (const item of bucket) {
+        const ex = item.transform.position[0] - x;
+        const ez = item.transform.position[2] - z;
+        if (ex * ex + ez * ez <= r2) out.push(item);
+      }
+    }
+  }
+  return out;
+}

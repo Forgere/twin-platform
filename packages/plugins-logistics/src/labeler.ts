@@ -1,5 +1,5 @@
 import type { BehaviorContext, WorldBehavior } from '@twin-platform/world-kernel';
-import { num, str } from './geometry';
+import { bucketEntities, neighborsWithinRadius, num, str } from './geometry';
 
 /**
  * 打标机：输送线**经过式**工位——货从龙门底下过一次就贴一张标签。
@@ -27,8 +27,18 @@ export function createLabelerBehavior(config: LabelerConfig = {}): WorldBehavior
   return {
     id: 'labeler-cycle',
     step(ctx: BehaviorContext): void {
-      for (const machine of ctx.entities) {
-        if (!machine.capabilities.includes(labelerCap)) continue;
+      const machines = ctx.entities.filter((entity) => entity.capabilities.includes(labelerCap));
+      if (machines.length === 0) return;
+
+      // 网格 cell 取所有打标机里最大的认领半径：保证任一台机查邻桶时不会漏掉
+      // 半径内的货（同时把相距数百米的其它副本实体隔在远处桶里，O(N²) → O(N)）。
+      let maxRadius = 1.2;
+      for (const machine of machines) {
+        maxRadius = Math.max(maxRadius, Math.max(0.1, num(machine.config?.radius, 1.2)));
+      }
+      const grid = bucketEntities(ctx.entities, maxRadius);
+
+      for (const machine of machines) {
         const conf = machine.config ?? {};
         const radius = Math.max(0.1, num(conf.radius, 1.2));
         const cargoCap = str(conf.cargoCapability, 'pallet');
@@ -36,12 +46,9 @@ export function createLabelerBehavior(config: LabelerConfig = {}): WorldBehavior
         const mx = machine.transform.position[0];
         const mz = machine.transform.position[2];
 
-        for (const cargo of ctx.entities) {
+        for (const cargo of neighborsWithinRadius(grid, mx, mz, maxRadius, radius)) {
           if (!cargo.capabilities.includes(cargoCap)) continue;
           if (cargo.attrs.labeled === true) continue;
-          const dx = cargo.transform.position[0] - mx;
-          const dz = cargo.transform.position[2] - mz;
-          if (dx * dx + dz * dz > radius * radius) continue;
           ctx.setAttr(cargo.id, 'labeled', true);
           ctx.setAttr(cargo.id, 'labelBy', machine.id);
           ctx.emit(applyType, { entityId: machine.id, payload: { cargo: cargo.id } });

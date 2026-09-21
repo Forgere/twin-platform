@@ -1,5 +1,5 @@
 import type { BehaviorContext, WorldBehavior } from '@twin-platform/world-kernel';
-import { approach, headingAt, measurePolyline, num, samplePolyline, str, toXZ, vector3, vectorList } from './geometry';
+import { approach, bucketEntities, headingAt, measurePolyline, neighborsWithinRadius, num, samplePolyline, str, toXZ, vector3, vectorList } from './geometry';
 
 /**
  * 卡车循环：产线的**出口**（外部消耗方）。
@@ -30,8 +30,18 @@ export function createTruckBehavior(config: TruckConfig = {}): WorldBehavior {
   return {
     id: 'truck-cycle',
     step(ctx: BehaviorContext): void {
-      for (const truck of ctx.entities) {
-        if (!truck.capabilities.includes(truckCap)) continue;
+      const trucks = ctx.entities.filter((entity) => entity.capabilities.includes(truckCap));
+      if (trucks.length === 0) return;
+
+      // 网格 cell 取所有卡车里最大的装车半径：把"每台卡车扫全部实体找出库托盘"的
+      // O(N²) 双层循环压成 O(N)。候选就是全部实体，按位置入桶，装车时再按能力/状态过滤。
+      let maxLoadRadius = 2.2;
+      for (const truck of trucks) {
+        maxLoadRadius = Math.max(maxLoadRadius, Math.max(0.1, num(truck.config?.loadRadius, 2.2)));
+      }
+      const grid = bucketEntities(ctx.entities, maxLoadRadius);
+
+      for (const truck of trucks) {
         const conf = truck.config ?? {};
         const route = vectorList(conf.route);
         const line = measurePolyline(toXZ(route));
@@ -51,15 +61,19 @@ export function createTruckBehavior(config: TruckConfig = {}): WorldBehavior {
         let since = num(truck.attrs.since, ctx.time);
 
         if (state === 'docked') {
-          // 装车：把货位附近的出库托盘搬上车（真正移除实体）。
+          // 装车：把货位半径内的出库托盘搬上车（真正移除实体）。
+          // 用网格只查本卡车停靠点附近的货，不再扫全部实体；despawn 后必须核对
+          // `ctx.entity` 仍存活，避免同一托盘被多台卡车重复装走。
           let loaded = 0;
           if (load < capacity) {
-            for (const cargo of ctx.entities) {
+            for (const cargo of neighborsWithinRadius(grid, dock[0], dock[2], maxLoadRadius, loadRadius)) {
               if (load >= capacity) break;
               if (!cargo.capabilities.includes(cargoCap)) continue;
-              if (str(cargo.attrs.state, '') !== 'outbound') continue;
-              const dx = cargo.transform.position[0] - dock[0];
-              const dz = cargo.transform.position[2] - dock[2];
+              const live = ctx.entity(cargo.id);
+              if (!live) continue;
+              if (str(live.attrs.state, '') !== 'outbound') continue;
+              const dx = live.transform.position[0] - dock[0];
+              const dz = live.transform.position[2] - dock[2];
               if (dx * dx + dz * dz > loadRadius * loadRadius) continue;
               ctx.despawn(cargo.id);
               load += 1;

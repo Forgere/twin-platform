@@ -1,6 +1,6 @@
 import type { BehaviorContext, WorldBehavior, WorldEntityState } from '@twin-platform/world-kernel';
 import type { TwinVector3 } from '@twin-platform/scene-schema';
-import { num, numList, str, vectorList } from './geometry';
+import { bucketEntities, neighborsWithinRadius, num, numList, str, vectorList } from './geometry';
 
 /**
  * 打包行为：把 `batch` 个小货物合成 1 个大货物。
@@ -41,12 +41,6 @@ export interface PackingConfig {
   holdY?: number;
 }
 
-const withinRadius = (entity: WorldEntityState, x: number, z: number, radius: number): boolean => {
-  const dx = entity.transform.position[0] - x;
-  const dz = entity.transform.position[2] - z;
-  return dx * dx + dz * dz <= radius * radius;
-};
-
 export function createPackingBehavior(config: PackingConfig = {}): WorldBehavior {
   const packCap = config.packCapability ?? 'pack';
   const defaultGoodsCap = config.goodsCapability ?? 'parcel';
@@ -59,8 +53,27 @@ export function createPackingBehavior(config: PackingConfig = {}): WorldBehavior
   return {
     id: 'packing',
     step(ctx: BehaviorContext): void {
-      for (const station of ctx.entities) {
-        if (!station.capabilities.includes(packCap)) continue;
+      const stations = ctx.entities.filter((entity) => entity.capabilities.includes(packCap));
+      if (stations.length === 0) return;
+
+      // 网格 cell 取所有工位里最大的认领半径；一次性把"扣在缓存位上的货"按工位分组——
+      // 二者都是把"每台工位扫全部实体"的 O(N²) 双层循环压成 O(N)。
+      let maxRadius = 1.8;
+      for (const station of stations) {
+        maxRadius = Math.max(maxRadius, Math.max(0.1, num(station.config?.radius, 1.8)));
+      }
+      const heldByStation = new Map<string, WorldEntityState[]>();
+      for (const entity of ctx.entities) {
+        const held = str(entity.attrs.heldBy, '');
+        if (held !== '') {
+          const list = heldByStation.get(held);
+          if (list) list.push(entity);
+          else heldByStation.set(held, [entity]);
+        }
+      }
+      const grid = bucketEntities(ctx.entities, maxRadius);
+
+      for (const station of stations) {
         const conf = station.config ?? {};
         const goodsCap = str(conf.goodsCapability, defaultGoodsCap);
         const batch = Math.max(1, Math.round(config.batch ?? num(conf.batch, 2)));
@@ -80,11 +93,8 @@ export function createPackingBehavior(config: PackingConfig = {}): WorldBehavior
         ];
 
         // 1) 已经被扣在缓存位上的货：每步把位置钉住（内核 motion 还在推它，这里覆盖掉）。
-        const held: WorldEntityState[] = [];
-        for (const entity of ctx.entities) {
-          if (str(entity.attrs.heldBy, '') !== station.id) continue;
-          held.push(entity);
-        }
+        //    来自上面的单次分组，不再是"每台工位扫全部实体"。
+        const held = (heldByStation.get(station.id) ?? []).slice();
         held.sort((a, b) => num(a.attrs.holdIndex, 0) - num(b.attrs.holdIndex, 0) || (a.id < b.id ? -1 : 1));
         held.forEach((entity, index) => {
           ctx.setTransform(entity.id, { position: holdSlot(index) });
@@ -101,16 +111,15 @@ export function createPackingBehavior(config: PackingConfig = {}): WorldBehavior
           continue;
         }
 
-        // 3) 认领新货：从经过工位的货里，按到达顺序补满缓存位。
+        // 3) 认领新货：从网格里"半径内 + 有产出源 + 还没被扣住"的货按到达顺序补满缓存位。
         //    只认**发生器产出**的货（config.source 非空）——否则场景里别的物料
         //    （比如分流支线的 divert-cargo-1）路过这里也会被卷进打包站。
-        const incoming = ctx.entities
+        const incoming = neighborsWithinRadius(grid, stationX, stationZ, maxRadius, radius)
           .filter(
             (entity) =>
               entity.capabilities.includes(goodsCap) &&
               str(entity.config?.source, '') !== '' &&
-              str(entity.attrs.heldBy, '') === '' &&
-              withinRadius(entity, stationX, stationZ, radius),
+              str(entity.attrs.heldBy, '') === '',
           )
           .sort((a, b) => num(a.attrs.born, 0) - num(b.attrs.born, 0) || (a.id < b.id ? -1 : 1));
         for (const entity of incoming) {

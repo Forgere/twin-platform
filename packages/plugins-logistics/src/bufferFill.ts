@@ -1,4 +1,5 @@
 import type { BehaviorContext, WorldBehavior, WorldEntityState } from '@twin-platform/world-kernel';
+import { bucketEntities, neighborsWithinRadius } from './geometry';
 
 /**
  * 缓存货架填充行为（P1 的"货物等待"可视化来源）。
@@ -46,14 +47,16 @@ export function createBufferFillBehavior(config: BufferFillConfig = {}): WorldBe
       }
       if (buffers.length === 0) return;
 
+      // 按位置把货物哈希进网格（cell = 检测半径）：每台缓存架只查自己附近的货，
+      // 不再扫全部货物（buffers × parcels = O(N²)，副本翻倍时平方级恶化）。
+      const grid = bucketEntities(parcels, radius);
+
       for (const buffer of buffers) {
         const bx = buffer.transform.position[0];
         const bz = buffer.transform.position[2];
         let count = 0;
-        for (const parcel of parcels) {
-          const dx = parcel.transform.position[0] - bx;
-          const dz = parcel.transform.position[2] - bz;
-          if (dx * dx + dz * dz <= radius * radius) count += 1;
+        for (const parcel of neighborsWithinRadius(grid, bx, bz, radius, radius)) {
+          count += 1;
         }
         // 量化成 capacity 档：只有档位变了才写，避免每步产生帧差量。
         const fill = Math.min(count, capacity) / capacity;

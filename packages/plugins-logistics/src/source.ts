@@ -35,6 +35,15 @@ export function createGoodsSourceBehavior(config: GoodsSourceConfig = {}): World
   return {
     id: 'goods-source',
     step(ctx: BehaviorContext): void {
+      // 一次性统计"每个发生器当前在制的货物数"，避免对每台发生器扫描全部实体（O(N²)）。
+      // 货物由本行为 spawn 时打上 `config.source = 发生器 id`，所以按该 tag 计数即可，
+      // 与逐台扫描全部实体再比对 capability + source 的旧逻辑等价。
+      const liveBySource = new Map<string, number>();
+      for (const entity of ctx.entities) {
+        const src = str(entity.config?.source, '');
+        if (src !== '') liveBySource.set(src, (liveBySource.get(src) ?? 0) + 1);
+      }
+
       for (const source of ctx.entities) {
         if (!source.capabilities.includes(sourceCap)) continue;
         const conf = source.config ?? {};
@@ -45,11 +54,8 @@ export function createGoodsSourceBehavior(config: GoodsSourceConfig = {}): World
         const interval = Math.max(0.1, num(conf.interval, defaultInterval));
         const maxWip = Math.max(1, Math.round(num(conf.maxWip, defaultMaxWip)));
 
-        // 背压：只数"我产出的、还活着的"货物。
-        let live = 0;
-        for (const entity of ctx.entities) {
-          if (entity.capabilities.includes(goodsCap) && str(entity.config?.source, '') === source.id) live += 1;
-        }
+        // 背压：只数"我产出的、还活着的"货物（来自上面的单次统计）。
+        const live = liveBySource.get(source.id) ?? 0;
         if (live >= maxWip) continue;
         if (ctx.time < num(source.attrs.nextAt, 0)) continue;
 
