@@ -6,12 +6,17 @@
   "scripts": {
     "dev": "bun --watch src/index.ts",
     "start": "bun src/index.ts",
-    "smoke:postgres": "bun scripts/smoke-postgres.ts"
+    "smoke:postgres": "bun scripts/smoke-postgres.ts",
+    "live:mqtt": "bun scripts/live-twin.ts"
   },
   "dependencies": {
+    "@twin-platform/data-source-mqtt": "workspace:*",
+    "@twin-platform/replay-core": "workspace:*",
     "@twin-platform/scene-schema": "workspace:*",
     "@twin-platform/storage-contracts": "workspace:*",
     "@twin-platform/storage-file": "workspace:*",
-    "@twin-platform/storage-postgres": "workspace:*"
+    "@twin-platform/storage-memory": "workspace:*",
+    "@twin-platform/storage-postgres": "workspace:*",
+    "@twin-platform/world-kernel": "workspace:*"
   }
 }
