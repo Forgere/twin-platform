@@ -147,7 +147,17 @@ const qualified = (schema: string | undefined) => (name: string): string => (sch
  */
 export async function applyMigrations(
   executor: SqlExecutor,
-  options: { schema?: string; migrations?: Migration[]; migrationsDir?: string } = {},
+  options: {
+    schema?: string;
+    migrations?: Migration[];
+    migrationsDir?: string;
+    /**
+     * 跳过某些语句（整条 `;` 切分后的语句）。用于 PGlite 等真 PG 子集：
+     * 它们对 `$$` 美元引用里的动态 DDL（如 `twin_ensure_event_partitions`）解析有局限，
+     * 而 `twin_events` 已有 DEFAULT 分区兜底，跳过不影响入库与契约。
+     */
+    skipStatement?: (sql: string) => boolean;
+  } = {},
 ): Promise<MigrationResult> {
   const name = qualified(options.schema);
   const migrations = options.migrations ?? readMigrations(options.migrationsDir);
@@ -170,6 +180,7 @@ export async function applyMigrations(
       continue;
     }
     for (const statement of splitSqlStatements(migration.sql)) {
+      if (options.skipStatement?.(statement)) continue;
       await executor.query(statement);
     }
     await executor.query(`insert into ${name('_twin_migrations')} (name) values ($1) on conflict (name) do nothing`, [migration.name]);

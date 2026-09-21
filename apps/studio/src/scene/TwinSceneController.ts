@@ -68,7 +68,7 @@ export class TwinSceneController {
   private readonly worldScene: TwinScene;
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(42, 1, 0.1, 200);
-  private readonly clock = new THREE.Clock();
+  private readonly timer = new THREE.Timer();
   private readonly raycaster = new THREE.Raycaster();
   private readonly pointer = new THREE.Vector2();
   private readonly entityMeshes = new Map<string, THREE.Object3D>();
@@ -102,9 +102,9 @@ export class TwinSceneController {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setClearColor('#F5F2EB');
     this.renderer.shadowMap.enabled = true;
-    // PCFSoft：相比默认 BasicShadowMap（硬边、移动物体边缘严重闪烁）抗锯齿好得多，
-    // 代价只是多一次纹理采样，单方向光下几乎无感，专治箱子移动时阴影抖动。
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // PCFShadowMap：相比默认 BasicShadowMap（硬边、移动物体边缘严重闪烁）抗锯齿更好；
+    // 旧版用的 PCFSoftShadowMap 在本版本 three 已废弃（强制回落 PCFShadowMap），故直接用 PCF。
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.host.append(this.renderer.domElement);
     this.camera.position.set(20, 24, 40);
     this.controls = new CameraControls(this.camera, this.renderer.domElement);
@@ -204,7 +204,12 @@ export class TwinSceneController {
     if (this.cargoPool.has(id)) {
       const matrix = this.cargoPool.matrixOf(id);
       if (matrix) {
-        const box = new THREE.Box3().setFromMatrix4(matrix);
+        // 实例矩阵 = 单位立方体按 size 缩放 + 绕 Y 旋转 + 平移；Box3Helper 只能画轴对齐线框，
+        // 故从矩阵取中心点、用声明尺寸建轴对齐盒（旋转时略宽松，但足够做选中高亮）。
+        // 注意：Box3 没有 setFromMatrix4（那是 Matrix3 的方法），旧写法运行时直接崩。
+        const size = this.entitySizes.get(id) ?? DEFAULT_SIZE;
+        const center = new THREE.Vector3().setFromMatrixPosition(matrix);
+        const box = new THREE.Box3().setFromCenterAndSize(center, new THREE.Vector3(size[0], size[1], size[2]));
         const helper = new THREE.Box3Helper(box, new THREE.Color(HIGHLIGHT));
         this.selectionHelper = helper;
         this.scene.add(helper);
@@ -591,7 +596,9 @@ export class TwinSceneController {
 
   private renderFrame = (): void => {
     this.frameId = requestAnimationFrame(this.renderFrame);
-    const delta = this.clock.getDelta();
+    // three r185 起 Clock 废弃，改用 Timer：每帧先 update() 再 getDelta()（单位同为秒）。
+    this.timer.update();
+    const delta = this.timer.getDelta();
     this.applyFrame(this.controller.advance(delta));
     this.animateBeltAndRollers(delta);
     if (this.selectionHelper && 'update' in this.selectionHelper && typeof (this.selectionHelper as { update?: unknown }).update === 'function') {
