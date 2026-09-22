@@ -30,6 +30,13 @@ import type {
 export interface HttpStorageOptions {
   /** 服务端地址，例如 `http://localhost:8787`。末尾不要带斜杠。 */
   baseUrl: string;
+  /**
+   * Bearer token，每个请求都带上。
+   *
+   * **生产不要设**：线上由 Cloudflare Worker 反代时注入，浏览器不知道 token。
+   * 只有本地跨源联调（vite:3000 直连 server:8799）才用 `VITE_TWIN_API_TOKEN` 填它。
+   */
+  token?: string;
   /** 自定义 fetch（测试注入用），默认全局 fetch。 */
   fetchImpl?: typeof fetch;
   /** 事件攒够多少条立即发送，默认 64。 */
@@ -44,23 +51,38 @@ export interface HttpStorage extends TwinStorage {
   flush(): Promise<void>;
 }
 
-/** 服务端健康检查的返回结构。 */
+/**
+ * 服务端健康检查的返回结构。
+ *
+ * 只有 ok 与 backend：dataPath / 连接串 / 场景数都是访客不该看见的后端元信息，
+ * 服务端那边也相应收敛了字段（见 apps/server 的 /api/health）。
+ */
 export interface ServerHealth {
   ok: boolean;
   backend: string;
-  dataPath: string;
-  scenes: number;
 }
 
 const encode = (value: string): string => encodeURIComponent(value);
 
 class Transport {
   private readonly fetchImpl: typeof fetch;
-  constructor(private readonly baseUrl: string, fetchImpl?: typeof fetch) {
+  constructor(
+    private readonly baseUrl: string,
+    fetchImpl?: typeof fetch,
+    private readonly token?: string,
+  ) {
     // 必须绑定到 globalThis：浏览器里 fetch 依赖 Window 作为 this，
     // 当作裸引用存进 this.fetchImpl 后再 this.fetchImpl(...) 调用会抛
     // "Illegal invocation"（fetch 的 this 丢失）。
     this.fetchImpl = (fetchImpl ?? globalThis.fetch).bind(globalThis);
+  }
+
+  /** 带上鉴权头：没 token 就原样不动（服务端未启用鉴权时本来也不需要）。 */
+  private authHeaders(json: boolean): HeadersInit | undefined {
+    const headers: Record<string, string> = {};
+    if (json) headers['content-type'] = 'application/json';
+    if (this.token) headers['authorization'] = `Bearer ${this.token}`;
+    return Object.keys(headers).length > 0 ? headers : undefined;
   }
 
   private url(path: string, params: Record<string, string | number | undefined> = {}): string {
@@ -73,33 +95,33 @@ class Transport {
   }
 
   async get<T>(path: string, params: Record<string, string | number | undefined> = {}): Promise<T | null> {
-    const response = await this.fetchImpl(this.url(path, params));
+    const response = await this.fetchImpl(this.url(path, params), { headers: this.authHeaders(false) });
     if (response.status === 404) return null;
-    if (!response.ok) throw new Error(await Transport.message(response));
+    if (!response.ok) throw new Error(await responseMessage(response));
     return (await response.json()) as T;
   }
 
   async send<T>(method: 'POST' | 'PUT' | 'DELETE', path: string, body?: unknown, params: Record<string, string | number | undefined> = {}): Promise<T> {
     const response = await this.fetchImpl(this.url(path, params), {
       method,
-      headers: body === undefined ? undefined : { 'content-type': 'application/json' },
+      headers: this.authHeaders(body !== undefined),
       body: body === undefined ? undefined : JSON.stringify(body),
     });
-    if (!response.ok) throw new Error(await Transport.message(response));
+    if (!response.ok) throw new Error(await responseMessage(response));
     return (await response.json()) as T;
   }
+}
 
-  /** 把服务端的 `{ error, issues? }` 摊平成人能读的一句话。 */
-  private static async message(response: Response): Promise<string> {
-    try {
-      const body = (await response.json()) as { error?: string; issues?: { path: string; message: string }[] };
-      if (body.issues?.length) {
-        return `${body.error ?? '请求失败'} ${body.issues.map((issue) => `${issue.path} ${issue.message}`).join('; ')}`;
-      }
-      return body.error ?? `HTTP ${response.status}`;
-    } catch {
-      return `HTTP ${response.status}`;
+/** 把服务端的 `{ error, issues? }` 摊平成人能读的一句话。 */
+async function responseMessage(response: Response): Promise<string> {
+  try {
+    const body = (await response.json()) as { error?: string; issues?: { path: string; message: string }[] };
+    if (body.issues?.length) {
+      return `${body.error ?? '请求失败'} ${body.issues.map((issue) => `${issue.path} ${issue.message}`).join('; ')}`;
     }
+    return body.error ?? `HTTP ${response.status}`;
+  } catch {
+    return `HTTP ${response.status}`;
   }
 }
 
@@ -300,7 +322,7 @@ class HttpMetricRepository implements MetricRepository {
 
 /** 建一个走 HTTP 的仓储。 */
 export function createHttpStorage(options: HttpStorageOptions): HttpStorage {
-  const transport = new Transport(options.baseUrl, options.fetchImpl);
+  const transport = new Transport(options.baseUrl, options.fetchImpl, options.token);
   const events = new HttpEventRepository(transport, options.batchSize ?? 64, options.flushMs ?? 400);
   return {
     baseUrl: options.baseUrl,
@@ -315,28 +337,61 @@ export function createHttpStorage(options: HttpStorageOptions): HttpStorage {
 }
 
 /**
- * 探一下服务端在不在。
+ * 探一次服务端：**同时回答两个问题**——它在不在，以及认不认这个 token。
  *
- * Studio 启动时调它：在就用 HTTP 仓储（能存下来），不在就退回内存仓储
- * （纯静态也能跑）。**不抛异常**——服务端没起是正常状态，不是错误。
+ * Studio 启动时调它：
+ * - `ok` → 换 HTTP 仓储，场景与事件落服务端；
+ * - `offline` → 纯静态兜底，**不报错**（服务端没起是正常状态）；
+ * - `unauthorized` → 服务端在但拒绝了我们。这**不是**正常状态，也**不能**
+ *   静默降级成内存仓储——否则用户会以为存下来了，刷新才发现全丢。
  */
-export async function pingServer(baseUrl: string, timeoutMs = 1200): Promise<ServerHealth | null> {
-  const controller = typeof AbortController === 'function' ? new AbortController() : undefined;
-  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : undefined;
+export type PingResult =
+  | { status: 'ok'; health: ServerHealth }
+  | { status: 'unauthorized'; message: string }
+  | { status: 'offline' };
+
+export interface PingOptions {
+  /** 探测超时（毫秒），默认 1200。 */
+  timeoutMs?: number;
+  /** Bearer token：本地跨源联调才需要，生产由 Cloudflare Worker 注入。 */
+  token?: string;
+}
+
+export async function pingServer(baseUrl: string, options: PingOptions = {}): Promise<PingResult> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 1200);
   try {
-    const response = await fetch(`${baseUrl}/api/health`, controller ? { signal: controller.signal } : undefined);
-    if (!response.ok) return null;
-    return (await response.json()) as ServerHealth;
+    const headers: Record<string, string> = {};
+    if (options.token) headers['authorization'] = `Bearer ${options.token}`;
+    const response = await fetch(`${baseUrl}/api/health`, {
+      signal: controller.signal,
+      headers: Object.keys(headers).length > 0 ? headers : undefined,
+    });
+    if (response.status === 401 || response.status === 403) {
+      return { status: 'unauthorized', message: await responseMessage(response) };
+    }
+    if (!response.ok) return { status: 'offline' };
+    return { status: 'ok', health: (await response.json()) as ServerHealth };
   } catch {
-    return null;
+    return { status: 'offline' };
   } finally {
-    if (timer) clearTimeout(timer);
+    clearTimeout(timer);
   }
 }
 
-/** 服务端地址的默认推断：同源优先，否则回落到 8787。 */
+/**
+ * 服务端地址的默认推断：同源优先，否则回落到 8787。
+ *
+ * 必须认 `port === ''`：域名走 80/443 时浏览器给的 port 就是空串，
+ * 那正是 Cloudflare 上的常态。只认 `'8787'` 会拼出 `https://域名:8788`——
+ * 一个没人监听的端口，探测必然失败，于是静默退回内存仓储（刷新即丢）。
+ *
+ * 显式地址用 `VITE_TWIN_SERVER` 覆盖（在调用方，不在这里：本包不认识 vite）。
+ */
 export function defaultServerUrl(): string {
   if (typeof location === 'undefined') return 'http://localhost:8787';
-  // 同源部署时（服务端托管 studio/dist）不需要另配地址。
-  return location.port === '8787' ? location.origin : `${location.protocol}//${location.hostname}:8787`;
+  // 端口为空（80/443 默认）或显式 8787（本地 wrangler dev 把 Worker 跑在 8787）
+  // 都是同源，直接用 origin。
+  if (location.port === '' || location.port === '8787') return location.origin;
+  return `${location.protocol}//${location.hostname}:8787`;
 }

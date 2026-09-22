@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+
+    // 与根 tsconfig 同一套 paths：Windows 侧 IDE、CI 没跑 `bun install` 建软链时也能解析。
+    "baseUrl": ".",
+    "paths": {
+      "@twin-platform/*": ["../../packages/*/src/index.ts"]
+    },
+
+    // node = node:fs / node:path / process；bun = Bun.serve / Bun.file。
+    "types": ["node", "bun"],
+    "lib": ["ESNext"]
+  },
+  "include": ["src/**/*.ts", "scripts/**/*.ts"],
+  // 仓库没统一装 bun-types，测试文件不进类型检查（与各包 tsconfig 同样的取舍）。
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts"]
+}

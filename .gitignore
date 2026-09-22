@@ -9,6 +9,9 @@ app.config.timestamp_*.js
 # Environment
 .env
 .env*.local
+# wrangler 本地 secret（含 API_TOKEN / UPSTREAM），绝不能提交；
+# 模板 .dev.vars.example 要提交，所以只按精确文件名忽略。
+.dev.vars
 
 # dependencies
 node_modules/

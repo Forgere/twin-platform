@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { parseSceneDocument, type TwinScene } from '@twin-platform/scene-schema';
+import { authorizeApi, readApiToken } from './auth';
 import { createServerStorage, removeScene, type ServerStorage } from './storage';
 
 /**
@@ -21,6 +22,9 @@ import { createServerStorage, removeScene, type ServerStorage } from './storage'
 const PORT = Number(process.env.PORT ?? 8787);
 const DATA_PATH = resolve(process.env.TWIN_DATA ?? 'data/twin.json');
 const STUDIO_DIST = resolve(process.env.TWIN_STUDIO_DIST ?? 'apps/studio/dist');
+// 空 = 不启用鉴权（本地零配置照常跑）；有值 = /api/* 一条都不放行。
+// 语义与不变量见 ./auth.ts。生产由 apps/worker 的 secret 注入，不进前端。
+const API_TOKEN = readApiToken(process.env);
 
 const serverStorage = await createServerStorage({ dataPath: DATA_PATH });
 const storage = serverStorage.storage;
@@ -29,7 +33,8 @@ const CORS_HEADERS: Record<string, string> = {
   // 开发时 Studio 跑在 vite 的另一个端口上，必须放行。
   'access-control-allow-origin': '*',
   'access-control-allow-methods': 'GET,POST,PUT,DELETE,OPTIONS',
-  'access-control-allow-headers': 'content-type',
+  // 不写 authorization，跨源带 token 的请求会被浏览器 preflight 挡死。
+  'access-control-allow-headers': 'content-type,authorization',
 };
 
 const json = (body: unknown, status = 200): Response =>
@@ -45,6 +50,11 @@ const num = (value: string | null): number | undefined => {
 
 const requireSceneId = (url: URL): string | undefined => url.searchParams.get('sceneId') ?? undefined;
 
+/** `/api` 与 `/api/...` 都算接口；与 apps/worker 的 isApiPath 保持同一套判断。 */
+function isApiPath(path: string): boolean {
+  return path === '/api' || path.startsWith('/api/');
+}
+
 async function readJson<T>(request: Request): Promise<T | undefined> {
   try {
     return (await request.json()) as T;
@@ -59,19 +69,24 @@ const server = Bun.serve({
     const url = new URL(request.url);
     const path = url.pathname;
 
+    // 预检必须先于鉴权：OPTIONS 不带 Authorization 是浏览器的既定行为。
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS_HEADERS });
 
     // -------------------------------------------------------------------------
-    // 健康检查：前端靠它判断"服务端在不在"，决定要不要启用服务端存储。
+    // 鉴权：/api/* 全部（含 health）在路由之前过这一道。
+    // token 是共享的 → 经 Worker 注入后"每个访客都已鉴权"，所以不留任何免检面。
+    // -------------------------------------------------------------------------
+    if (isApiPath(path)) {
+      const decision = authorizeApi(request.headers.get('authorization'), API_TOKEN);
+      if (!decision.ok) return json({ error: decision.message }, decision.status ?? 401);
+    }
+
+    // -------------------------------------------------------------------------
+    // 健康检查：前端靠它判断"服务端在不在 + 认不认这个 token"，决定要不要启用
+    // 服务端存储。字段只回 ok/backend——dataPath、连接串、场景数都是访客不该看见的。
     // -------------------------------------------------------------------------
     if (path === '/api/health') {
-      return json({
-        ok: true,
-        backend: serverStorage.backend,
-        dataPath: DATA_PATH,
-        ...serverStorage.detail,
-        scenes: (await storage.scenes.listScenes()).length,
-      });
+      return json({ ok: true, backend: serverStorage.backend });
     }
 
     // -------------------------------------------------------------------------
@@ -267,7 +282,12 @@ const server = Bun.serve({
 });
 
 console.log(`[twin-server] http://localhost:${server.port}`);
-console.log(`[twin-server] 数据文件：${DATA_PATH}`);
+console.log(`[twin-server] 存储后端：${serverStorage.backend}`, serverStorage.detail);
+console.log(
+  API_TOKEN
+    ? '[twin-server] 鉴权：已启用（/api/* 需要 Authorization: Bearer <TWIN_API_TOKEN>）'
+    : '[twin-server] 鉴权：未启用（TWIN_API_TOKEN 未设置）——公网部署前必须设置',
+);
 console.log(
   existsSync(STUDIO_DIST)
     ? `[twin-server] 静态托管：${STUDIO_DIST}`

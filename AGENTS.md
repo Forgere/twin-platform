@@ -48,6 +48,9 @@ Bun workspaces: `apps/*`、`packages/*`、`plugins/*`。
 - `packages/replay-core` — 会话录制（`SessionRecorder`）+ 确定性时间轴（`ReplayController`）。
 - `packages/data-source-csv` — CSV 外部数据源 Adapter。
 - `apps/studio` — Solid 工作台，只消费内核的 `FrameDelta`，不自己推演状态。
+- `apps/server` — REST API（`/api/*`）+ 同源托管 Studio；`TWIN_API_TOKEN` 开共享鉴权。
+- `apps/worker` — Cloudflare Worker：静态资产 + `/api/*` 反代，**注入** `Authorization`。
+  token 不进前端 bundle，浏览器只知道同源 `/api/*`。
 
 包之间用 `@twin-platform/*` 互相引用。根 `tsconfig.json` 里配了 `paths`，
 所以即便不装软链（Windows 侧 IDE、CI）也能解析；新增包要同步登记 `paths`
@@ -57,9 +60,11 @@ Bun workspaces: `apps/*`、`packages/*`、`plugins/*`。
 
 ```bash
 bun install          # 在 WSL 里执行（会重建 workspace 软链）
-bun run test         # bun test packages —— 包的单元测试
-bun run typecheck    # Studio + 全部包
+bun run test         # bun test packages + apps/server + apps/worker —— 包与服务端的单元测试
+bun run typecheck    # Studio + 全部包 + apps（server / worker）
 bun run dev          # Studio 开发服务器
+bun run dev:server   # apps/server（默认 :8787，设 TWIN_API_TOKEN 才开鉴权）
+bun run dev:worker   # apps/worker 的 wrangler dev（默认 :8787，上游读 apps/worker/.dev.vars）
 ```
 
 包的测试用 `bun:test`（`import { test, expect } from "bun:test"`），

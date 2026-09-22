@@ -253,10 +253,20 @@ export default function TwinViewport() {
     // onSettled 要求回调返回「清理函数或 undefined」；原 onMount 是 fire-and-forget，
     // 这里把异步体包成 IIFE 再以 void 返回，等价于挂载后只探一次服务端。
     void (async () => {
-      const url = defaultServerUrl();
-      const health = await pingServer(url);
-      if (!health) return;
-      const storage = createHttpStorage({ baseUrl: url });
+      // 线上同源（经 Cloudflare Worker，token 由 Worker 注入）时这两个都是空：
+      // URL 走 origin，前端不带 token，也带不了——它根本不知道 token。
+      // 本地跨源联调才用 VITE_TWIN_SERVER / VITE_TWIN_API_TOKEN 覆盖。
+      const url = import.meta.env.VITE_TWIN_SERVER || defaultServerUrl();
+      const token = import.meta.env.VITE_TWIN_API_TOKEN || undefined;
+      const ping = await pingServer(url, { token });
+      if (ping.status === 'offline') return; // 纯静态部署：正常状态，不打扰。
+      if (ping.status === 'unauthorized') {
+        // 服务端在但拒绝了我们。**不能**静默降级成内存仓储——那会让人以为
+        // 存下来了，刷新才发现全丢。把原因写进场景面板，让人看得见。
+        setServer({ url, scenes: [], busy: false, note: `鉴权失败：${ping.message}` });
+        return;
+      }
+      const storage = createHttpStorage({ baseUrl: url, token });
       setServerStorage(storage);
       setServer({ url, scenes: [], busy: false });
       // 换仓储要重建会话（录制器绑定着 storage 实例）。

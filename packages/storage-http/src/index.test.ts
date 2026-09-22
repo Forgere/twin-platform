@@ -15,13 +15,27 @@ interface Call {
   url: string;
   method: string;
   body?: unknown;
+  headers: Headers;
+  authorization: string | null;
+  contentType: string | null;
 }
 
-function harness(respond: (url: string) => unknown = () => ({}), options: { batchSize?: number } = {}) {
+function harness(
+  respond: (url: string) => unknown = () => ({}),
+  options: { batchSize?: number; token?: string } = {},
+) {
   const calls: Call[] = [];
   const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
-    calls.push({ url, method: init?.method ?? 'GET', body: init?.body ? JSON.parse(String(init.body)) : undefined });
+    const headers = new Headers(init?.headers);
+    calls.push({
+      url,
+      method: init?.method ?? 'GET',
+      body: init?.body ? JSON.parse(String(init.body)) : undefined,
+      headers,
+      authorization: headers.get('authorization'),
+      contentType: headers.get('content-type'),
+    });
     const body = respond(url);
     return new Response(JSON.stringify(body ?? {}), {
       status: 200,
@@ -30,7 +44,12 @@ function harness(respond: (url: string) => unknown = () => ({}), options: { batc
   }) as unknown as typeof fetch;
   return {
     calls,
-    storage: createHttpStorage({ baseUrl: 'http://srv', fetchImpl, batchSize: options.batchSize ?? 64 }),
+    storage: createHttpStorage({
+      baseUrl: 'http://srv',
+      fetchImpl,
+      batchSize: options.batchSize ?? 64,
+      token: options.token,
+    }),
   };
 }
 
@@ -210,6 +229,32 @@ describe('createHttpStorage / 请求形状', () => {
   });
 });
 
+describe('鉴权头', () => {
+  test('配了 token：GET、POST、DELETE 每个请求都带 Authorization；content-type 只在有 body 时带', async () => {
+    const { calls, storage } = harness(() => [], { token: 's3cret' });
+    await storage.scenes.listScenes();
+    await storage.scenes.putScene(contractScene);
+    await (storage.scenes as unknown as { remove(id: string): Promise<boolean> }).remove('line-a');
+
+    expect(calls.map((call) => `${call.method} ${call.authorization}`)).toEqual([
+      'GET Bearer s3cret',
+      'POST Bearer s3cret',
+      'DELETE Bearer s3cret',
+    ]);
+    // GET 不带 content-type：它没有入参，带了只会白白触发一次 preflight。
+    expect(calls[0]?.contentType).toBeNull();
+    expect(calls[1]?.contentType).toBe('application/json');
+    expect(calls[2]?.contentType).toBeNull();
+  });
+
+  test('没配 token：一个 authorization 头都不许出现', async () => {
+    const { calls, storage } = harness(() => []);
+    await storage.scenes.listScenes();
+    await storage.scenes.putScene(contractScene);
+    expect(calls.map((call) => call.authorization)).toEqual([null, null]);
+  });
+});
+
 describe('错误摊平', () => {
   test('服务端返回 4xx 时把 error 和 issues 拼成一句话', async () => {
     const fetchImpl = (async () =>
@@ -242,24 +287,58 @@ describe('错误摊平', () => {
 });
 
 describe('pingServer', () => {
-  test('服务端在时返回健康信息', async () => {
+  test('服务端在且 token 正确 → ok，并带回健康信息', async () => {
     const original = globalThis.fetch;
-    globalThis.fetch = (async () =>
-      new Response(JSON.stringify({ ok: true, backend: 'file', dataPath: '/x', scenes: 3 }))) as typeof fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      // token 必须真的发出去，否则线上经 Worker 探活会一直 401。
+      expect(new Headers(init?.headers).get('authorization')).toBe('Bearer s3cret');
+      expect(String(input)).toBe('http://srv/api/health');
+      return new Response(JSON.stringify({ ok: true, backend: 'postgres' }));
+    }) as typeof fetch;
     try {
-      expect(await pingServer('http://srv')).toEqual({ ok: true, backend: 'file', dataPath: '/x', scenes: 3 });
+      expect(await pingServer('http://srv', { token: 's3cret' })).toEqual({
+        status: 'ok',
+        health: { ok: true, backend: 'postgres' },
+      });
     } finally {
       globalThis.fetch = original;
     }
   });
 
-  test('服务端不在时返回 null，不抛异常（没起服务是正常状态）', async () => {
+  test('服务端在但 token 被拒 → unauthorized（不能当成"服务端不在"）', async () => {
+    const original = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ error: 'API token 无效。' }), {
+        status: 401,
+        headers: { 'content-type': 'application/json' },
+      })) as typeof fetch;
+    try {
+      expect(await pingServer('http://srv')).toEqual({ status: 'unauthorized', message: 'API token 无效。' });
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+
+  test('服务端不在时返回 offline，不抛异常（没起服务是正常状态）', async () => {
     const original = globalThis.fetch;
     globalThis.fetch = (async () => {
       throw new Error('ECONNREFUSED');
     }) as typeof fetch;
     try {
-      expect(await pingServer('http://srv')).toBeNull();
+      expect(await pingServer('http://srv')).toEqual({ status: 'offline' });
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+
+  test('没配 token 时请求不带 authorization 头', async () => {
+    const original = globalThis.fetch;
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      expect(new Headers(init?.headers).get('authorization')).toBeNull();
+      return new Response(JSON.stringify({ ok: true, backend: 'file' }));
+    }) as typeof fetch;
+    try {
+      expect(await pingServer('http://srv')).toEqual({ status: 'ok', health: { ok: true, backend: 'file' } });
     } finally {
       globalThis.fetch = original;
     }
@@ -267,7 +346,40 @@ describe('pingServer', () => {
 });
 
 describe('defaultServerUrl', () => {
+  const withLocation = (value: Partial<Location> | undefined, run: () => void): void => {
+    const original = Object.getOwnPropertyDescriptor(globalThis, 'location');
+    if (value === undefined) {
+      Reflect.deleteProperty(globalThis, 'location');
+    } else {
+      Object.defineProperty(globalThis, 'location', { value, configurable: true, writable: true });
+    }
+    try {
+      run();
+    } finally {
+      if (original) Object.defineProperty(globalThis, 'location', original);
+      else Reflect.deleteProperty(globalThis, 'location');
+    }
+  };
+
   test('没有 location 时回落到 8787', () => {
-    expect(defaultServerUrl()).toBe('http://localhost:8787');
+    withLocation(undefined, () => expect(defaultServerUrl()).toBe('http://localhost:8787'));
+  });
+
+  test('域名走 443（port 为空串）→ 同源 origin，不许拼 :8787', () => {
+    withLocation({ port: '', protocol: 'https:', hostname: 'twin.example.com', origin: 'https://twin.example.com' }, () => {
+      expect(defaultServerUrl()).toBe('https://twin.example.com');
+    });
+  });
+
+  test('本地 wrangler dev 跑在 8787 → 同源 origin', () => {
+    withLocation({ port: '8787', protocol: 'http:', hostname: 'localhost', origin: 'http://localhost:8787' }, () => {
+      expect(defaultServerUrl()).toBe('http://localhost:8787');
+    });
+  });
+
+  test('vite 的 3000 → 跨源回落到同主机的 8787', () => {
+    withLocation({ port: '3000', protocol: 'http:', hostname: 'localhost', origin: 'http://localhost:3000' }, () => {
+      expect(defaultServerUrl()).toBe('http://localhost:8787');
+    });
   });
 });

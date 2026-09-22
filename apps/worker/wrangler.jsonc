@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "twin-studio",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+
+  // 静态资产：Studio 的构建产物。非 /api 路径全部由这里服务，
+  // 未命中的路径回退 index.html（SPA 客户端路由要靠它）。
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "../studio/dist/client",
+    "not_found_handling": "single-page-application"
+  },
+
+  // UPSTREAM / API_TOKEN **故意不写进配置**：
+  // - 本地联调放 .dev.vars（已 gitignore），形如
+  //     UPSTREAM=http://127.0.0.1:8799
+  //     API_TOKEN=dev-token
+  // - 线上用 `wrangler secret put UPSTREAM` / `wrangler secret put API_TOKEN`。
+  // 写进配置的 vars 会被提交并随每次部署覆盖线上值，secret 不会。
+}
