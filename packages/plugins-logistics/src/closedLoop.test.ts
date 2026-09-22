@@ -18,6 +18,17 @@ const STEP = 1 / 60;
 /** 加速用的参数：产出间隔 1s、在制品 8、库存高水位 6，5 分钟就能跑出完整闭环。 */
 const FAST = { produceInterval: 1, maxWip: 8, highWater: 6, aisles: 2 } as const;
 
+/**
+ * 本文件的用例都在跑真实步进（最多 18000 步 × 60Hz），**单跑就要 1.5~5s**：
+ * 整个测试套件并行时 CPU 一抢，它们就会顶过 bun 默认的 5s 超时——
+ * 那是"饿死"，不是失败，红了会误导人去查一个不存在的 bug。
+ * 统一放宽到 30s：真死循环照样会红，只是不再看机器脸色。
+ */
+const simTest = (name: string, fn: () => void): void => {
+  // 注意：这里必须是 test，不能是 simTest——否则就是自递归（替换时踩过一次）。
+  test(name, fn, 30_000);
+};
+
 function makeWorld(steps = 0, seed = 20240906) {
   const scene = buildCenterScene(FAST);
   const behaviors = (logisticsPlugin.activate().behaviors ?? []) as WorldBehavior[];
@@ -75,7 +86,7 @@ const countByType = (world: TwinWorld): Record<string, number> => {
 };
 
 describe('智能物流中心 · 闭环产线', () => {
-  test('四个环节都在场景声明里：发生器 / 打包站 / 立库 / 卡车', () => {
+  simTest('四个环节都在场景声明里：发生器 / 打包站 / 立库 / 卡车', () => {
     const { scene } = makeWorld();
     const byKind = (kind: string): TwinEntity[] => scene.entities.filter((entity) => entity.kind === kind);
     expect(byKind('source').length).toBe(1);
@@ -99,7 +110,7 @@ describe('智能物流中心 · 闭环产线', () => {
     expect(byKind('pallet').length).toBe(0);
   });
 
-  test('整条线跑通：产出 → 打包 → 入库 → 出库 → 卡车运走', () => {
+  simTest('整条线跑通：产出 → 打包 → 入库 → 出库 → 卡车运走', () => {
     const { world } = makeWorld(60 * 300); // 5 分钟
     const counts = countByType(world);
     expect(counts['goods:produced'] ?? 0).toBeGreaterThan(0);
@@ -110,7 +121,7 @@ describe('智能物流中心 · 闭环产线', () => {
     expect(counts['truck:departed'] ?? 0).toBeGreaterThan(0);
   });
 
-  test('打包是严格的 2 合 1：每次消耗 2 个小货物、产 1 个托盘', () => {
+  simTest('打包是严格的 2 合 1：每次消耗 2 个小货物、产 1 个托盘', () => {
     const { world } = makeWorld(60 * 240);
     const packed = world.getEventLog().filter((event) => event.type === 'goods:packed');
     const producedIds = new Set(
@@ -134,7 +145,7 @@ describe('智能物流中心 · 闭环产线', () => {
     expect(packed.length).toBeGreaterThan(0);
   });
 
-  test('物料守恒：小货物 = 2×打包数 + 在制；托盘 = 已运走 + 在系统里', () => {
+  simTest('物料守恒：小货物 = 2×打包数 + 在制；托盘 = 已运走 + 在系统里', () => {
     const { world } = makeWorld(60 * 300);
     const counts = countByType(world);
     const produced = counts['goods:produced'] ?? 0;
@@ -150,7 +161,7 @@ describe('智能物流中心 · 闭环产线', () => {
     expect(packed).toBe(shipped + livePallets);
   });
 
-  test('背压：在制小货物不超过发生器声明的 maxWip', () => {
+  simTest('背压：在制小货物不超过发生器声明的 maxWip', () => {
     const { scene, world } = makeWorld();
     const maxWip = Number(scene.entities.find((entity) => entity.kind === 'source')?.config?.maxWip ?? 0);
     expect(maxWip).toBeGreaterThan(0);
@@ -166,7 +177,7 @@ describe('智能物流中心 · 闭环产线', () => {
     expect(peak).toBeLessThanOrEqual(maxWip);
   });
 
-  test('卡车按容量装车：每趟至少 1 件、不超过容量，且装走的托盘真的消失了', () => {
+  simTest('卡车按容量装车：每趟至少 1 件、不超过容量，且装走的托盘真的消失了', () => {
     const { world } = makeWorld(60 * 300);
     const events = world.getEventLog();
     const capacity = 4;
@@ -192,7 +203,7 @@ describe('智能物流中心 · 闭环产线', () => {
     }
   });
 
-  test('托盘进立库站台前经过打标机，每块只贴一次标', () => {
+  simTest('托盘进立库站台前经过打标机，每块只贴一次标', () => {
     const { world } = makeWorld(60 * 300);
     const applied = world.getEventLog().filter((event) => event.type === 'label:applied');
     expect(applied.length, '整条线跑完一次标都没贴').toBeGreaterThan(0);
@@ -212,7 +223,7 @@ describe('智能物流中心 · 闭环产线', () => {
     expect(marked.length).toBeGreaterThan(0);
   });
 
-  test('卡车车头朝着行驶方向（不会车身横着平移）', () => {
+  simTest('卡车车头朝着行驶方向（不会车身横着平移）', () => {
     const { world } = makeWorld(60 * 300);
     const prev = new Map<string, { x: number; z: number; rot: number }>();
     let worstCos = 1;
@@ -248,7 +259,7 @@ describe('智能物流中心 · 闭环产线', () => {
     expect(worstCos, `车头与行驶方向最大夹角 cos=${worstCos.toFixed(4)}`).toBeGreaterThan(0.999);
   });
 
-  test('货物全程贴着皮带 / 货架走，不会飘在空中', () => {
+  simTest('货物全程贴着皮带 / 货架走，不会飘在空中', () => {
     const { scene, world } = makeWorld();
     const boxes = surfaces(scene.entities);
     const offenders: string[] = [];
@@ -269,7 +280,7 @@ describe('智能物流中心 · 闭环产线', () => {
     expect(offenders.slice(0, 5)).toEqual([]);
   });
 
-  test('确定性：同种子两遍，事件流与实体指纹逐位一致', () => {
+  simTest('确定性：同种子两遍，事件流与实体指纹逐位一致', () => {
     const a = makeWorld(60 * 240);
     const b = makeWorld(60 * 240);
     const signature = (world: TwinWorld): string =>
@@ -288,7 +299,7 @@ describe('智能物流中心 · 闭环产线', () => {
     expect(fingerprint(a.world)).toBe(fingerprint(b.world));
   });
 
-  test('快照恢复后继续跑：生成出来的小货物与托盘都能按声明重建', () => {
+  simTest('快照恢复后继续跑：生成出来的小货物与托盘都能按声明重建', () => {
     const straight = makeWorld(60 * 150);
     const snapshot = straight.world.snapshot();
     for (let i = 0; i < 60 * 150; i += 1) straight.world.step(STEP);

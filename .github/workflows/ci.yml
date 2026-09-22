@@ -37,14 +37,14 @@ jobs:
 
       - name: 类型检查（studio）
         # 基线（本分支之前）就不是绿的：ScenePanel/TwinSceneController/
-        # entityMeshes/plugins-logistics 模板共十几处存量错误，与本分支无关。
+        # entityMeshes、`_tsmoke.ts` 共十余处存量错误，与本分支无关。
         # 先不挡门禁，修完再改成阻塞。
         continue-on-error: true
         run: bun run --filter @twin-platform/studio typecheck
 
       - name: 单元测试
-        # 慢测试（闭环产线）在并行下会顶到 bun 默认 5s 超时，放宽到 30s。
-        run: bun run test --timeout 30000
+        # 超时写在用例自己身上（见 closedLoop.test.ts 的 simTest），这里不加全局 flag。
+        run: bun run test
 
       - name: 构建 Studio
         run: bun run build
