@@ -1,0 +1,14 @@
+{
+  "name": "@twin-platform/plugins-fishing",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "typecheck": "tsc --noEmit -p tsconfig.json" },
+  "dependencies": {
+    "@twin-platform/decision-core": "workspace:*",
+    "@twin-platform/plugin-sdk": "workspace:*",
+    "@twin-platform/scene-schema": "workspace:*",
+    "@twin-platform/world-kernel": "workspace:*"
+  }
+}

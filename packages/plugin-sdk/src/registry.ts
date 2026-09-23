@@ -3,6 +3,7 @@ import {
   PLUGIN_SDK_VERSION,
   assertManifest,
   satisfiesSdkVersion,
+  type DecisionDomainDescriptor,
   type MetricDescriptor,
   type PanelDescriptor,
   type PluginInstance,
@@ -208,6 +209,10 @@ export class PluginHost {
     return this.collect('panels');
   }
 
+  get decisions(): DecisionDomainDescriptor[] {
+    return this.collect('decisions');
+  }
+
   get templates(): SceneTemplateDescriptor[] {
     return this.collect('templates');
   }
@@ -220,7 +225,7 @@ export class PluginHost {
     for (const id of [...this.order].reverse()) this.uninstall(id);
   }
 
-  private collect<K extends 'metrics' | 'panels' | 'templates'>(key: K): NonNullable<PluginInstance[K]> extends readonly (infer T)[] ? T[] : never {
+  private collect<K extends 'metrics' | 'decisions' | 'panels' | 'templates'>(key: K): NonNullable<PluginInstance[K]> extends readonly (infer T)[] ? T[] : never {
     const out: unknown[] = [];
     for (const id of this.order) {
       const record = this.records.get(id);
@@ -269,6 +274,10 @@ function filterContributions(
   if (!allowed.has('analytics') && instance.metrics?.length) {
     warn('未声明 analytics 能力，已忽略指标贡献。');
     result.metrics = undefined;
+  }
+  if (!allowed.has('decision') && instance.decisions?.length) {
+    warn('未声明 decision 能力，已忽略决策域贡献。');
+    result.decisions = undefined;
   }
   if (!allowed.has('panel') && instance.panels?.length) {
     warn('未声明 panel 能力，已忽略面板贡献。');

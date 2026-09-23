@@ -12,6 +12,7 @@ import {
   validateConfig,
   validateManifest,
   withDefaults,
+  type DecisionDomainDescriptor,
   type TwinPlugin,
   type TwinPluginManifest,
   type ValueSchema,
@@ -196,6 +197,27 @@ describe('PluginHost', () => {
     expect(host.metrics).toHaveLength(1);
     expect(host.panels[0]?.component).toBe('PanelA');
     expect(host.template('a.line')?.build({ id: 'x' })[0]?.id).toBe('x');
+  });
+
+  test('决策域按安装顺序汇总，未声明能力时被忽略', () => {
+    const domain: DecisionDomainDescriptor = {
+      id: 'demo.decision',
+      label: '演示决策域',
+      actions: [{ id: 'A', label: '动作 A', reversible: true, params: [] }],
+      judge: { id: 'rules', judge: () => ({ action: 'A', params: {}, confidence: 0.5, reasonCode: 'R' }) },
+      policy: { id: 'policy', validate: (_state, decision) => ({ ok: true, decision }) },
+      fallback: () => ({ action: 'A', params: {}, confidence: 0.1, reasonCode: 'DEGRADED' }),
+    };
+
+    const host = new PluginHost();
+    host.install({ manifest: manifest({ id: 'thinker', capabilities: ['decision'] }), activate: () => ({ decisions: [domain] }) });
+    expect(host.decisions).toHaveLength(1);
+    expect(host.decisions[0]?.label).toBe('演示决策域');
+
+    const quiet = new PluginHost();
+    quiet.install({ manifest: manifest({ id: 'mute', capabilities: ['behavior'] }), activate: () => ({ decisions: [domain] }) });
+    expect(quiet.decisions).toEqual([]);
+    expect(quiet.logs.some((entry) => entry.level === 'warn')).toBe(true);
   });
 
   test('卸载按逆序 dispose 并摘掉行为', () => {

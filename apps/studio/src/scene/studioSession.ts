@@ -4,9 +4,8 @@ import { createMemoryStorage } from '@twin-platform/storage-memory';
 import type { TwinStorage } from '@twin-platform/storage-contracts';
 import { TwinWorld, type WorldEvent } from '@twin-platform/world-kernel';
 import { lineMetrics, seriesLatest, type LineMetrics } from '@twin-platform/analytics-core';
-import { PluginHost } from '@twin-platform/plugin-sdk';
+import { PluginHost, type TwinPlugin } from '@twin-platform/plugin-sdk';
 import {
-  buildCenterScene,
   createAsrsBehavior,
   createBufferFillBehavior,
   createGoodsSourceBehavior,
@@ -14,8 +13,8 @@ import {
   createPackingBehavior,
   createTransferBehavior,
   createTruckBehavior,
-  logisticsPlugin,
 } from '@twin-platform/plugins-logistics';
+import { DEFAULT_PLUGIN_IDS, resolvePlugins, sceneForPlugins } from '../plugins/catalog';
 import { compareScenarios, type ScenarioDiff } from '@twin-platform/scenario-compare';
 import { sceneSummary, type SceneSummary, type TwinScene } from '@twin-platform/scene-schema';
 
@@ -55,14 +54,14 @@ export const SAMPLE_CSV = ['t,id,x,y,z', '0,cargo-01,-5.2,1.15,0', '1,cargo-01,-
  * 注意：`compare()` 也复用同一组参数，两处必须保持一致，
  * 否则分叉对比跑的不是同一套场景。
  */
-export const CENTER_PARAMS = { produceInterval: 6, maxWip: 10, highWater: 8, aisles: 2, externalLanes: 4 } as const;
+export { CENTER_PARAMS } from '../plugins/catalog';
 
 /** 场景从哪来：`template` 是插件模板生成的，`imported` 是外部 JSON 导入的。 */
 export type SceneSource = 'template' | 'imported';
 
-/** 模板场景：插件提供的默认产线，作为"导入前"的基准，也是"还原"的目标。 */
+/** 默认场景：由默认领域包（物流）提供，作为"导入前"的基准，也是"还原"的目标。 */
 export function buildDefaultScene(): TwinScene {
-  return buildCenterScene(CENTER_PARAMS);
+  return sceneForPlugins(DEFAULT_PLUGIN_IDS);
 }
 
 /** HUD 用的实时遥测快照（由世界事件日志派生，不在 Studio 里重算语义）。 */
@@ -112,6 +111,8 @@ export class StudioSession {
   readonly controller: ReplayController;
   /** 当前场景的来源：模板生成还是外部导入。UI 靠它提示"你正在跑别人的布局"。 */
   readonly sceneSource: SceneSource;
+  /** 当前会话安装的插件 id（安装顺序即行为执行顺序）。 */
+  readonly pluginIds: readonly string[];
 
   /**
    * @param scene 外部场景。不传则用插件模板生成默认产线；
@@ -120,14 +121,20 @@ export class StudioSession {
    * @param storage 仓储。默认内存（纯静态可跑）；服务端在的时候传 HTTP 仓储，
    *   场景与事件就能真的存下来、刷新不丢。
    */
-  constructor(scene?: TwinScene, storage: TwinStorage = createMemoryStorage()) {
+  constructor(
+    scene?: TwinScene,
+    storage: TwinStorage = createMemoryStorage(),
+    plugins: readonly TwinPlugin[] = resolvePlugins(DEFAULT_PLUGIN_IDS),
+  ) {
     this.storage = storage;
-    // 1) 安装物流插件：拿到行为、指标、场景模板（故障隔离在宿主里）。
+    // 1) 安装当前插件集：拿到行为、指标、决策域、场景模板（故障隔离在宿主里）。
+    //    安装顺序即行为执行顺序，所以传入数组的顺序是契约的一部分。
     this.host = new PluginHost();
-    this.host.install(logisticsPlugin);
+    for (const plugin of plugins) this.host.install(plugin);
+    this.pluginIds = plugins.map((plugin) => plugin.manifest.id);
 
-    // 2) 用插件模板生成场景，用插件行为驱动世界。
-    const resolved = scene ?? buildCenterScene(CENTER_PARAMS);
+    // 2) 场景优先用显式导入的；否则由所选领域包提供默认场景。
+    const resolved = scene ?? sceneForPlugins(this.pluginIds);
     this.sceneSource = scene ? 'imported' : 'template';
     this.world = new TwinWorld(resolved, {
       seed: 20240906,

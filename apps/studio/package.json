@@ -35,6 +35,7 @@
     "@twin-platform/analytics-core": "workspace:*",
     "@twin-platform/data-source-csv": "workspace:*",
     "@twin-platform/plugin-sdk": "workspace:*",
+    "@twin-platform/plugins-fishing": "workspace:*",
     "@twin-platform/plugins-logistics": "workspace:*",
     "@twin-platform/replay-core": "workspace:*",
     "@twin-platform/scenario-compare": "workspace:*",

@@ -2,6 +2,7 @@ import { createSignal, For, onCleanup, onSettled, Show, untrack } from 'solid-js
 import type { WorldEvent } from '@twin-platform/world-kernel';
 import type { LineMetrics } from '@twin-platform/analytics-core';
 import { StudioSession, type StudioTelemetry } from '../scene/studioSession';
+import { DEFAULT_PLUGIN_IDS, resolvePlugins } from '../plugins/catalog';
 import { TwinSceneController, type CameraPreset, type TwinEntityView } from '../scene/TwinSceneController';
 import type { ThemeName } from '../scene/theme';
 import { parseSceneDocument, sceneFileName, serializeSceneDocument } from '@twin-platform/scene-schema';
@@ -65,6 +66,7 @@ export default function TwinViewport() {
    * 会话是**可替换**的信号，不是常量：导入外部场景要整个换掉（世界、录制器、
    * 时间轴控制器全得重建），旧的那一份必须停掉，否则两个世界会同时推进。
    */
+  const [activePlugins, setActivePlugins] = createSignal<readonly string[]>([...DEFAULT_PLUGIN_IDS]);
   const [session, setSession] = createSignal(new StudioSession());
   let controller: TwinSceneController | undefined;
   let hostEl: HTMLDivElement | undefined;
@@ -159,7 +161,7 @@ export default function TwinViewport() {
     if (!parsed.ok || !parsed.scene) {
       return { ok: false, applied: parsed.applied, issues: parsed.issues };
     }
-    replaceSession(new StudioSession(parsed.scene));
+    replaceSession(new StudioSession(parsed.scene, undefined, resolvePlugins(activePlugins())));
     return {
       ok: true,
       name: parsed.scene.name,
@@ -176,8 +178,17 @@ export default function TwinViewport() {
     return { text: serializeSceneDocument(scene), fileName: sceneFileName(scene) };
   };
 
-  /** 还原到插件模板场景（服务端在线时继续用服务端仓储）。 */
-  const resetScene = () => replaceSession(new StudioSession(undefined, serverStorage()));
+  /** 还原到所选领域包的模板场景（服务端在线时继续用服务端仓储）。 */
+  const resetScene = () => replaceSession(new StudioSession(undefined, serverStorage(), resolvePlugins(activePlugins())));
+
+  /**
+   * 换插件集：行为在 TwinWorld 构造时固定，且插件集是回放输入的一部分，
+   * 所以只能"停旧会话 + 用新插件集重建"，不能热插拔。
+   */
+  const applyPlugins = (ids: string[]) => {
+    setActivePlugins(ids);
+    replaceSession(new StudioSession(undefined, serverStorage(), resolvePlugins(ids)));
+  };
 
   // ---------------------------------------------------------------------------
   // 服务端：在就接管存储（场景能存下来），不在就纯静态跑（导入导出仍可用）。
@@ -228,7 +239,7 @@ export default function TwinViewport() {
       if (!storage) throw new Error('服务端未连接。');
       const scene = await storage.scenes.getScene(id);
       if (!scene) throw new Error(`服务端上没有场景 ${id}。`);
-      const next = new StudioSession(scene, storage);
+      const next = new StudioSession(scene, storage, resolvePlugins(activePlugins()));
       replaceSession(next);
       // 这个场景可能已经被录制过，事件要接着写而不是从头覆盖。
       await next.resumeFromStorage();
@@ -270,7 +281,7 @@ export default function TwinViewport() {
       setServerStorage(storage);
       setServer({ url, scenes: [], busy: false });
       // 换仓储要重建会话（录制器绑定着 storage 实例）。
-      const next = new StudioSession(undefined, storage);
+      const next = new StudioSession(undefined, storage, resolvePlugins(activePlugins()));
       replaceSession(next);
       // 事件流是 append-only 的：库里已有历史就接着写，不能从头覆盖。
       await next.resumeFromStorage();
@@ -688,7 +699,7 @@ export default function TwinViewport() {
             </Show>
 
             <Show when={tab() === 'plugins'}>
-              <PluginsPanel host={session().host} />
+              <PluginsPanel host={session().host} activeIds={activePlugins()} onChange={applyPlugins} />
             </Show>
           </div>
         </aside>

@@ -1,5 +1,6 @@
 import type { TwinEntity, TwinValue } from '@twin-platform/scene-schema';
 import type { WorldBehavior } from '@twin-platform/world-kernel';
+import type { DecisionDomain, DecisionState } from '@twin-platform/decision-core';
 import type { ConfigValue, ValueSchema } from './schema';
 
 /**
@@ -18,7 +19,7 @@ import type { ConfigValue, ValueSchema } from './schema';
 export const PLUGIN_SDK_VERSION = '0.1.0';
 
 /** 插件能贡献的能力类型。manifest 声明什么，宿主才允许它注册什么。 */
-export type PluginCapability = 'behavior' | 'analytics' | 'data-source' | 'panel' | 'scene-template';
+export type PluginCapability = 'behavior' | 'analytics' | 'data-source' | 'panel' | 'scene-template' | 'decision';
 
 export interface TwinPluginManifest {
   /** 反向域名式 id，例如 `logistics`、`inspection.vision`。全仓库唯一。 */
@@ -64,9 +65,21 @@ export interface SceneTemplateDescriptor<P = ConfigValue> {
   build(params: P): TwinEntity[];
 }
 
+/**
+ * 决策域描述符：插件贡献的"状态 -> 动作 -> 判断 -> 评分"。
+ *
+ * 与 MetricDescriptor 平行：analytics 只声明指标、计算在 analytics-core；
+ * 决策这里插件直接给一个 DecisionDomain（端口由 decision-core 提供）。
+ * 判断者（规则 / Jev / 求解器）在域内部可替换。
+ */
+export interface DecisionDomainDescriptor extends DecisionDomain<DecisionState> {
+  readonly label: string;
+}
+
 export interface PluginInstance {
   behaviors?: readonly WorldBehavior[];
   metrics?: readonly MetricDescriptor[];
+  decisions?: readonly DecisionDomainDescriptor[];
   panels?: readonly PanelDescriptor[];
   templates?: readonly SceneTemplateDescriptor[];
   dispose?(): void;
@@ -142,7 +155,7 @@ export function satisfiesSdkVersion(range: string, version: string): boolean {
 // ---------------------------------------------------------------------------
 
 const PLUGIN_ID_RE = /^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)*$/;
-const VALID_CAPABILITIES: readonly PluginCapability[] = ['behavior', 'analytics', 'data-source', 'panel', 'scene-template'];
+const VALID_CAPABILITIES: readonly PluginCapability[] = ['behavior', 'analytics', 'data-source', 'panel', 'scene-template', 'decision'];
 
 export interface ManifestIssue {
   path: string;
