@@ -14,6 +14,7 @@ import EventLogPanel from './EventLogPanel';
 import TimelineBar from './TimelineBar';
 import PluginsPanel from './PluginsPanel';
 import DecisionPanel from './DecisionPanel';
+import FishingSandbox from './FishingSandbox';
 import MetricsPanel from './MetricsPanel';
 import ScenarioComparePanel from './ScenarioComparePanel';
 
@@ -31,7 +32,7 @@ import ScenarioComparePanel from './ScenarioComparePanel';
  *   默认全部收起，点了才展开，把画面尽量让给场景。
  */
 
-type InspectorTab = 'entity' | 'metrics' | 'compare' | 'data' | 'scene' | 'events' | 'decision' | 'plugins';
+type InspectorTab = 'entity' | 'metrics' | 'compare' | 'data' | 'scene' | 'events' | 'sandbox' | 'decision' | 'plugins';
 type EntityFilter = 'device' | 'cargo';
 
 /** 属于"物料"的实体类型，其余都算设备。 */
@@ -59,6 +60,7 @@ const TABS: { id: InspectorTab; icon: string; label: string }[] = [
   { id: 'data', icon: '📡', label: '数据' },
   { id: 'scene', icon: '🗂️', label: '场景' },
   { id: 'events', icon: '📜', label: '事件' },
+  { id: 'sandbox', icon: '🌊', label: '剖面' },
   { id: 'decision', icon: '🎯', label: '决策' },
   { id: 'plugins', icon: '🔌', label: '插件' },
 ];
@@ -70,8 +72,13 @@ export default function TwinViewport() {
    */
   const [activePlugins, setActivePlugins] = createSignal<readonly string[]>([...DEFAULT_PLUGIN_IDS]);
   const [session, setSession] = createSignal(new StudioSession());
-  /** 决策页只在装了决策域插件时出现，纯物流场景不占位置。 */
-  const tabs = () => TABS.filter((item) => item.id !== 'decision' || session().host.decisions.length > 0);
+  /** 决策 / 剖面页只在对应插件在场时出现，纯物流场景不占位置。 */
+  const tabs = () =>
+    TABS.filter((item) => {
+      if (item.id === 'decision') return session().host.decisions.length > 0;
+      if (item.id === 'sandbox') return activePlugins().includes('fishing');
+      return true;
+    });
   let controller: TwinSceneController | undefined;
   let hostEl: HTMLDivElement | undefined;
 
@@ -700,6 +707,10 @@ export default function TwinViewport() {
 
             <Show when={tab() === 'events'}>
               <EventLogPanel events={view().events} stored={view().stored} />
+            </Show>
+
+            <Show when={tab() === 'sandbox'}>
+              <FishingSandbox session={session()} tick={tick()} />
             </Show>
 
             <Show when={tab() === 'decision'}>

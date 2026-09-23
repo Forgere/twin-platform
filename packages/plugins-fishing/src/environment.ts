@@ -3,7 +3,7 @@ import { TwinWorld, type WorldEntityState } from '@twin-platform/world-kernel';
 import type { TwinScene } from '@twin-platform/scene-schema';
 import type { FishingActionId } from './actionSpace';
 import { calculateRigState, type TaidiaoInput } from './fishingCore';
-import { createFishSimBehavior } from './fishSim';
+import { createFishSimBehavior, fishingLayout, type FishingLayout } from './fishSim';
 import { toFishingState, type FishingIntent, type FishingState } from './state';
 import { buildFishingScene, type FishingTemplateParams } from './template';
 import { num, str } from './values';
@@ -57,6 +57,39 @@ export function observeFishingWorld(world: WorldReader, rigId = RIG_ID): Fishing
     observation,
     ...(targetFish === '' ? {} : { targetFish }),
   });
+}
+
+export interface FishingView {
+  readonly state: FishingState;
+  readonly layout: FishingLayout;
+  readonly depth: number;
+  readonly surfaceY: number;
+  readonly hookGap: number;
+  readonly castInterval: number;
+}
+
+/**
+ * 视图模型：把"钓组状态 + 场景几何"一次算好，给 2D / 3D 画图用。
+ *
+ * 画图与行为读同一份 `fishingLayout`，所以剖面视图同时是 FishSim 的可视化测试工具：
+ * 图上位置就是行为写进世界的位置，对不上就是有 bug。
+ */
+export function fishingView(world: WorldReader, rigId = RIG_ID): FishingView | undefined {
+  const entity = world.getEntity(rigId);
+  if (!entity) return undefined;
+  const state = observeFishingWorld(world, rigId);
+  if (!state) return undefined;
+
+  const config = entity.config ?? {};
+  const depth = Math.max(0.5, num(config.depth, 2));
+  const surfaceY = num(config.surfaceY, 0);
+  const hookGap = Math.max(0.05, num(config.hookGap, 0.2));
+  const layout = fishingLayout(
+    { t0: state.rig.t0, t: state.rig.t, w: state.rig.w, d: state.rig.d },
+    state.rig,
+    { surfaceY, depth, hookGap },
+  );
+  return { state, layout, depth, surfaceY, hookGap, castInterval: Math.max(0.5, num(config.castInterval, 3)) };
 }
 
 export interface FishingEnvironmentOptions {

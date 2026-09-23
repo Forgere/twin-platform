@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { DecisionEngine } from '@twin-platform/decision-core';
 import { TwinWorld } from '@twin-platform/world-kernel';
 import { fishingDomain } from './domain';
-import { FishingEnvironment, observeFishingWorld } from './environment';
+import { FishingEnvironment, fishingView, observeFishingWorld } from './environment';
 import { createFishSimBehavior } from './fishSim';
 import { buildFishingScene } from './template';
 
@@ -50,6 +50,20 @@ describe('FishingEnvironment · 闭环', () => {
 
     const empty = new TwinWorld({ version: 1, id: 'empty', name: '空场景', entities: [] }, { seed: 1 });
     expect(observeFishingWorld(empty)).toBeUndefined();
+  });
+
+  test('fishingView 给出与行为一致的布局与几何', () => {
+    const world = new TwinWorld(buildFishingScene({ rig: { d: 2 }, depth: 3 }), { seed: 1, behaviors: [createFishSimBehavior()] });
+    world.step(1 / 60);
+    const view = fishingView(world);
+    expect(view?.depth).toBe(3);
+    expect(view?.state.rig.zone).toBe('neutral');
+    // 布局与行为写在实体上的位姿一致（可视化测试工具的立身之本）。
+    const floatY = world.getEntity('float-01')?.transform.position[1];
+    expect(floatY).toBeCloseTo(view?.layout.float[1] ?? Number.NaN, 9);
+
+    const empty = new TwinWorld({ version: 1, id: 'empty', name: '空场景', entities: [] }, { seed: 1 });
+    expect(fishingView(empty)).toBeUndefined();
   });
 
   test('同种子的环境结果可复现', () => {
