@@ -23,11 +23,18 @@ export interface FishingTemplateParams {
 
 const RIG_ID = 'rig-01';
 
-const layoutEntity = (id: string, kind: string, slot: LayoutSlot, position: TwinVector3): TwinEntity => ({
+const layoutEntity = (
+  id: string,
+  kind: string,
+  slot: LayoutSlot,
+  position: TwinVector3,
+  visual: { color: string; size: TwinVector3 },
+): TwinEntity => ({
   id,
   kind,
   transform: { position },
   capabilities: [kind],
+  visual: { kind, color: visual.color, size: visual.size },
   config: { rigId: RIG_ID, slot },
 });
 
@@ -55,6 +62,7 @@ export const fishingTemplate: SceneTemplateDescriptor<FishingTemplateParams> = {
         kind: 'rig',
         transform: { position: [0, surfaceY, 0] },
         capabilities: ['rig'],
+        visual: { kind: 'rig', color: '#c9b79c', size: [0.1, 0.1, 0.1] },
         config: {
           label: params.label ?? '我的钓组',
           depth,
@@ -77,12 +85,12 @@ export const fishingTemplate: SceneTemplateDescriptor<FishingTemplateParams> = {
           zone: 'neutral',
         },
       },
-      layoutEntity('float-01', 'float', 'float', [0, surfaceY, 0]),
-      layoutEntity('sinker-01', 'sinker', 'sinker', [0, surfaceY - 1, 0]),
-      layoutEntity('hook-upper-01', 'hook', 'upperHook', [0, surfaceY - 0.6, 0]),
-      layoutEntity('hook-lower-01', 'hook', 'lowerHook', [0, surfaceY - 0.8, 0]),
-      layoutEntity('bait-upper-01', 'bait', 'upperBait', [0, surfaceY - 0.6, 0]),
-      layoutEntity('bait-lower-01', 'bait', 'lowerBait', [0, surfaceY - 0.8, 0]),
+      layoutEntity('float-01', 'float', 'float', [0, surfaceY, 0], { color: '#ff7a3c', size: [0.1, 0.42, 0.1] }),
+      layoutEntity('sinker-01', 'sinker', 'sinker', [0, surfaceY - 1, 0], { color: '#4a4a4a', size: [0.06, 0.07, 0.06] }),
+      layoutEntity('hook-upper-01', 'hook', 'upperHook', [0, surfaceY - 0.6, 0], { color: '#c9ccd1', size: [0.06, 0.07, 0.06] }),
+      layoutEntity('hook-lower-01', 'hook', 'lowerHook', [0, surfaceY - 0.8, 0], { color: '#c9ccd1', size: [0.06, 0.07, 0.06] }),
+      layoutEntity('bait-upper-01', 'bait', 'upperBait', [0, surfaceY - 0.6, 0], { color: '#e07a5f', size: [0.06, 0.06, 0.06] }),
+      layoutEntity('bait-lower-01', 'bait', 'lowerBait', [0, surfaceY - 0.8, 0], { color: '#e07a5f', size: [0.06, 0.06, 0.06] }),
     ];
   },
 };

@@ -74,6 +74,8 @@ export default function TwinViewport() {
    * 时间轴控制器全得重建），旧的那一份必须停掉，否则两个世界会同时推进。
    */
   const [activePlugins, setActivePlugins] = createSignal<readonly string[]>([...DEFAULT_PLUGIN_IDS]);
+  /** 机位：物流的产线机位只在物流领域包在场时才列；否则只留全景（全景按包围盒自动取景）。 */
+  const regionPresets = () => (activePlugins().includes('logistics') ? REGIONS : REGIONS.filter((item) => item.id === 'overview'));
   const [session, setSession] = createSignal(new StudioSession());
   /** 决策 / 剖面页只在对应插件在场时出现，纯物流场景不占位置。 */
   const tabs = () =>
@@ -154,6 +156,8 @@ export default function TwinViewport() {
         onDragCommit: (entityId, position) => commitDrag(entityId, position),
       },
     );
+    // 换场景 / 换插件后按包围盒重新取景：写死机位会让小场景（台钓钓场）直接看不见。
+    controller.setCameraPreset('overview');
     setEntities(controller.entities);
     setTheme(controller.themeName);
   };
@@ -536,7 +540,7 @@ export default function TwinViewport() {
                 <div class="vp-popover" aria-label="选择区域">
                   <div class="vp-popover-head">区域 / 机位</div>
                   <div class="vp-regions">
-                    <For each={REGIONS}>
+                    <For each={regionPresets()}>
                       {(region) => (
                         <button
                           type="button"

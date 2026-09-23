@@ -263,7 +263,7 @@ export class TwinSceneController {
   setCameraPreset(preset: CameraPreset): void {
     switch (preset) {
       case 'overview':
-        void this.controls.setLookAt(20, 24, 40, 4, 1, 4, true);
+        this.frameScene();
         return;
       case 'infeed':
         void this.controls.setLookAt(-20, 6.5, 13, -14, 0.8, 1, true);
@@ -287,6 +287,27 @@ export class TwinSceneController {
         void this.controls.setLookAt(26, 8, 9, 20.6, 0.9, 4, true);
         return;
     }
+  }
+
+  /**
+   * 全景：按场景实体包围盒取景，而不是写死物流中心的坐标。
+   *
+   * 写死坐标只在"工厂尺度"下成立——台钓钓场只有十几米，写死的机位会把它拍成一个点，
+   * 看上去就是"外面什么也看不到"。
+   */
+  private frameScene(): void {
+    this.scene.updateMatrixWorld(true);
+    const box = new THREE.Box3();
+    for (const object of this.entityMeshes.values()) box.expandByObject(object);
+    if (box.isEmpty()) {
+      void this.controls.setLookAt(20, 24, 40, 4, 1, 4, true);
+      return;
+    }
+    const center = box.getCenter(new THREE.Vector3());
+    const radius = Math.max(box.getSize(new THREE.Vector3()).length() * 0.5, 1);
+    const distance = Math.min(Math.max((radius / Math.tan((this.camera.fov * Math.PI) / 360)) * 1.15, 6), 86);
+    const eye = center.clone().add(new THREE.Vector3(0.85, 0.7, 1.15).normalize().multiplyScalar(distance));
+    void this.controls.setLookAt(eye.x, eye.y, eye.z, center.x, center.y, center.z, true);
   }
 
   dispose(): void {
