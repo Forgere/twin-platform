@@ -2,6 +2,8 @@ import type { BehaviorContext, WorldBehavior } from '@twin-platform/world-kernel
 import type { TwinVector3 } from '@twin-platform/scene-schema';
 import { calculateRigState, type RigState, type RigZone, type TaidiaoInput } from './fishingCore';
 import { BITE_SIGNALS, subLineBend, type FloatSignal } from './rigPosture';
+import { conditionMultipliers, conditionsOf } from './conditions';
+import { loadoutEffects, loadoutFromAttrs } from './loadout';
 import { num, str } from './values';
 
 /**
@@ -185,29 +187,42 @@ export function createFishSimBehavior(config: FishSimConfig = {}): WorldBehavior
         // 子线弯曲量给渲染用（3D 要把子线画成弯的）。只在变化时写，别把 ops 撑爆。
         writeBend(ctx, entity.id, result.state);
 
-        const waterTemperature = num(worldConfig.waterTemperature, 20);
+        const conditions = conditionsOf(entity);
+        const waterTemperature = conditions.waterTemperature;
         const interval = Math.max(0.5, num(worldConfig.castInterval, defaultInterval));
         const nextAt = num(entity.attrs.nextAt, 0);
         if (ctx.time + 1e-9 < nextAt) continue;
 
+        // 装备（目标鱼 / 钩 / 线 / 饵）与情况（走水 / 闹窝 / 窝料）只给倍率，随机仍全部取自 ctx.rng。
+        const gear = loadoutEffects(loadoutFromAttrs(entity.attrs));
+        const situation = conditionMultipliers(conditions, ctx.time);
+        const zone = result.state.zone;
+        const biteChance = clamp01(biteProbability(zone, waterTemperature) * gear.biteMul * gear.zoneBite[zone] * situation.bite);
+        const hookChance = clamp01(hookProbability(zone, waterTemperature) * gear.hookMul * situation.hook);
+
         const casts = num(entity.attrs.casts, 0) + 1;
-        const bit = ctx.rng.bool(biteProbability(result.state.zone, waterTemperature));
-        const hooked = bit && ctx.rng.bool(hookProbability(result.state.zone, waterTemperature));
+        const bit = ctx.rng.bool(biteChance);
+        const hooked = bit && ctx.rng.bool(hookChance);
+        // 中鱼后按子线拉力判切线；拉力富余（breakChance = 0）时不耗随机数。
+        const broken = hooked && gear.breakChance > 0 && ctx.rng.bool(gear.breakChance);
+        const caught = hooked && !broken;
         // 有口就有漂相（顿口 / 送漂 / 黑漂）——这是用户唯一能直接看到的信号。
         const signal: FloatSignal = bit ? ctx.rng.pick(BITE_SIGNALS) : 'none';
 
         ctx.setAttr(entity.id, 'casts', casts);
         ctx.setAttr(entity.id, 'bites', num(entity.attrs.bites, 0) + (bit ? 1 : 0));
-        ctx.setAttr(entity.id, 'catches', num(entity.attrs.catches, 0) + (hooked ? 1 : 0));
+        ctx.setAttr(entity.id, 'catches', num(entity.attrs.catches, 0) + (caught ? 1 : 0));
         ctx.setAttr(entity.id, 'emptyHooks', num(entity.attrs.emptyHooks, 0) + (bit && !hooked ? 1 : 0));
+        if (broken) ctx.setAttr(entity.id, 'breaks', num(entity.attrs.breaks, 0) + 1);
         ctx.setAttr(entity.id, 'zone', result.state.zone);
         ctx.setAttr(entity.id, 'bottomLoad', result.state.bottomLoad);
         ctx.setAttr(entity.id, 'nextAt', ctx.time + interval);
         ctx.setAttr(entity.id, 'signal', signal);
         ctx.emit('fish:cast', {
           entityId: entity.id,
-          payload: { cast: casts, zone: result.state.zone, bite: bit, caught: hooked, signal },
+          payload: { cast: casts, zone: result.state.zone, bite: bit, caught, broken, signal },
         });
+        if (broken) ctx.emit('fish:break', { entityId: entity.id, payload: { cast: casts } });
       }
     },
   };

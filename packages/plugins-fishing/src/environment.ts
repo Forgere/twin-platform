@@ -8,6 +8,8 @@ import { toFishingState, type FishingIntent, type FishingState } from './state';
 import { buildFishingScene, type FishingTemplateParams } from './template';
 import { num, str } from './values';
 import type { FloatSignal } from './rigPosture';
+import { conditionsOf } from './conditions';
+import { fishById, loadoutFromAttrs, recommendedLoadout, TARGET_FISH, type BaitId } from './loadout';
 
 /**
  * FishingEnvironment —— 把钓场仿真接到 decision-core 的 `Environment` 端口。
@@ -50,8 +52,9 @@ export function observeFishingWorld(world: WorldReader, rigId = RIG_ID): Fishing
     catches: num(entity.attrs.catches, 0),
     emptyHooks: num(entity.attrs.emptyHooks, 0),
   };
-  const drift = config.drift === true;
-  const targetFish = str(config.targetFish, '');
+  const drift = conditionsOf(entity).drift;
+  // 目标鱼：向导写进 attrs 的鱼 id 优先（给 Jev 的是中文名），老场景退回 config 里的文字。
+  const targetFish = fishById(str(entity.attrs.targetFish, ''))?.label ?? str(config.targetFish, '');
   return toFishingState(result.state, {
     intent: deriveIntent(observation, drift, num(entity.attrs.casts, 0)),
     drift,
@@ -166,19 +169,115 @@ export class FishingEnvironment implements Environment<FishingState, FishingActi
     };
   }
 
-  /** 只有调漂会改钓组；其它动作在仿真里是 no-op（真实世界里由人执行）。 */
   private apply(action: FishingActionId, params: Readonly<Record<string, number | string>>): void {
-    if (action !== 'ADJUST_FLOAT') return;
-    const direction = str(params['direction'], 'blunt');
-    const steps = num(params['steps'], 1);
-    // 往钝 = 上推浮漂 = 钓目增大；往灵 = 下推 = 钓目减小。
-    const delta = direction === 'blunt' ? steps : -steps;
-    const current = num(this.world.getEntity(RIG_ID)?.attrs.d, 2);
-    this.world.setAttr(RIG_ID, 'd', Math.max(0, current + delta));
+    applyFishingDecision(this.world, { action, params }, this.world.time);
   }
 
   private counters(): Counters {
     const attrs = this.world.getEntity(RIG_ID)?.attrs ?? {};
     return { casts: num(attrs.casts, 0), bites: num(attrs.bites, 0), catches: num(attrs.catches, 0) };
+  }
+}
+
+/** 能写 attrs 的世界（TwinWorld 与 Studio 会话的世界都满足）。 */
+export interface WorldWriter extends WorldReader {
+  setAttr(entityId: string, key: string, value: unknown): void;
+}
+
+const LEAD_MARKS: Readonly<Record<string, number>> = { light: 0.5, medium: 1, heavy: 1.5 };
+const NEST_SECONDS: Readonly<Record<string, number>> = { light: 45, normal: 90, heavy: 150 };
+
+/**
+ * 把一个决策落到世界上（仿真评测与 Studio "一键执行"共用这一份）。
+ *
+ * 每个动作都换算成 rig attrs 的变化，于是鱼口模型、剖面与 3D 场景自然跟着变：
+ * - ADJUST_FLOAT / CHANGE_LAYER：改钓目 d（上推 = 钝，下推 = 灵）；
+ * - ADD_LEAD：加铅 → 漂吃铅更多，t0 / t 同降（钓组整体更钝），并标记已抗流；
+ * - CHANGE_BAIT：换成目标鱼更爱吃的饵；
+ * - REFILL_NEST：窝料生效一段时间；
+ * - REBUILD_RIG：钩 / 线 / 漂换回目标鱼的推荐规格；
+ * - CHANGE_SPOT：换个钓位，甩掉闹窝的小鱼与走水；
+ * - OBSERVE / NO_CHANGE：不动。
+ *
+ * 返回一句人话，说明世界里具体改了什么（UI 直接展示）。
+ */
+export function applyFishingDecision(
+  world: WorldWriter,
+  decision: { readonly action: FishingActionId; readonly params: Readonly<Record<string, number | string>> },
+  now: number,
+  rigId = RIG_ID,
+): string {
+  const entity = world.getEntity(rigId);
+  if (!entity) return '没有钓组实体，动作没有落地。';
+  const attrs = entity.attrs;
+  const params = decision.params;
+  const loadout = loadoutFromAttrs(attrs);
+  const d = num(attrs.d, 2);
+
+  switch (decision.action) {
+    case 'ADJUST_FLOAT': {
+      const steps = num(params['steps'], 1);
+      // 往钝 = 上推浮漂 = 钓目增大；往灵 = 下推 = 钓目减小。
+      const blunt = str(params['direction'], 'blunt') === 'blunt';
+      const next = Math.max(0, d + (blunt ? steps : -steps));
+      world.setAttr(rigId, 'd', next);
+      return (blunt ? '浮漂上推 ' : '浮漂下推 ') + steps + ' 目：钓目 ' + d + ' → ' + next;
+    }
+    case 'CHANGE_LAYER': {
+      const band = num(params['band'], 1);
+      const down = str(params['direction'], 'down') === 'down';
+      const next = Math.max(0, d + (down ? band : -band));
+      world.setAttr(rigId, 'd', next);
+      return (down ? '钓层下移（更贴底）' : '钓层上移（离底）') + '：钓目 ' + d + ' → ' + next;
+    }
+    case 'ADD_LEAD': {
+      const marks = LEAD_MARKS[str(params['amount'], 'medium')] ?? 1;
+      const t0 = num(attrs.t0, 4);
+      const t = num(attrs.t, 2);
+      // 调目不能被加到 0 以下太多：t0 至少留半目，t 同步降（双钩压目 H 不变）。
+      const drop = Math.min(marks, Math.max(0, t0 - 0.5));
+      world.setAttr(rigId, 't0', t0 - drop);
+      world.setAttr(rigId, 't', t - drop);
+      world.setAttr(rigId, 'antiDrift', true);
+      return '加铅 ' + drop + ' 目抗流：调目 ' + t + ' → ' + (t - drop) + '（钓组更钝、更稳）';
+    }
+    case 'CHANGE_BAIT': {
+      const fish = fishById(loadout.targetFish) ?? TARGET_FISH[0]!;
+      const ranked = (Object.entries(fish.baitAffinity) as [BaitId, number][]).sort((a, b) => b[1] - a[1]);
+      const next = ranked.find(([bait]) => bait !== loadout.bait)?.[0] ?? loadout.bait;
+      const best = ranked[0]![0] === loadout.bait ? next : ranked[0]![0];
+      world.setAttr(rigId, 'bait', best);
+      return '换饵：' + loadout.bait + ' → ' + best;
+    }
+    case 'REFILL_NEST': {
+      const seconds = NEST_SECONDS[str(params['amount'], 'normal')] ?? 90;
+      world.setAttr(rigId, 'nestUntil', now + seconds);
+      return '补窝：窝料 ' + seconds + ' 秒内诱鱼';
+    }
+    case 'REBUILD_RIG': {
+      const target = str(params['target'], 'hook');
+      const recommended = recommendedLoadout(loadout.targetFish);
+      if (target === 'line') {
+        world.setAttr(rigId, 'mainLine', recommended.mainLine);
+        world.setAttr(rigId, 'subLine', recommended.subLine);
+        return '换线：主线 ' + recommended.mainLine + ' 号 / 子线 ' + recommended.subLine + ' 号';
+      }
+      if (target === 'float') {
+        world.setAttr(rigId, 'floatSize', recommended.floatSize);
+        return '换漂：' + recommended.floatSize + 'g';
+      }
+      world.setAttr(rigId, 'hookSize', recommended.hookSize);
+      return '换钩：' + loadout.hookSize + ' 号 → ' + recommended.hookSize + ' 号';
+    }
+    case 'CHANGE_SPOT': {
+      world.setAttr(rigId, 'smallFish', false);
+      world.setAttr(rigId, 'drift', false);
+      world.setAttr(rigId, 'nestUntil', 0);
+      return '换钓位：甩掉小鱼与走水，但窝要重新打';
+    }
+    case 'OBSERVE':
+      return '继续观察 ' + num(params['casts'], 3) + ' 竿';
+    case 'NO_CHANGE':
+      return '保持现状';
   }
 }
