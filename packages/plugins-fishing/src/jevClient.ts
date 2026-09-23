@@ -58,8 +58,8 @@ export interface JevHttpOptions {
   readonly fetchImpl?: JevFetch;
 }
 
-export const DEFAULT_JEV_BASE_URL = 'https://thejevai.com';
-export const DEFAULT_JEV_MODEL = 'typesafe/jev-1.13';
+export const DEFAULT_JEV_BASE_URL = 'https://api.typesafe.ai';
+export const DEFAULT_JEV_MODEL = 'jev-latest';
 
 export interface JevEnvConfig {
   readonly apiKey: string;
@@ -108,10 +108,26 @@ interface WireAnswer {
   readonly confidence?: unknown;
 }
 
-interface WireEnvelope {
-  readonly code?: unknown;
-  readonly message?: unknown;
-  readonly data?: { readonly result?: { readonly answers?: Record<string, WireAnswer> } };
+const isRecordLike = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/**
+ * 从响应里取出 answers，兼容两种形状：
+ * - TypeSafe 官方直连：`{ model, answers, usage }`
+ * - 技能文档里的托管信封：`{ code, message, data: { result: { answers } } }`
+ */
+export function extractAnswers(payload: unknown): Record<string, WireAnswer> | undefined {
+  if (!isRecordLike(payload)) return undefined;
+  if (typeof payload['code'] === 'number' && payload['code'] !== 0) {
+    const message = typeof payload['message'] === 'string' ? payload['message'] : String(payload['code']);
+    throw new JevError('Jev 业务错误：' + message);
+  }
+  const direct = payload['answers'];
+  if (isRecordLike(direct)) return direct as Record<string, WireAnswer>;
+  const data = payload['data'];
+  const result = isRecordLike(data) ? data['result'] : undefined;
+  const nested = isRecordLike(result) ? result['answers'] : undefined;
+  return isRecordLike(nested) ? (nested as Record<string, WireAnswer>) : undefined;
 }
 
 const asString = (value: unknown): string | undefined => (typeof value === 'string' ? value : undefined);
@@ -133,6 +149,18 @@ export function decodeJevAnswers(answers: Record<string, WireAnswer>): JevDecisi
     observeProbability: asNumber(observe?.noul) ?? 0,
     urgency: asNumber(urgency?.score),
   };
+}
+
+/** 从非 2xx 响应里取一段可安全展示的错误说明（不含请求凭据）。 */
+async function readErrorDetail(response: JevFetchResponse): Promise<string> {
+  try {
+    const payload = (await response.json()) as { error?: unknown; message?: unknown; detail?: unknown };
+    const candidate = payload.error ?? payload.message ?? payload.detail;
+    if (typeof candidate === 'string') return candidate.slice(0, 300);
+    return JSON.stringify(payload).slice(0, 300);
+  } catch {
+    return '';
+  }
 }
 
 export function createHttpJevClient(options: JevHttpOptions): JevClient {
@@ -157,11 +185,12 @@ export function createHttpJevClient(options: JevHttpOptions): JevClient {
         throw new JevError('Jev 请求失败：' + (error instanceof Error ? error.message : String(error)));
       }
 
-      if (!response.ok) throw new JevError('Jev 返回 HTTP ' + response.status, response.status);
-      const payload = (await response.json()) as WireEnvelope;
-      if (payload.code !== 0) throw new JevError('Jev 业务错误：' + String(payload.message ?? payload.code));
-      const answers = payload.data?.result?.answers;
-      if (!answers) throw new JevError('Jev 响应缺少 data.result.answers。');
+      if (!response.ok) {
+        const detail = await readErrorDetail(response);
+        throw new JevError('Jev 返回 HTTP ' + response.status + (detail === '' ? '' : '：' + detail), response.status);
+      }
+      const answers = extractAnswers(await response.json());
+      if (!answers) throw new JevError('Jev 响应缺少 answers。');
       return decodeJevAnswers(answers);
     },
   };

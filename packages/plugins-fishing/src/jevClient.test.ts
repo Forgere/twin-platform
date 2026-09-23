@@ -6,6 +6,7 @@ import {
   createHttpJevClient,
   createProxyJevClient,
   decodeJevAnswers,
+  extractAnswers,
   jevConfigFromEnv,
   questionsToWire,
   type JevFetch,
@@ -66,6 +67,29 @@ describe('decodeJevAnswers', () => {
   });
 });
 
+describe('extractAnswers', () => {
+  test('TypeSafe 官方直连：顶层 answers', () => {
+    const answers = extractAnswers({
+      model: 'jev-1.13.0',
+      answers: { next_action: { type: 'choice', choice: 'OBSERVE', confidence: 0.2 }, needs_observe: { type: 'noul', noul: 0.4 } },
+      usage: { input_tokens: 430, output_tokens: 67 },
+    });
+    expect(answers?.['next_action']?.['choice']).toBe('OBSERVE');
+    expect(answers?.['needs_observe']?.['noul']).toBe(0.4);
+  });
+
+  test('托管信封：data.result.answers', () => {
+    const answers = extractAnswers({ code: 0, data: { result: { answers: { needs_observe: { noul: 0.9 } } } } });
+    expect(answers?.['needs_observe']?.['noul']).toBe(0.9);
+  });
+
+  test('形状不对或 code 非 0 都不当成有效结果', () => {
+    expect(extractAnswers({ code: 0, data: {} })).toBeUndefined();
+    expect(extractAnswers(null)).toBeUndefined();
+    expect(() => extractAnswers({ code: 7, message: 'quota' })).toThrow(/quota/);
+  });
+});
+
 describe('createHttpJevClient', () => {
   test('请求形状正确：POST /v1/systemone + Bearer + model + 线上问题格式', async () => {
     let seen: { url: string; init: { method: string; headers: Record<string, string>; body: string } } | undefined;
@@ -76,7 +100,7 @@ describe('createHttpJevClient', () => {
     const client = createHttpJevClient({ apiKey: 'sk_test_key', fetchImpl });
     const decision = await client.decide(request());
 
-    expect(seen?.url).toBe('https://thejevai.com/v1/systemone');
+    expect(seen?.url).toBe('https://api.typesafe.ai/v1/systemone');
     expect(seen?.init.method).toBe('POST');
     expect(seen?.init.headers['authorization']).toBe('Bearer sk_test_key');
     const body = JSON.parse(seen!.init.body) as { model: string; state: Record<string, string>; questions: Record<string, { type: string }> };
@@ -118,9 +142,9 @@ describe('jevConfigFromEnv', () => {
   test('缺 key 返回 undefined，有 key 时读覆盖项并默认中文', () => {
     expect(jevConfigFromEnv({})).toBeUndefined();
     expect(jevConfigFromEnv({ JEV_API_KEY: '' })).toBeUndefined();
-    const config = jevConfigFromEnv({ JEV_API_KEY: 'sk_x', JEV_MODEL: 'typesafe/jev-1.13' });
+    const config = jevConfigFromEnv({ JEV_API_KEY: 'sk_x', JEV_MODEL: 'jev-preview' });
     expect(config?.apiKey).toBe('sk_x');
-    expect(config?.baseUrl).toBe('https://thejevai.com');
+    expect(config?.baseUrl).toBe('https://api.typesafe.ai');
     expect(config?.language).toBe('zh-CN');
     expect(jevConfigFromEnv({ JEV_API_KEY: 'k', JEV_LANGUAGE: 'en-US' })?.language).toBe('en-US');
   });

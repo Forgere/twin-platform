@@ -26,7 +26,7 @@ describe('jevStatus', () => {
     expect(result.status).toBe(200);
     const body = result.body as Record<string, unknown>;
     expect(body['configured']).toBe(true);
-    expect(body['model']).toBe('typesafe/jev-1.13');
+    expect(body['model']).toBe('jev-latest');
     expect(JSON.stringify(body)).not.toContain('sk_test_key');
   });
 });
