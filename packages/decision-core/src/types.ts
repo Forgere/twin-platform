@@ -89,4 +89,6 @@ export interface DecisionRecord<A extends string = string> {
   readonly degradeReason?: string;
   outcome?: Outcome;
   score?: number;
+  /** 用户轻反馈（👍/👎）。和 evaluator 的自动评分并存，评分时用户反馈优先。 */
+  feedback?: Feedback;
 }

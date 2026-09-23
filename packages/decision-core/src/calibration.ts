@@ -67,3 +67,55 @@ export function buildCalibration<A extends string>(
 
   return { methodId: options.methodId, total: records.length, decided, buckets };
 }
+
+export interface CalibrationReportOptions<A extends string = string> extends CalibrationOptions<A> {
+  /** 每个有样本的桶至少要有这么多条，才认为结论可信。 */
+  readonly minSamples?: number;
+}
+
+export interface CalibrationReport extends CalibrationTable {
+  /** Brier 分数：mean((confidence - outcome)^2)，0 最好、1 最差。 */
+  readonly brier: number;
+  readonly meanConfidence: number;
+  readonly successRate: number;
+  /** 样本是否足够下结论；不足时调用方应显示"样本不足"，而不是展示比率。 */
+  readonly trustworthy: boolean;
+}
+
+/**
+ * 校准报告：在分桶表之上加两个能直接比较判断者的标量。
+ *
+ * Brier 同时惩罚"过度自信"和"不够自信"，是"说 80% 是不是真的 80%"的可比较版本；
+ * trustworthy 是诚实性开关——样本不够就别拿比率当结论。
+ */
+export function calibrationReport<A extends string>(
+  records: readonly DecisionRecord<A>[],
+  options: CalibrationReportOptions<A>,
+): CalibrationReport {
+  const minSamples = Math.max(1, Math.floor(options.minSamples ?? 5));
+  const table = buildCalibration(records, options);
+  let decided = 0;
+  let brierSum = 0;
+  let confidenceSum = 0;
+  let successSum = 0;
+
+  for (const record of records) {
+    const success = options.success(record);
+    if (success === undefined) continue;
+    decided += 1;
+    const confidence = Math.min(Math.max(record.decision.confidence, 0), 1);
+    const actual = success ? 1 : 0;
+    brierSum += (confidence - actual) * (confidence - actual);
+    confidenceSum += confidence;
+    successSum += actual;
+  }
+
+  const populated = table.buckets.filter((bucket) => bucket.decisions > 0);
+  return {
+    ...table,
+    brier: decided === 0 ? 0 : brierSum / decided,
+    meanConfidence: decided === 0 ? 0 : confidenceSum / decided,
+    successRate: decided === 0 ? 0 : successSum / decided,
+    trustworthy: decided > 0 && populated.every((bucket) => bucket.decisions >= minSamples),
+  };
+}

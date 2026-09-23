@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { buildCalibration } from './calibration';
+import { buildCalibration, calibrationReport } from './calibration';
 import type { DecisionRecord } from './types';
 
 const record = (id: string, confidence: number): DecisionRecord<'X'> => ({
@@ -44,5 +44,33 @@ describe('buildCalibration', () => {
     const table = buildCalibration([], { methodId: 'rule', success: () => true });
     expect(table.decided).toBe(0);
     expect(table.buckets.every((bucket) => bucket.decisions === 0)).toBe(true);
+  });
+});
+
+describe('calibrationReport', () => {
+  test('Brier：自信且正确为 0，自信且错误为 1', () => {
+    expect(calibrationReport([record('1', 1)], { methodId: 'm', success: () => true }).brier).toBe(0);
+    expect(calibrationReport([record('1', 1)], { methodId: 'm', success: () => false }).brier).toBe(1);
+  });
+
+  test('半信半疑且全错：Brier 是 0.25', () => {
+    const records = [record('1', 0.5), record('2', 0.5)];
+    const report = calibrationReport(records, { methodId: 'm', success: () => false });
+    expect(report.brier).toBeCloseTo(0.25, 6);
+    expect(report.successRate).toBe(0);
+    expect(report.meanConfidence).toBe(0.5);
+  });
+
+  test('样本不足时 trustworthy=false，不下结论', () => {
+    const few = [record('1', 0.5), record('2', 0.5)];
+    expect(calibrationReport(few, { methodId: 'm', success: () => true, minSamples: 5 }).trustworthy).toBe(false);
+    const enough = Array.from({ length: 5 }, (_unused, index) => record(String(index), 0.5));
+    expect(calibrationReport(enough, { methodId: 'm', success: () => true, minSamples: 5 }).trustworthy).toBe(true);
+  });
+
+  test('没有结果的记录不进 Brier', () => {
+    const report = calibrationReport([record('1', 0.5)], { methodId: 'm', success: () => undefined });
+    expect(report.decided).toBe(0);
+    expect(report.brier).toBe(0);
   });
 });

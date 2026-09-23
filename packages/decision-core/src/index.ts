@@ -20,3 +20,4 @@ export * from './log';
 export * from './engine';
 export * from './calibration';
 export * from './evaluate';
+export * from './feedback';

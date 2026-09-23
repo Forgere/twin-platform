@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { compareJudges, summarizeDecisions } from './evaluate';
+import { compareJudges, compareRecorded, summarizeDecisions } from './evaluate';
 import type { DecisionDomain } from './ports';
 import type { DecisionRecord, DecisionState } from './types';
 
@@ -57,5 +57,34 @@ describe('compareJudges', () => {
     expect(comparison.agreement).toBe(0.5);
     expect(comparison.aOnly['B']).toBe(2);
     expect(comparison.bOnly['A']).toBe(2);
+  });
+});
+
+describe('compareRecorded', () => {
+  const rec = (id: string, confidence: number): DecisionRecord<'X'> => ({
+    id,
+    at: 0,
+    stateHash: 'h',
+    decision: { action: 'X', params: {}, confidence, reasonCode: 'R' },
+    accepted: true,
+  });
+
+  test('按结果（Brier）判谁更准，而不是动作一致率', () => {
+    // a：自称 0.9 但全错（Brier 0.81）；b：只说 0.5 但全对（Brier 0.25）-> b 胜。
+    const a = { methodId: 'rule', records: [rec('1', 0.9), rec('2', 0.9), rec('3', 0.9)] };
+    const b = { methodId: 'jev', records: [rec('4', 0.5), rec('5', 0.5), rec('6', 0.5)] };
+    const comparison = compareRecorded(a, b, { success: (item) => item.id > '3', minSamples: 2 });
+    expect(comparison.a.brier).toBeCloseTo(0.81, 6);
+    expect(comparison.b.brier).toBeCloseTo(0.25, 6);
+    expect(comparison.winner).toBe('b');
+  });
+
+  test('样本不足时不给结论', () => {
+    const comparison = compareRecorded(
+      { methodId: 'a', records: [rec('1', 0.9)] },
+      { methodId: 'b', records: [rec('2', 0.1)] },
+      { success: () => true, minSamples: 10 },
+    );
+    expect(comparison.winner).toBe('insufficient');
   });
 });
