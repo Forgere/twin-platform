@@ -77,7 +77,9 @@ export default function FishingSandbox(props: { session: StudioSession; tick: nu
     const bottomY = SURFACE_Y + current.depth * SCALE;
     const height = bottomY + PAD;
     const cx = WIDTH / 2;
-    const sy = (y: number): number => SURFACE_Y - y * SCALE;
+    // 按视图自己的水面高度换算，而不是假定世界水面在 y=0——场景现在水底贴地、
+    // 水面在 +depth，写死 0 会把整张图画到 viewBox 外面。
+    const sy = (y: number): number => SURFACE_Y + (current.surfaceY - y) * SCALE;
     const layout = current.layout;
 
     return (

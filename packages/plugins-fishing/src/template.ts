@@ -42,8 +42,10 @@ export const fishingTemplate: SceneTemplateDescriptor<FishingTemplateParams> = {
   id: 'fishing-pond',
   label: '台钓钓场（漂语）',
   build(params: FishingTemplateParams = {}): TwinEntity[] {
-    const surfaceY = 0;
     const depth = Math.max(0.5, params.depth ?? 2);
+    // 水底贴地：Studio 的地面平面在 y=0，水必须从 0 往上长到 depth。
+    // 放在 0 以下会被那块 64×64 的实心地面挡住，切到钓场就什么都看不到。
+    const surfaceY = depth;
     const waterTemperature = params.waterTemperature ?? 20;
     const castInterval = Math.max(0.5, params.castInterval ?? 3);
     const rig = params.rig ?? {};
