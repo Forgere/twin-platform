@@ -16,6 +16,7 @@ export * from './ruleJudge';
 export * from './domain';
 export * from './fishSim';
 export * from './template';
+export * from './rigPosture';
 export * from './environment';
 export * from './evaluator';
 export * from './jevQuestions';

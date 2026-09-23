@@ -616,19 +616,50 @@ export class TwinSceneController {
         for (const line of anim.fishingLines) {
           const from = this.entityMeshes.get(line.fromId)?.position;
           const to = this.entityMeshes.get(line.toId)?.position;
-          const length = from && to ? Math.hypot(to.x - from.x, to.y - from.y, to.z - from.z) : 0;
-          if (!from || !to || length < 1e-4) {
+          if (!from || !to) {
+            line.mesh.visible = false;
+            continue;
+          }
+          // 子线弯曲：钝区子线松弛，控制器在两端之间插一个下垂的中间点，
+          // 把该段拆成"前段 / 后段"两段折线（bendRole 决定本 mesh 取前半还是后半）。
+          let ax = from.x;
+          let ay = from.y;
+          let az = from.z;
+          let bx = to.x;
+          let by = to.y;
+          let bz = to.z;
+          if (line.bendAttr && line.rigId) {
+            const rigEntity = this.controller.world.getEntity(line.rigId);
+            const bendRaw = rigEntity?.attrs?.[line.bendAttr];
+            const bend = typeof bendRaw === 'number' ? bendRaw : 0;
+            if (bend > 0.001) {
+              const midX = (from.x + to.x) / 2;
+              const midY = (from.y + to.y) / 2 - bend * 0.07; // 向下松弛
+              const midZ = (from.z + to.z) / 2 + bend * 0.13; // 向 +Z 鼓出（离主视线侧）
+              if (line.bendRole === 'second') {
+                ax = midX;
+                ay = midY;
+                az = midZ;
+              } else {
+                bx = midX;
+                by = midY;
+                bz = midZ;
+              }
+            }
+          }
+          const length = Math.hypot(bx - ax, by - ay, bz - az);
+          if (length < 1e-4) {
             line.mesh.visible = false;
             continue;
           }
           line.mesh.visible = true;
           line.mesh.position.set(
-            (from.x + to.x) / 2 - object.position.x,
-            (from.y + to.y) / 2 - object.position.y,
-            (from.z + to.z) / 2 - object.position.z,
+            (ax + bx) / 2 - object.position.x,
+            (ay + by) / 2 - object.position.y,
+            (az + bz) / 2 - object.position.z,
           );
           line.mesh.scale.set(1, length, 1);
-          fishingDirection.set(to.x - from.x, to.y - from.y, to.z - from.z).normalize();
+          fishingDirection.set(bx - ax, by - ay, bz - az).normalize();
           line.mesh.quaternion.setFromUnitVectors(FISHING_UP, fishingDirection);
         }
       }

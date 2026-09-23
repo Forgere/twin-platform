@@ -1,5 +1,5 @@
-import { Show } from 'solid-js';
-import { fishingView, type FishingView } from '@twin-platform/plugins-fishing';
+import { For, Show } from 'solid-js';
+import { fishingView, rigPosture, SIGNAL_LABEL, type FishingView, type RigPosture } from '@twin-platform/plugins-fishing';
 import type { StudioSession } from '../scene/studioSession';
 
 /**
@@ -19,8 +19,6 @@ const WIDTH = 280;
 const PAD = 16;
 const SCALE = 130; // px / 米
 const SURFACE_Y = PAD + 30;
-const HOOK_DX = 7;
-const BAIT_DX = -7;
 
 const fmt = (value: number): string => String(Math.round(value * 100) / 100);
 const pct = (value: number, min: number, max: number): number =>
@@ -35,6 +33,10 @@ const ZONE_LABEL: Readonly<Record<string, string>> = {
 };
 
 const zoneLabel = (zone: string): string => ZONE_LABEL[zone] ?? zone;
+
+/** 逐部件姿态列表（漂 / 主线 / 铅坠 / 8 字环 / 上下钩饵 / 子线），与 3D 场景共用 rigPosture。 */
+const postureParts = (current: FishingView): RigPosture['parts'] =>
+  rigPosture(current.state.rig, { drift: current.drift, signal: current.signal }).parts;
 
 export default function FishingSandbox(props: { session: StudioSession; tick: number }) {
   const view = (): FishingView | undefined => {
@@ -82,6 +84,28 @@ export default function FishingSandbox(props: { session: StudioSession; tick: nu
     const sy = (y: number): number => SURFACE_Y + (current.surfaceY - y) * SCALE;
     const layout = current.layout;
 
+    // 由状态算姿态：部件状态 + 子线弯曲，与 3D 场景共用 rigPosture 同一份真相。
+    const posture = rigPosture(current.state.rig, { drift: current.drift, signal: current.signal });
+    const bendU = posture.subLineUpper.bend;
+    const bendL = posture.subLineLower.bend;
+    const upperDX = 7;
+    const lowerDX = -7;
+
+    const floatY = sy(layout.float[1]);
+    const sinkerY = sy(layout.sinker[1]);
+    const swivelY = sy(layout.swivel[1]);
+    const upperHookY = sy(layout.upperHook[1]);
+    const lowerHookY = sy(layout.lowerHook[1]);
+    const upperBaitY = sy(layout.upperBait[1]);
+    const lowerBaitY = sy(layout.lowerBait[1]);
+    const tipX = cx + 88;
+    const tipY = SURFACE_Y - 12;
+    // 子线弯曲：钝区子线松弛，中间点向外侧鼓出（上钩向右、下钩向左，像真分叉）。
+    const upperMidX = cx + upperDX + bendU * 12;
+    const upperMidY = (swivelY + upperHookY) / 2;
+    const lowerMidX = cx + lowerDX - bendL * 12;
+    const lowerMidY = (swivelY + lowerHookY) / 2;
+
     return (
       <svg class="sandbox-svg" viewBox={'0 0 ' + WIDTH + ' ' + height} width="100%" role="img" aria-label="钓组剖面图">
         <rect x={0} y={SURFACE_Y} width={WIDTH} height={bottomY - SURFACE_Y} fill="#cfe8f3" />
@@ -89,22 +113,29 @@ export default function FishingSandbox(props: { session: StudioSession; tick: nu
         <rect x={0} y={bottomY} width={WIDTH} height={height - bottomY} fill="#e6d3b3" />
         <line x1={0} y1={bottomY} x2={WIDTH} y2={bottomY} stroke="#b08d57" stroke-width={2} />
 
-        <line x1={cx} y1={sy(layout.float[1])} x2={cx} y2={sy(layout.sinker[1])} stroke="#8a8a8a" stroke-width={1} />
-        <line x1={cx} y1={sy(layout.sinker[1])} x2={cx} y2={sy(layout.upperHook[1])} stroke="#8a8a8a" stroke-width={1} />
-        <line x1={cx} y1={sy(layout.upperHook[1])} x2={cx} y2={sy(layout.lowerHook[1])} stroke="#8a8a8a" stroke-width={1} />
+        {/* 主线：竿梢 → 浮漂 → 铅坠 → 8 字环（自上而下一条链） */}
+        <line x1={tipX} y1={tipY} x2={cx} y2={floatY} stroke="#8a8a8a" stroke-width={1.2} />
+        <line x1={cx} y1={floatY} x2={cx} y2={sinkerY} stroke="#8a8a8a" stroke-width={1.2} />
+        <line x1={cx} y1={sinkerY} x2={cx} y2={swivelY} stroke="#8a8a8a" stroke-width={1.2} />
+        {/* 子线：8 字环并联分出两根到上钩 / 下钩，弯曲时鼓成折线 */}
+        <polyline points={`${cx},${swivelY} ${upperMidX},${upperMidY} ${cx + upperDX},${upperHookY}`} fill="none" stroke="#aab2bb" stroke-width={1} />
+        <polyline points={`${cx},${swivelY} ${lowerMidX},${lowerMidY} ${cx + lowerDX},${lowerHookY}`} fill="none" stroke="#aab2bb" stroke-width={1} />
 
-        <ellipse cx={cx} cy={sy(layout.float[1])} rx={4} ry={11} fill="#ff8c42" />
-        <rect x={cx - 3} y={sy(layout.sinker[1]) - 5} width={6} height={10} rx={1.5} fill="#4a4a4a" />
+        <circle cx={cx} cy={swivelY} r={3} fill="#b08d57" />
+        <ellipse cx={cx} cy={floatY} rx={4} ry={11} fill={current.signal === 'sink' ? '#c0392b' : '#ff8c42'} />
+        <rect x={cx - 3} y={sinkerY - 5} width={6} height={10} rx={1.5} fill="#4a4a4a" />
 
-        <circle cx={cx + HOOK_DX} cy={sy(layout.upperHook[1])} r={3} fill="none" stroke="#333" stroke-width={1.2} />
-        <circle cx={cx + HOOK_DX} cy={sy(layout.lowerHook[1])} r={3} fill="none" stroke="#333" stroke-width={1.2} />
-        <circle cx={cx + BAIT_DX} cy={sy(layout.upperBait[1])} r={3.5} fill="#e07a5f" />
-        <circle cx={cx + BAIT_DX} cy={sy(layout.lowerBait[1])} r={3.5} fill="#e07a5f" />
+        <circle cx={cx + upperDX} cy={upperHookY} r={3} fill="none" stroke="#333" stroke-width={1.2} />
+        <circle cx={cx + lowerDX} cy={lowerHookY} r={3} fill="none" stroke="#333" stroke-width={1.2} />
+        <circle cx={cx + upperDX - 9} cy={upperBaitY} r={3.5} fill="#e07a5f" />
+        <circle cx={cx + lowerDX - 9} cy={lowerBaitY} r={3.5} fill="#e07a5f" />
 
-        <text x={cx + 10} y={sy(layout.float[1]) + 3} font-size="9" fill="#333">漂</text>
-        <text x={cx + 10} y={sy(layout.sinker[1]) + 3} font-size="9" fill="#333">铅</text>
-        <text x={cx + 13} y={sy(layout.lowerHook[1]) + 3} font-size="9" fill="#333">钩</text>
-        <text x={cx - 12} y={sy(layout.lowerBait[1]) + 3} font-size="9" fill="#333" text-anchor="end">饵</text>
+        <text x={tipX - 4} y={tipY - 4} font-size="9" fill="#333" text-anchor="end">竿梢</text>
+        <text x={cx + 10} y={floatY + 3} font-size="9" fill="#333">漂</text>
+        <text x={cx + 10} y={sinkerY + 3} font-size="9" fill="#333">铅</text>
+        <text x={cx + 10} y={swivelY + 3} font-size="9" fill="#b08d57">8字环</text>
+        <text x={cx + upperDX + 8} y={upperHookY + 3} font-size="9" fill="#333">上钩</text>
+        <text x={cx + lowerDX + 8} y={lowerHookY + 3} font-size="9" fill="#333">下钩</text>
         <text x={8} y={SURFACE_Y - 4} font-size="9" fill="#2E86AB">水面</text>
         <text x={8} y={bottomY - 4} font-size="9" fill="#8a6a3d">水底 {fmt(current.depth)}m</text>
       </svg>
@@ -132,6 +163,23 @@ export default function FishingSandbox(props: { session: StudioSession; tick: nu
         {(current) => (
           <>
             {crossSection()}
+
+            <Show when={current().signal !== 'none'}>
+              <p class="plugin-note" style="color:#c0392b">漂相：{SIGNAL_LABEL[current().signal]}</p>
+            </Show>
+            <Show when={current().drift}>
+              <p class="plugin-note" style="color:#b8860b">⚠ 走水：主线被拉斜、浮漂走位</p>
+            </Show>
+
+            <h3 style="margin:10px 0 4px;font-size:12px;opacity:0.85">各部件状态</h3>
+            <ul class="rig-posture">
+              <For each={postureParts(current())}>{(part) => (
+                <li>
+                  <span class="rp-label">{part.label}</span>
+                  <span class="rp-text">{part.text}</span>
+                </li>
+              )}</For>
+            </ul>
 
             <p class="plugin-contrib">
               t0 {fmt(current().state.rig.t0)} · 带钩调目 t {fmt(current().state.rig.t)} · 单饵压目 w {fmt(current().state.rig.w)} · 钓目 d {fmt(current().state.rig.d)}

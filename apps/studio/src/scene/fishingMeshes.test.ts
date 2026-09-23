@@ -53,15 +53,18 @@ describe('台钓钓组模型', () => {
     expect(hookBox.min.x).toBeGreaterThan(baitBox.max.x);
   });
 
-  test('逻辑钓组提供四段线（主线从竿到漂 + 两段子线），端点与场景实体对齐', () => {
+  test('逻辑钓组提供七段线（主线竿梢→漂→铅→8字环 + 两根子线各两段），端点与场景实体对齐', () => {
     const rig = buildEntityMesh(entity('rig', '#c9b79c', [0.1, 0.1, 0.1]));
-    expect(meshCount(rig)).toBe(4);
+    expect(meshCount(rig)).toBe(7);
     const anim = rig.userData.anim as { fishingLines?: { fromId: string; toId: string }[] } | undefined;
     expect(anim?.fishingLines?.map((line) => line.fromId + '->' + line.toId)).toEqual([
-      'rod-01->float-01',
+      'rod-tip-01->float-01',
       'float-01->sinker-01',
-      'sinker-01->hook-upper-01',
-      'hook-upper-01->hook-lower-01',
+      'sinker-01->swivel-01',
+      'swivel-01->hook-upper-01',
+      'swivel-01->hook-upper-01',
+      'swivel-01->hook-lower-01',
+      'swivel-01->hook-lower-01',
     ]);
   });
 

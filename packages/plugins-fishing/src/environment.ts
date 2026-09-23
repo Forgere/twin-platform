@@ -7,6 +7,7 @@ import { createFishSimBehavior, fishingLayout, type FishingLayout } from './fish
 import { toFishingState, type FishingIntent, type FishingState } from './state';
 import { buildFishingScene, type FishingTemplateParams } from './template';
 import { num, str } from './values';
+import type { FloatSignal } from './rigPosture';
 
 /**
  * FishingEnvironment —— 把钓场仿真接到 decision-core 的 `Environment` 端口。
@@ -66,6 +67,10 @@ export interface FishingView {
   readonly surfaceY: number;
   readonly hookGap: number;
   readonly castInterval: number;
+  /** 走水：主线被拉斜、漂走位。 */
+  readonly drift: boolean;
+  /** 当前漂相（有口那一瞬是顿口 / 送漂 / 黑漂，否则 none）。 */
+  readonly signal: FloatSignal;
 }
 
 /**
@@ -89,7 +94,9 @@ export function fishingView(world: WorldReader, rigId = RIG_ID): FishingView | u
     state.rig,
     { surfaceY, depth, hookGap },
   );
-  return { state, layout, depth, surfaceY, hookGap, castInterval: Math.max(0.5, num(config.castInterval, 3)) };
+  const signalRaw = str(entity.attrs?.signal, 'none');
+  const signal: FloatSignal = signalRaw === 'nod' || signalRaw === 'lift' || signalRaw === 'sink' || signalRaw === 'run' ? signalRaw : 'none';
+  return { state, layout, depth, surfaceY, hookGap, castInterval: Math.max(0.5, num(config.castInterval, 3)), drift: state.drift, signal };
 }
 
 export interface FishingEnvironmentOptions {

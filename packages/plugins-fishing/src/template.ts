@@ -6,9 +6,12 @@ import { fishingLayout, type FishingLayout } from './fishSim';
 /**
  * 台钓钓场场景模板。
  *
- * 一个 `rig` 逻辑实体（干净、可调、可回放） + 一处水面 + 六个只读布局实体
- * （浮漂 / 铅坠 / 上钩 / 下钩 / 上饵 / 下饵）。布局实体没有自己的逻辑，位置
- * 每步由 fish-sim 按当前调钓算出来。
+ * 一个 `rig` 逻辑实体（干净、可调、可回放） + 一处水面 + 七个只读布局实体
+ * （浮漂 / 铅坠 / **8 字环** / 上钩 / 下钩 / 上饵 / 下饵）。布局实体没有自己的
+ * 逻辑，位置每步由 fish-sim 按当前调钓算出来。
+ *
+ * 实体之间的**连线不是模板的事**：拓扑在 `rigPosture.RIG_LINKS` 里（唯一真相），
+ * 3D 由 studio 的 buildRigMarker 读它生成，2D 剖面同理。
  *
  * 布局实体的**初始位置也用 fishingLayout 计算**——以前是手写估值，世界还没
  * 推进第一帧时剖面沙盒的"图与 FishSim 写入一致"核对会报 0.9m 级偏差。
@@ -18,7 +21,7 @@ import { fishingLayout, type FishingLayout } from './fishSim';
  * 与仿真，只负责让画面读起来是"一个钓场"而不是几个悬浮几何体。
  */
 
-export type LayoutSlot = 'float' | 'sinker' | 'upperHook' | 'lowerHook' | 'upperBait' | 'lowerBait';
+export type LayoutSlot = 'float' | 'sinker' | 'swivel' | 'upperHook' | 'lowerHook' | 'upperBait' | 'lowerBait';
 
 export interface FishingTemplateParams {
   readonly rig?: Partial<TaidiaoInput>;
@@ -87,11 +90,28 @@ export const fishingTemplate: SceneTemplateDescriptor<FishingTemplateParams> = {
       : {
           float: [0, surfaceY, 0],
           sinker: [0, surfaceY - 1, 0],
-          lowerHook: [0, surfaceY - 0.8, 0],
-          lowerBait: [0, surfaceY - 0.8, 0],
-          upperHook: [0, surfaceY - 0.6, 0],
-          upperBait: [0, surfaceY - 0.6, 0],
+          swivel: [0, surfaceY - 1.1, 0],
+          lowerHook: [0, surfaceY - 1.3, 0],
+          lowerBait: [0, surfaceY - 1.3, 0],
+          upperHook: [0, surfaceY - 1.1, 0],
+          upperBait: [0, surfaceY - 1.1, 0],
         };
+
+    // 鱼竿两端：握把搁在岸上钓箱旁，竿梢伸到水面上方（主线从这里出发）。
+    // 朝向不烘死在模型里：这里给出"竿梢相对竿中心的偏移"，studio 的 buildRod 照它摆，
+    // 模板与模型共用同一组端点，不会各画一套。
+    const rodTip: TwinVector3 = [0.85, surfaceY + 0.32, 0.5];
+    const rodGrip: TwinVector3 = [2.5, 0.55, 1.75];
+    const rodCenter: TwinVector3 = [
+      (rodTip[0] + rodGrip[0]) / 2,
+      (rodTip[1] + rodGrip[1]) / 2,
+      (rodTip[2] + rodGrip[2]) / 2,
+    ];
+    const rodTipOffset: TwinVector3 = [
+      (rodTip[0] - rodGrip[0]) / 2,
+      (rodTip[1] - rodGrip[1]) / 2,
+      (rodTip[2] - rodGrip[2]) / 2,
+    ];
 
     return [
       {
@@ -108,7 +128,16 @@ export const fishingTemplate: SceneTemplateDescriptor<FishingTemplateParams> = {
       decorEntity('shore-01', 'shore', [0, 0.025, 0], '#d8c69b', [9.6, 0.05, 6.6]),
       // 钓台（钓箱）在岸边、鱼竿从它后面斜指水面。
       decorEntity('platform-01', 'platform', [2.75, 0, 1.85], '#c94f3d', [0.62, 0.34, 0.45]),
-      decorEntity('rod-01', 'rod', [2.3, surfaceY + 1.0, 1.55], '#8a5a2b', [0.07, 2.6, 0.07]),
+      {
+        id: 'rod-01',
+        kind: 'rod',
+        transform: { position: rodCenter },
+        capabilities: ['rod'],
+        visual: { kind: 'rod', color: '#8a5a2b', size: [0.07, 2.7, 0.07] },
+        config: { tipOffset: rodTipOffset },
+      },
+      // 竿梢导线环：主线（RIG_LINKS 第一段）的起点，位置就是上面那个端点。
+      decorEntity('rod-tip-01', 'rodTip', rodTip, '#c9ccd1', [0.06, 0.06, 0.06]),
       // 岸边芦苇两丛、水里水草两丛、鱼影三条：位置固定（装饰不做行为，避免破坏确定性回放）。
       decorEntity('reed-01', 'reed', [-3.6, 0, 2.4], '#8a6a45', [0.5, 1.0, 0.2]),
       decorEntity('reed-02', 'reed', [3.8, 0, -2.2], '#8a6a45', [0.45, 0.9, 0.2]),
@@ -147,6 +176,9 @@ export const fishingTemplate: SceneTemplateDescriptor<FishingTemplateParams> = {
       },
       layoutEntity('float-01', 'float', 'float', [...layout.float] as TwinVector3, { color: '#ff7a3c', size: [0.1, 0.42, 0.1] }),
       layoutEntity('sinker-01', 'sinker', 'sinker', [...layout.sinker] as TwinVector3, { color: '#4a4a4a', size: [0.06, 0.07, 0.06] }),
+      // 8 字环：主线与两根子线的分叉点。模板没有专属造型，复用金属球即可，
+      // 真正"环"的样子交给 3D 渲染层的 buildSwivel（torus）。
+      layoutEntity('swivel-01', 'swivel', 'swivel', [...layout.swivel] as TwinVector3, { color: '#b08d57', size: [0.05, 0.05, 0.05] }),
       layoutEntity('hook-upper-01', 'hook', 'upperHook', [...layout.upperHook] as TwinVector3, { color: '#c9ccd1', size: [0.06, 0.07, 0.06] }),
       layoutEntity('hook-lower-01', 'hook', 'lowerHook', [...layout.lowerHook] as TwinVector3, { color: '#c9ccd1', size: [0.06, 0.07, 0.06] }),
       layoutEntity('bait-upper-01', 'bait', 'upperBait', [...layout.upperBait] as TwinVector3, { color: '#e07a5f', size: [0.06, 0.06, 0.06] }),

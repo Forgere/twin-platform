@@ -7,8 +7,8 @@ describe('fishing-pond 场景模板', () => {
   test('水面 + 逻辑钓组 + 六个布局实体 + 装饰实体，id 唯一', () => {
     const scene = buildFishingScene({});
     expect(scene.id).toBe('fishing-pond');
-    // 8 个功能实体 + 水底/岸坡/钓台/鱼竿/2 芦苇/2 水草/3 鱼影
-    expect(scene.entities).toHaveLength(19);
+    // 8 个功能实体（含 8 字环）+ 水底/岸坡/钓台/鱼竿/竿梢/2 芦苇/2 水草/3 鱼影
+    expect(scene.entities).toHaveLength(21);
     const ids = scene.entities.map((entity) => entity.id);
     expect(new Set(ids).size).toBe(ids.length);
 
@@ -20,7 +20,7 @@ describe('fishing-pond 场景模板', () => {
     const slots = scene.entities
       .filter((entity) => typeof (entity.config as { slot?: unknown } | undefined)?.slot === 'string')
       .map((entity) => (entity.config as { slot?: string } | undefined)?.slot);
-    expect(slots).toEqual(['float', 'sinker', 'upperHook', 'lowerHook', 'upperBait', 'lowerBait']);
+    expect(slots).toEqual(['float', 'sinker', 'swivel', 'upperHook', 'lowerHook', 'upperBait', 'lowerBait']);
   });
 
   test('布局实体初始位置就是 fishingLayout 的输出——首帧即与 FishSim 写入一致', () => {
@@ -34,7 +34,7 @@ describe('fishing-pond 场景模板', () => {
     // 模板内部约定：水面在 y=depth（水底贴地）
     const expected = fishingLayout(input, result.state, { surfaceY: 2, depth: 2, hookGap: 0.2 });
 
-    for (const id of ['float-01', 'sinker-01', 'hook-upper-01', 'hook-lower-01', 'bait-upper-01', 'bait-lower-01']) {
+    for (const id of ['float-01', 'sinker-01', 'swivel-01', 'hook-upper-01', 'hook-lower-01', 'bait-upper-01', 'bait-lower-01']) {
       const entity = scene.entities.find((item) => item.id === id)!;
       const slot = (entity.config as { slot: keyof typeof expected }).slot;
       expect(entity.transform.position[1]).toBeCloseTo(expected[slot][1], 9);

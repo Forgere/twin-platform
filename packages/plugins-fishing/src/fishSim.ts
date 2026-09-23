@@ -1,6 +1,7 @@
 import type { BehaviorContext, WorldBehavior } from '@twin-platform/world-kernel';
 import type { TwinVector3 } from '@twin-platform/scene-schema';
 import { calculateRigState, type RigState, type RigZone, type TaidiaoInput } from './fishingCore';
+import { BITE_SIGNALS, subLineBend, type FloatSignal } from './rigPosture';
 import { num, str } from './values';
 
 /**
@@ -55,6 +56,8 @@ export function hookProbability(zone: RigZone, waterTemperature = 20): number {
 export interface FishingLayout {
   readonly float: TwinVector3;
   readonly sinker: TwinVector3;
+  /** 8 字环：主线与两根子线的分叉点。 */
+  readonly swivel: TwinVector3;
   readonly upperHook: TwinVector3;
   readonly lowerHook: TwinVector3;
   readonly upperBait: TwinVector3;
@@ -62,7 +65,24 @@ export interface FishingLayout {
 }
 
 /**
- * 简化布局：水面在 `surfaceY`，水底在 `surfaceY - depth`。
+ * 链上间距（米），以 2.2m 水深为基准；浅水按 `scale` 整体缩小，免得线组捅出水面。
+ * 顺序按真实线组自下而上：下钩 → 上钩（钩距）→ 8 字环（短子线）→ 铅皮座。
+ */
+const HOOK_CLEARANCE = 0.1; // 下钩完全到底时离底的高度（钩有大小，不可能压进泥里）
+const HOVER_LIFT = 0.35; // 完全离底时下钩离底的高度
+const SUBLINE_SHORT = 0.22; // 短子线：8 字环 → 上钩（长子线 = 短子线 + 钩距）
+const SWIVEL_SINK = 0.14; // 钝到头时 8 字环额外下沉量——下钩已到底，多出来的线只能弯
+const LEAD_TO_SWIVEL = 0.1; // 铅皮座 → 8 字环
+const MARK_HEIGHT = 0.02; // 漂尾一目 ≈ 2cm
+
+/**
+ * 钓组布局：**自上而下一条链**，与 `RIG_LINKS` 的拓扑一致。
+ *
+ * - 下钩离底高度由"底承托了多少"决定：底托得越多，线组整体越往下沉到贴底；
+ * - 8 字环在下钩到底后还会继续下沉（子线起弯，见 `subLineBend`）——这就是
+ *   "钝"的样子：钩不动、线松了，信号传不上来；
+ * - 浮漂露出 d 目 → 漂身随之上移（d 越大水线越长、钩饵越到底）。
+ *
  * 不追求物理精确——2D 剖面与 3D 场景读的是同一份布局，只有一个真相。
  */
 export function fishingLayout(
@@ -76,17 +96,29 @@ export function fishingLayout(
   const bottomY = surfaceY - depth;
   const maxLoad = state.H + 2 * state.w;
   const supported = maxLoad <= 0 ? 0 : clamp01(state.bottomLoad / maxLoad);
-  const floatY = surfaceY - 0.02 * input.d;
-  const sinkerY = bottomY + 0.45 - 0.3 * supported;
-  const lowerHookY = bottomY + 0.12 + 0.33 * (1 - supported);
-  const upperHookY = lowerHookY + hookGap;
+  const bend = subLineBend(state, 'lower');
+  const scale = Math.min(1, depth / 2.2);
+
+  const lowerHookY = bottomY + (HOOK_CLEARANCE + HOVER_LIFT * (1 - supported)) * scale;
+  const upperHookY = lowerHookY + hookGap * scale;
+  const swivelY = upperHookY + (SUBLINE_SHORT - SWIVEL_SINK * bend) * scale;
+  const sinkerY = swivelY + LEAD_TO_SWIVEL * scale;
+
+  // 浅水兜底：整条链必须留在水里，且保持"上钩在 8 字环下方、8 字环在铅坠下方"。
+  const sinkerYc = Math.min(sinkerY, surfaceY - 0.28 * scale);
+  const swivelYc = Math.min(swivelY, sinkerYc - LEAD_TO_SWIVEL * scale);
+  const upperHookYc = Math.min(upperHookY, swivelYc - 0.06 * scale);
+  const lowerHookYc = Math.min(lowerHookY, Math.max(bottomY + 0.03, upperHookYc - hookGap * scale));
+  const floatY = surfaceY - 0.1 + MARK_HEIGHT * input.d;
+
   return {
     float: [0, floatY, 0],
-    sinker: [0, sinkerY, 0],
-    lowerHook: [0, lowerHookY, 0],
-    lowerBait: [0, lowerHookY, 0],
-    upperHook: [0, upperHookY, 0],
-    upperBait: [0, upperHookY, 0],
+    sinker: [0, sinkerYc, 0],
+    swivel: [0, swivelYc, 0],
+    lowerHook: [0, lowerHookYc, 0],
+    lowerBait: [0, lowerHookYc, 0],
+    upperHook: [0, upperHookYc, 0],
+    upperBait: [0, upperHookYc, 0],
   };
 }
 
@@ -95,7 +127,7 @@ export interface FishSimConfig {
   castInterval?: number;
 }
 
-const SLOTS = ['float', 'sinker', 'upperHook', 'lowerHook', 'upperBait', 'lowerBait'] as const;
+const SLOTS = ['float', 'sinker', 'swivel', 'upperHook', 'lowerHook', 'upperBait', 'lowerBait'] as const;
 
 function writeLayout(ctx: BehaviorContext, rigId: string, input: TaidiaoInput, state: RigState, config: Record<string, unknown>): void {
   const layout = fishingLayout(input, state, {
@@ -110,6 +142,22 @@ function writeLayout(ctx: BehaviorContext, rigId: string, input: TaidiaoInput, s
     if (!position) continue;
     const target = layout[position];
     ctx.setTransform(entity.id, { ...entity.transform, position: [target[0], target[1], target[2]] });
+  }
+}
+
+/**
+ * 把子线弯曲量写进 attrs（渲染读它决定子线鼓多少）。
+ * 四位小数够画了，也避免浮点抖动每帧都算一次"变化"。
+ */
+function writeBend(ctx: BehaviorContext, rigId: string, state: RigState): void {
+  const entity = ctx.entities.find((item) => item.id === rigId);
+  if (!entity) return;
+  for (const [attr, value] of [
+    ['bendLower', subLineBend(state, 'lower')],
+    ['bendUpper', subLineBend(state, 'upper')],
+  ] as const) {
+    const rounded = Math.round(value * 1e4) / 1e4;
+    if (num(entity.attrs[attr], -1) !== rounded) ctx.setAttr(rigId, attr, rounded);
   }
 }
 
@@ -134,6 +182,8 @@ export function createFishSimBehavior(config: FishSimConfig = {}): WorldBehavior
 
         // 位姿每步刷新（seek 到任意帧都画得对），与是否结算无关。
         writeLayout(ctx, entity.id, input, result.state, worldConfig);
+        // 子线弯曲量给渲染用（3D 要把子线画成弯的）。只在变化时写，别把 ops 撑爆。
+        writeBend(ctx, entity.id, result.state);
 
         const waterTemperature = num(worldConfig.waterTemperature, 20);
         const interval = Math.max(0.5, num(worldConfig.castInterval, defaultInterval));
@@ -143,6 +193,8 @@ export function createFishSimBehavior(config: FishSimConfig = {}): WorldBehavior
         const casts = num(entity.attrs.casts, 0) + 1;
         const bit = ctx.rng.bool(biteProbability(result.state.zone, waterTemperature));
         const hooked = bit && ctx.rng.bool(hookProbability(result.state.zone, waterTemperature));
+        // 有口就有漂相（顿口 / 送漂 / 黑漂）——这是用户唯一能直接看到的信号。
+        const signal: FloatSignal = bit ? ctx.rng.pick(BITE_SIGNALS) : 'none';
 
         ctx.setAttr(entity.id, 'casts', casts);
         ctx.setAttr(entity.id, 'bites', num(entity.attrs.bites, 0) + (bit ? 1 : 0));
@@ -151,9 +203,10 @@ export function createFishSimBehavior(config: FishSimConfig = {}): WorldBehavior
         ctx.setAttr(entity.id, 'zone', result.state.zone);
         ctx.setAttr(entity.id, 'bottomLoad', result.state.bottomLoad);
         ctx.setAttr(entity.id, 'nextAt', ctx.time + interval);
+        ctx.setAttr(entity.id, 'signal', signal);
         ctx.emit('fish:cast', {
           entityId: entity.id,
-          payload: { cast: casts, zone: result.state.zone, bite: bit, caught: hooked },
+          payload: { cast: casts, zone: result.state.zone, bite: bit, caught: hooked, signal },
         });
       }
     },

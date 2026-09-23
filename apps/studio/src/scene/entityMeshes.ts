@@ -42,7 +42,17 @@ export interface EntityAnim {
   /** 缓存货架预置货位（仅 buffer），按 attrs.fill 显隐。 */
   bufferSlots?: THREE.Mesh[];
   /** 台钓钓组的线（主线 / 子线）：每帧按两端实体的当前位置拉伸。 */
-  fishingLines?: { readonly mesh: THREE.Mesh; readonly fromId: string; readonly toId: string }[];
+  fishingLines?: {
+    readonly mesh: THREE.Mesh;
+    readonly fromId: string;
+    readonly toId: string;
+    /** 子线弯曲：设置则该段属子线，控制器按 rigId 实体 attrs 里的 bend* 松弛成折线。 */
+    readonly bendAttr?: 'bendUpper' | 'bendLower';
+    /** 子线拆成两段折线，first=前段（from→mid），second=后段（mid→to）。 */
+    readonly bendRole?: 'first' | 'second';
+    /** 弯曲量来源的 rig 实体（钓场固定为 rig-01）。 */
+    readonly rigId?: string;
+  }[];
   /** 顶升链带的链轮（仅 cassette）：顶起后按出货方向自转。 */
   sprockets?: THREE.Mesh[];
   /** 顶升链带上的链齿（仅 cassette）：沿 local Z 循环平移，链条才像在跑。 */
@@ -1381,7 +1391,7 @@ const ROD_LENGTH = 2.6;
  * 鱼竿：锥形竿身 + 握把，整体烘焙一个斜指水面的倾角——装饰实体没有行为，
  * 朝向直接烘进模型，实体声明里只有中心位置。
  */
-function buildRod(color: string): THREE.Group {
+function buildRod(color: string, config?: Record<string, unknown>): THREE.Group {
   const group = new THREE.Group();
   group.userData.codePath = 'entityMeshes.ts:buildRod';
   const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.035, ROD_LENGTH, 10), material(color, { roughness: 0.55 }));
@@ -1391,6 +1401,16 @@ function buildRod(color: string): THREE.Group {
   grip.position.y = -ROD_LENGTH / 2 - 0.18;
   grip.castShadow = true;
   group.add(grip);
+  // 竿尖沿 +Y；模板声明 tipOffset（竿尖相对竿中心的偏移），让尖对准竿梢导线环——
+  // 这样主线从竿梢出发在视觉上才连得对。未声明时退回固定斜角。
+  const offset = config?.tipOffset;
+  if (Array.isArray(offset) && offset.length === 3) {
+    const dir = new THREE.Vector3(offset[0] as number, offset[1] as number, offset[2] as number);
+    if (dir.lengthSq() > 1e-9) {
+      group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+      return group;
+    }
+  }
   group.rotation.z = 0.62;
   group.rotation.y = -0.55;
   return group;
@@ -1518,19 +1538,65 @@ function buildRigMarker(): THREE.Group {
   const group = new THREE.Group();
   group.userData.codePath = 'entityMeshes.ts:buildRig';
 
-  const links: [string, string][] = [
-    ['rod-01', 'float-01'],
+  // 拓扑与 rigPosture.RIG_LINKS 一致（钓场是固定模板，实体 id 直接写死）：
+  //   主线：竿梢 → 浮漂 → 铅坠 → 8 字环（直线段）
+  //   子线：8 字环 → 上钩 / 下钩（两根**并联**，钝了子线松开 → 各拆成 2 段折线）
+  const mainLines: [string, string][] = [
+    ['rod-tip-01', 'float-01'],
     ['float-01', 'sinker-01'],
-    ['sinker-01', 'hook-upper-01'],
-    ['hook-upper-01', 'hook-lower-01'],
+    ['sinker-01', 'swivel-01'],
   ];
-  const fishingLines = links.map(([fromId, toId]) => {
+  // 子线两段共用同一对端点；bendAttr 让控制器在两端之间插入一个下垂的中间点。
+  const branchLines: { fromId: string; toId: string; bendAttr: 'bendUpper' | 'bendLower' }[] = [
+    { fromId: 'swivel-01', toId: 'hook-upper-01', bendAttr: 'bendUpper' },
+    { fromId: 'swivel-01', toId: 'hook-lower-01', bendAttr: 'bendLower' },
+  ];
+  const rigId = 'rig-01';
+
+  const fishingLines: {
+    mesh: THREE.Mesh;
+    fromId: string;
+    toId: string;
+    bendAttr?: 'bendUpper' | 'bendLower';
+    bendRole?: 'first' | 'second';
+    rigId?: string;
+  }[] = [];
+
+  for (const [fromId, toId] of mainLines) {
     const mesh = cyl(FISHING_LINE_R, 1, '#f8f9fa', 8, { roughness: 0.5 });
     mesh.castShadow = false;
     group.add(mesh);
-    return { mesh, fromId, toId };
-  });
+    fishingLines.push({ mesh, fromId, toId });
+  }
+  for (const { fromId, toId, bendAttr } of branchLines) {
+    for (const bendRole of ['first', 'second'] as const) {
+      const mesh = cyl(FISHING_LINE_R * 0.78, 1, '#cfd6dd', 8, { roughness: 0.5 });
+      mesh.castShadow = false;
+      group.add(mesh);
+      fishingLines.push({ mesh, fromId, toId, bendAttr, bendRole, rigId });
+    }
+  }
   group.userData.anim = { kind: 'fishing-rig', fishingLines } as EntityAnim;
+  return group;
+}
+
+/** 8 字环：主线与两根子线的分叉点，一个小金属环。 */
+function buildSwivel(color: string): THREE.Group {
+  const group = new THREE.Group();
+  group.userData.codePath = 'entityMeshes.ts:buildSwivel';
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.022, 0.007, 8, 16), material(color, { roughness: 0.35, metalness: 0.7 }));
+  ring.castShadow = false;
+  group.add(ring);
+  return group;
+}
+
+/** 竿梢导线环：主线（RIG_LINKS 第一段）起点，套在竿尖上的小环。 */
+function buildRodTip(color: string): THREE.Group {
+  const group = new THREE.Group();
+  group.userData.codePath = 'entityMeshes.ts:buildRodTip';
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.03, 0.006, 8, 14), material(color, { roughness: 0.4, metalness: 0.6 }));
+  ring.castShadow = false;
+  group.add(ring);
   return group;
 }
 
@@ -1605,7 +1671,11 @@ export function buildEntityMesh(entity: EntityMeshInput): THREE.Group {
     case 'shore':
       return buildShore(size, color);
     case 'rod':
-      return buildRod(color);
+      return buildRod(color, entity.config);
+    case 'rodTip':
+      return buildRodTip(color);
+    case 'swivel':
+      return buildSwivel(color);
     case 'platform':
       return buildPlatform(color);
     case 'reed':
