@@ -16,6 +16,9 @@ app.config.timestamp_*.js
 # dependencies
 node_modules/
 
+# TypeScript 增量构建产物（`tsc -b` 每次都会重写，不该进版本库）
+*.tsbuildinfo
+
 # IDEs and editors
 /.idea
 .project

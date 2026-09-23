@@ -11,7 +11,6 @@ import {
   type EntityAnim,
 } from './entityMeshes';
 import { CargoPool } from './CargoPool';
-import { describeEntityState } from './entityState';
 import { getActiveTheme, setActiveTheme, themeByName, cargoColorFor, type ThemeName } from './theme';
 
 CameraControls.install({ THREE });
@@ -192,18 +191,6 @@ export class TwinSceneController {
       });
     }
     return out;
-  }
-
-  /**
-   * 选中实体的**实时状态**（只读世界状态，不在渲染层推演）。
-   *
-   * 托盘货位 / 货架占用 / 堆垛机任务都写在实体 attrs 里，翻译成人话的那部分
-   * 放在 `entityState.ts`（纯函数、可单测）；这里只负责把世界状态取出来。
-   */
-  describeEntity(id: string): string[] {
-    const state = this.controller.world.getEntity(id);
-    if (!state) return [];
-    return describeEntityState(state);
   }
 
   /** 点中实体后，回答"它由哪段代码渲染"——模型溯源，调试用。 */

@@ -3,6 +3,7 @@ import type { WorldEvent } from '@twin-platform/world-kernel';
 import type { LineMetrics } from '@twin-platform/analytics-core';
 import { StudioSession, type StudioTelemetry } from '../scene/studioSession';
 import { TwinSceneController, type CameraPreset, type TwinEntityView } from '../scene/TwinSceneController';
+import { selectionCard, type SelectionCard } from '../scene/selectionCard';
 import type { ThemeName } from '../scene/theme';
 import { parseSceneDocument, sceneFileName, serializeSceneDocument, type SceneOp, type TwinTransform } from '@twin-platform/scene-schema';
 import { createHttpStorage, defaultServerUrl, pingServer } from '@twin-platform/storage-http';
@@ -335,15 +336,20 @@ export default function TwinViewport() {
   });
 
   /**
-   * 当前选中实体的实时状态行。
+   * "当前选择"卡片的取数：唯一入口是 `selectionCard()`（scene/selectionCard.ts）——
+   * 面板渲染它，工具与 AI 也调它，人看到的和模型看到的是同一份数据。
    *
-   * 读一下 `tick()` 是为了让这段在采样节拍上重算——状态存在世界 attrs 里，
-   * 不经过信号，必须靠节拍显式拉取（和遥测 HUD 同一个套路）。
+   * 这里只补两样只有 UI 才知道的：采样节拍（实时状态存在世界 attrs 里，不走信号，
+   * 得靠节拍显式拉取——和遥测 HUD 同一个套路）与渲染来源（模型溯源，渲染层答得上来）。
+   *
+   * 注意：**别拿它的返回值当 `<Show when>`** —— 每拍都是新对象，
+   * 会把子树（含 PoseEditor 输入框）整个重挂，输入框就打不了字了。
    */
-  const selectedState = (): string[] => {
-    tick();
+  const selectedCard = (): SelectionCard | undefined => {
     const entity = selected();
-    return entity && controller ? controller.describeEntity(entity.id) : [];
+    if (!entity) return undefined;
+    tick();
+    return selectionCard(session().world, entity.id, controller?.codePath(entity.id));
   };
 
   // ---------------------------------------------------------------------------
@@ -415,13 +421,6 @@ export default function TwinViewport() {
     const before = session().declaredTransform(entityId);
     if (!before) return false;
     return commitPose(entityId, { ...copyTransform(before), position });
-  };
-
-  /** 能不能改这个实体的布局——答案来自内核；读一下 tick 让它跟着采样节拍更新。 */
-  const lockReason = (entityId: string): string | undefined => {
-    const lock = session().poseEditability(entityId);
-    tick();
-    return lock.editable ? undefined : lock.reason;
   };
 
   /**
@@ -683,6 +682,55 @@ export default function TwinViewport() {
           {/* 六个面板互斥：同一时刻只有一个被渲染，不会堆成一长条。 */}
           <div class="tab-panel">
             <Show when={tab() === 'entity'}>
+              {/* 卡片放最上面 + sticky（App.css），实体列表再长也不会把它顶出屏幕；
+                  列表自己限高滚动，滚动发生在卡片下方。 */}
+              <section class="entity-detail" aria-live="polite">
+                <h2>🎯 当前选择</h2>
+                <Show when={selected()} fallback={<p>点击场景中的设备或物料，或从下方列表选择。</p>}>
+                  {(entity) => {
+                    // 卡片数据只从 selectionCard() 取（工具 / AI 同款），它每拍现算，
+                    // 所以下面一律用普通表达式消费，不能再套一层 <Show when={卡片}>。
+                    const card = selectedCard;
+                    return (
+                      <>
+                        <strong onContextMenu={(event) => openMenu(event, entity())} title="右键可复制名字 / ID">
+                          {card()?.label ?? entity().label}
+                        </strong>
+                        <span>
+                          {card()?.kind ?? entity().kind} · {entity().id}
+                        </span>
+                        <Show when={(card()?.stateLines.length ?? 0) > 0}>
+                          <dl class="entity-state">
+                            <For each={card()?.stateLines}>
+                              {(line) => <dd>{line}</dd>}
+                            </For>
+                          </dl>
+                        </Show>
+                        <span class="code-path">渲染来源：{card()?.codePath ?? '—'}</span>
+                        <PoseEditor
+                          entityId={entity().id}
+                          revision={editRevision()}
+                          getDeclared={() => session().declaredTransform(entity().id)}
+                          locked={card()?.editability.editable ? undefined : card()?.editability.reason}
+                          onCommit={(next) => commitPose(entity().id, next)}
+                        />
+                        <Show when={editError()}>
+                          {(message) => <p class="pose-error">⚠️ {message()}</p>}
+                        </Show>
+                        <Show when={layoutDirty()}>
+                          <p class="pose-dirty">
+                            ● 有未保存的布局改动{serverStorage() ? '（马上自动保存）' : '（纯静态部署，刷新会丢）'}
+                          </p>
+                        </Show>
+                        <button type="button" onClick={() => controller?.focusEntity(entity().id)}>
+                          聚焦此实体
+                        </button>
+                      </>
+                    );
+                  }}
+                </Show>
+              </section>
+
               <div class="segmented" role="group" aria-label="实体类别">
                 <button
                   type="button"
@@ -717,50 +765,6 @@ export default function TwinViewport() {
                   )}
                 </For>
               </div>
-
-              <section class="entity-detail" aria-live="polite">
-                <h2>🎯 当前选择</h2>
-                <Show when={selected()} fallback={<p>点击场景中的设备或物料，或从上方列表选择。</p>}>
-                  {(entity) => (
-                    <>
-                      <strong onContextMenu={(event) => openMenu(event, entity())} title="右键可复制名字 / ID">
-                        {entity().label}
-                      </strong>
-                      <span>
-                        {entity().kind} · {entity().id}
-                      </span>
-                      <Show when={selectedState().length > 0}>
-                        <dl class="entity-state">
-                          <For each={selectedState()}>
-                            {(line) => <dd>{line}</dd>}
-                          </For>
-                        </dl>
-                      </Show>
-                      <span class="code-path">
-                        渲染来源：{controller ? controller.codePath(entity().id) : '—'}
-                      </span>
-                      <PoseEditor
-                        entityId={entity().id}
-                        revision={editRevision()}
-                        getDeclared={() => session().declaredTransform(entity().id)}
-                        locked={lockReason(entity().id)}
-                        onCommit={(next) => commitPose(entity().id, next)}
-                      />
-                      <Show when={editError()}>
-                        {(message) => <p class="pose-error">⚠️ {message()}</p>}
-                      </Show>
-                      <Show when={layoutDirty()}>
-                        <p class="pose-dirty">
-                          ● 有未保存的布局改动{serverStorage() ? '（马上自动保存）' : '（纯静态部署，刷新会丢）'}
-                        </p>
-                      </Show>
-                      <button type="button" onClick={() => controller?.focusEntity(entity().id)}>
-                        聚焦此实体
-                      </button>
-                    </>
-                  )}
-                </Show>
-              </section>
             </Show>
 
             <Show when={tab() === 'metrics'}>
