@@ -1,21 +1,8 @@
 import { createSignal, For, onSettled, Show } from 'solid-js';
-import {
-  DecisionEngine,
-  DecisionLog,
-  applyFeedback,
-  calibrationReport,
-  type DecisionRecord,
-  type SerializedDecisionLog,
-} from '@twin-platform/decision-core';
-import {
-  createJevJudge,
-  createProxyJevClient,
-  fishingSuccess,
-  observeFishingWorld,
-  type FishingState,
-} from '@twin-platform/plugins-fishing';
-import { resolveServerUrl } from '../scene/serverUrl';
+import { DecisionEngine, DecisionLog, applyFeedback, calibrationReport, type DecisionRecord } from '@twin-platform/decision-core';
+import { fishingSuccess, observeFishingWorld, type FishingState } from '@twin-platform/plugins-fishing';
 import type { StudioSession } from '../scene/studioSession';
+import { fetchJevStatus, judgeDomain, loadDecisionLog, saveDecisionLog, type JevStatus, type JudgeMode } from './fishing/judging';
 
 /**
  * 决策面板：把"当前钓场状态 -> 判断 -> 建议动作 -> 结果反馈"搬进 Studio。
@@ -28,42 +15,7 @@ import type { StudioSession } from '../scene/studioSession';
  * 持久化要等服务端决策仓储（见开发计划 Phase 6b）。
  */
 
-type JudgeMode = 'rule' | 'jev';
-
-interface JevStatus {
-  readonly configured: boolean;
-  readonly model?: string;
-}
-
-const STORAGE_KEY = 'twin.decision-log.v1';
-
-function loadLog(): DecisionLog {
-  if (typeof localStorage === 'undefined') return new DecisionLog('ui');
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return new DecisionLog('ui');
-    return DecisionLog.fromJSON(JSON.parse(raw) as SerializedDecisionLog);
-  } catch {
-    return new DecisionLog('ui');
-  }
-}
-
-function saveLog(log: DecisionLog): void {
-  if (typeof localStorage === 'undefined') return;
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(log.toJSON()));
-  } catch {
-    // 配额满或隐私模式：存不下就只留内存，不影响判断。
-  }
-}
-
 export default function DecisionPanel(props: { session: StudioSession }) {
-  // 与 TwinViewport 同一套服务端解析：dev 时 vite:3000 跨源打 8787；
-  // 生产同源时就是 origin，token 由 Worker 注入，前端不需要。
-  const apiUrl = resolveServerUrl();
-  const apiToken = import.meta.env.VITE_TWIN_API_TOKEN || undefined;
-  const authHeaders = (): Record<string, string> => (apiToken ? { authorization: 'Bearer ' + apiToken } : {});
-
   const [mode, setMode] = createSignal<JudgeMode>('rule');
   const [jev, setJev] = createSignal<JevStatus>();
   const [record, setRecord] = createSignal<DecisionRecord>();
@@ -73,15 +25,8 @@ export default function DecisionPanel(props: { session: StudioSession }) {
   const [note, setNote] = createSignal<string>();
 
   onSettled(() => {
-    setLog(loadLog());
-    void (async () => {
-      try {
-        const response = await fetch(apiUrl + '/api/jev/status', { headers: authHeaders() });
-        setJev((await response.json()) as JevStatus);
-      } catch {
-        setJev({ configured: false });
-      }
-    })();
+    setLog(loadDecisionLog());
+    void fetchJevStatus().then(setJev);
   });
 
   /** 读当前钓场状态；非钓场或参数不合法时给出可读的原因，而不是抛到渲染里。 */
@@ -107,12 +52,7 @@ export default function DecisionPanel(props: { session: StudioSession }) {
     ].join(' · ');
   };
 
-  const domain = () => {
-    const base = props.session.host.decisions[0];
-    if (!base) return undefined;
-    if (mode() === 'rule') return base;
-    return { ...base, judge: createJevJudge(createProxyJevClient({ basePath: apiUrl + '/api/jev/decide', headers: authHeaders() })) };
-  };
+  const domain = () => judgeDomain(props.session, mode());
 
   const records = () => {
     version();
@@ -131,7 +71,7 @@ export default function DecisionPanel(props: { session: StudioSession }) {
     try {
       const engine = new DecisionEngine(target, currentLog);
       setRecord(await engine.decide(current, { at: props.session.world.time }));
-      saveLog(currentLog);
+      saveDecisionLog(currentLog);
       setVersion((value) => value + 1);
     } catch (error) {
       setNote(error instanceof Error ? error.message : String(error));
@@ -145,7 +85,7 @@ export default function DecisionPanel(props: { session: StudioSession }) {
     const item = record();
     if (!currentLog || !item) return;
     applyFeedback(currentLog, { decisionId: item.id, useful, at: props.session.world.time });
-    saveLog(currentLog);
+    saveDecisionLog(currentLog);
     setVersion((value) => value + 1);
   };
 
@@ -153,7 +93,7 @@ export default function DecisionPanel(props: { session: StudioSession }) {
     const fresh = new DecisionLog('ui');
     setLog(fresh);
     setRecord(undefined);
-    saveLog(fresh);
+    saveDecisionLog(fresh);
     setVersion((value) => value + 1);
   };
 

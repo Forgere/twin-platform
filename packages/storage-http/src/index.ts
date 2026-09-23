@@ -49,6 +49,12 @@ export interface HttpStorage extends TwinStorage {
   readonly baseUrl: string;
   /** 把攒下的事件立刻发出去（页面卸载、切场景前调用）。 */
   flush(): Promise<void>;
+  /** 各场景是否被服务端**拒收**过（key 是 sceneId，value 是拒收原因）；空 Map = 一切正常。 */
+  writeErrors(): ReadonlyMap<string, string>;
+  /** 放开某个场景的写入熔断——调用方已经排除原因（通常是重新对齐了 sequence）之后用。 */
+  clearConflict(sceneId: string): void;
+  /** 因服务端拒收而丢掉的事件数（丢弃是刻意的：见 HttpEventRepository.flush）。 */
+  readonly dropped: number;
 }
 
 /**
@@ -63,6 +69,29 @@ export interface ServerHealth {
 }
 
 const encode = (value: string): string => encodeURIComponent(value);
+
+/**
+ * 带状态码的错误。
+ *
+ * 状态码是**重试策略的唯一依据**：4xx 是服务端明确拒收（例如 sequence 不单调），
+ * 重试只是把同一批作废的事件再撞一次；5xx 与网络错误才是抖动，值得重试。
+ * 所以每个 HTTP 失败都必须带上 status，让调用方能分开这两类。
+ */
+export type HttpTransportError = Error & { status: number };
+
+function httpError(message: string, status: number): HttpTransportError {
+  const error = new Error(message) as HttpTransportError;
+  error.status = status;
+  return error;
+}
+
+/** 取错误上的状态码；非 HTTP 错误（网络断开、abort）返回 undefined。 */
+export function httpStatus(error: unknown): number | undefined {
+  if (error && typeof error === 'object' && typeof (error as { status?: unknown }).status === 'number') {
+    return (error as { status: number }).status;
+  }
+  return undefined;
+}
 
 class Transport {
   private readonly fetchImpl: typeof fetch;
@@ -97,7 +126,7 @@ class Transport {
   async get<T>(path: string, params: Record<string, string | number | undefined> = {}): Promise<T | null> {
     const response = await this.fetchImpl(this.url(path, params), { headers: this.authHeaders(false) });
     if (response.status === 404) return null;
-    if (!response.ok) throw new Error(await responseMessage(response));
+    if (!response.ok) throw httpError(await responseMessage(response), response.status);
     return (await response.json()) as T;
   }
 
@@ -107,7 +136,7 @@ class Transport {
       headers: this.authHeaders(body !== undefined),
       body: body === undefined ? undefined : JSON.stringify(body),
     });
-    if (!response.ok) throw new Error(await responseMessage(response));
+    if (!response.ok) throw httpError(await responseMessage(response), response.status);
     return (await response.json()) as T;
   }
 }
@@ -159,6 +188,14 @@ class HttpSceneRepository implements SceneRepository {
  */
 class HttpEventRepository implements EventRepository {
   private readonly pending = new Map<string, WorldEvent[]>();
+  /**
+   * 被服务端**拒收**过的场景（sceneId → 拒收原因）。
+   *
+   * 一旦进这张表，该场景的写入就熔断了：后续事件直接丢弃，不再重试。
+   * 理由见 flush——4xx 的失败重试是纯浪费，还会每 120ms 刷一条报错。
+   */
+  private readonly rejected = new Map<string, string>();
+  private discarded = 0;
   private timer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(
@@ -169,6 +206,12 @@ class HttpEventRepository implements EventRepository {
 
   async append(sceneId: string, events: readonly WorldEvent[]): Promise<number> {
     if (events.length === 0) return 0;
+    // 熔断中：这批事件的 sequence 已经是被拒收过的号段，留着只会再撞一次。
+    // 返回 0（没写进去）而不是条数——录制器不能以为自己写成功了。
+    if (this.rejected.has(sceneId)) {
+      this.discarded += events.length;
+      return 0;
+    }
     const bucket = this.pending.get(sceneId) ?? [];
     bucket.push(...events.map((event) => ({ ...event })));
     this.pending.set(sceneId, bucket);
@@ -187,7 +230,20 @@ class HttpEventRepository implements EventRepository {
     this.timer.unref?.();
   }
 
-  /** 把攒下的事件全部发出去。页面卸载前也应该调一次。 */
+  /**
+   * 把攒下的事件全部发出去。页面卸载前也应该调一次。
+   *
+   * 失败分两类，**处理方式完全相反**：
+   *
+   * - **4xx（尤其是 409 sequence 冲突）**：服务端在说"这批事件我不收"。
+   *   事件里的 sequence 已经被判死，塞回 pending 只会让下一次 flush 原样再撞一次——
+   *   面板每 120ms 采样一次，于是控制台就是每 120ms 一条 409。所以这里**丢弃并熔断**，
+   *   第一次仍然抛出（让调用方看得见原因），之后不再骚扰。
+   * - **5xx / 网络错误**：抖动。塞回队首，下次 flush 重试（顺序不能乱）。
+   *
+   * 另外：错误在最后一次迭代才抛出，**中途不中断**——否则排在同一批里的其它场景
+   * 的事件会被 `pending.clear()` 后无声丢弃。
+   */
   async flush(): Promise<void> {
     if (this.timer) {
       clearTimeout(this.timer);
@@ -195,18 +251,43 @@ class HttpEventRepository implements EventRepository {
     }
     const batches = [...this.pending.entries()];
     this.pending.clear();
+    let failure: unknown;
     for (const [sceneId, events] of batches) {
       if (events.length === 0) continue;
       try {
         await this.transport.send<{ written: number }>('POST', '/api/events', events, { sceneId });
       } catch (error) {
-        // 发送失败要把事件放回去，否则这批事件就凭空消失了；
-        // 下一次 flush 会重试（可能是网络抖动）。
-        const back = this.pending.get(sceneId) ?? [];
-        this.pending.set(sceneId, [...events, ...back]);
-        throw error;
+        const status = httpStatus(error);
+        const message = error instanceof Error ? error.message : String(error);
+        if (status !== undefined && status >= 400 && status < 500) {
+          // 这批事件作废：宁可丢掉，也不能让它堵住后面所有写入。
+          this.rejected.set(sceneId, message);
+          this.discarded += events.length;
+        } else {
+          // 发送失败要把事件放回去，否则这批事件就凭空消失了；
+          // 下一次 flush 会重试（可能是网络抖动）。
+          const back = this.pending.get(sceneId) ?? [];
+          this.pending.set(sceneId, [...events, ...back]);
+        }
+        failure ??= error;
       }
     }
+    if (failure !== undefined) throw failure;
+  }
+
+  /** 有哪些场景被服务端拒收了（以及原因）。UI 用它明示"录制已经停了"。 */
+  writeErrors(): ReadonlyMap<string, string> {
+    return new Map(this.rejected);
+  }
+
+  /** 放开某个场景的写入熔断（确认原因排除后再调，否则会立刻再撞一次）。 */
+  clearConflict(sceneId: string): void {
+    this.rejected.delete(sceneId);
+  }
+
+  /** 被拒收而丢弃的事件数——出了问题时，用来回答"丢了多少"。 */
+  get dropped(): number {
+    return this.discarded;
   }
 
   async query(sceneId: string, query: EventQuery = {}): Promise<WorldEvent[]> {
@@ -333,6 +414,11 @@ export function createHttpStorage(options: HttpStorageOptions): HttpStorage {
     state: new HttpEntityStateRepository(transport),
     metrics: new HttpMetricRepository(transport),
     flush: () => events.flush(),
+    writeErrors: () => events.writeErrors(),
+    clearConflict: (sceneId: string) => events.clearConflict(sceneId),
+    get dropped() {
+      return events.dropped;
+    },
   };
 }
 

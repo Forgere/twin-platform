@@ -279,6 +279,75 @@ describe('错误摊平', () => {
     await expect(storage.flush()).rejects.toThrow(/严格单调/);
   });
 
+  /**
+   * 409 是**服务端拒收**：这批事件的 sequence 已经被判死，塞回队列重试只会
+   * 每 120ms（面板采样间隔）原样再撞一次——控制台就是这样被刷满的。
+   */
+  test('409 之后写入熔断：同一批事件不会再发第二遍，也不再抛', async () => {
+    let posts = 0;
+    const conflict = () =>
+      new Response(JSON.stringify({ error: '事件 sequence 必须严格单调：1 <= 1。' }), {
+        status: 409,
+        headers: { 'content-type': 'application/json' },
+      });
+    const ok = () => new Response(JSON.stringify({ sequence: 1 }), { status: 200, headers: { 'content-type': 'application/json' } });
+    const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        posts += 1;
+        return conflict();
+      }
+      return ok();
+    }) as unknown as typeof fetch;
+    const storage = createHttpStorage({ baseUrl: 'http://srv', fetchImpl });
+
+    await storage.events.append('pond', [event(1)]);
+    await expect(storage.flush()).rejects.toThrow(/严格单调/);
+    // 接下来发生的才是重点：被拒收后，面板的每一拍都不该再带来一条报错。
+    await storage.events.append('pond', [event(2)]);
+    await expect(storage.flush()).resolves.toBeUndefined();
+    expect(posts).toBe(1);
+    // 但也不能装作什么都没发生：原因要能被 UI 摆出来。
+    expect(storage.writeErrors().get('pond')).toMatch(/严格单调/);
+    expect(storage.dropped).toBe(2);
+  });
+
+  test('5xx 是抖动：事件塞回队首，下一次 flush 重试', async () => {
+    let attempts = 0;
+    const fetchImpl = (async () => {
+      attempts += 1;
+      if (attempts === 1) return new Response('boom', { status: 500 });
+      return new Response(JSON.stringify({ written: 1 }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }) as unknown as typeof fetch;
+    const storage = createHttpStorage({ baseUrl: 'http://srv', fetchImpl });
+
+    await storage.events.append('pond', [event(1)]);
+    await expect(storage.flush()).rejects.toThrow(/500/);
+    await expect(storage.flush()).resolves.toBeUndefined();
+    expect(attempts).toBe(2);
+    expect(storage.writeErrors().size).toBe(0);
+  });
+
+  test('clearConflict 之后恢复写入（排队解除原因才好用）', async () => {
+    const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        return new Response(JSON.stringify({ error: '事件 sequence 必须严格单调：1 <= 1。' }), {
+          status: 409,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      return new Response(JSON.stringify({ sequence: 1 }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }) as unknown as typeof fetch;
+    const storage = createHttpStorage({ baseUrl: 'http://srv', fetchImpl });
+
+    await storage.events.append('pond', [event(1)]);
+    await storage.flush().catch(() => undefined);
+    expect(await storage.events.append('pond', [event(2)])).toBe(0); // 熔断中：写不进去
+
+    storage.clearConflict('pond');
+    expect(await storage.events.append('pond', [event(2)])).toBe(1); // 恢复：重新入队
+    expect(storage.writeErrors().size).toBe(0);
+  });
+
   test('404 的读取返回 null 而不是抛错', async () => {
     const fetchImpl = (async () => new Response('nope', { status: 404 })) as unknown as typeof fetch;
     const storage = createHttpStorage({ baseUrl: 'http://srv', fetchImpl });

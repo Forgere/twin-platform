@@ -18,7 +18,12 @@ import TimelineBar from './TimelineBar';
 import PluginsPanel from './PluginsPanel';
 import DecisionPanel from './DecisionPanel';
 import FishingSandbox from './FishingSandbox';
-import FishingSetupWizard from './FishingSetupWizard';
+import FishingOnboarding from './fishing/FishingOnboarding';
+import FishingHud from './fishing/FishingHud';
+import FishingAssistant from './fishing/FishingAssistant';
+import RigInspector from './fishing/RigInspector';
+import { hasRig, readRig } from './fishing/fishingWorld';
+import { defaultTab, inspectorTabs, sceneProfileOf, type InspectorTab, type SceneProfile } from '../scene/sceneProfile';
 import MetricsPanel from './MetricsPanel';
 import ScenarioComparePanel from './ScenarioComparePanel';
 
@@ -32,11 +37,12 @@ import ScenarioComparePanel from './ScenarioComparePanel';
  * 布局约束（本轮改动的重点）：
  * - 整页锁在 100vh 内，只有视口与右侧面板内部可以滚动，页面本身不滚；
  * - 右侧检视区是**互斥标签页**，一次只显示一个面板；实体页内设备/物料也是互斥切换；
+ *   标签组由场景画像决定（scene/sceneProfile.ts）：钓场看钓组 / 剖面，物流看指标 / 对比；
+ * - 右侧是**编辑器**；应用本身（开钓向导、钓况 HUD、钓鱼助手）浮在画布上；
  * - 画布上常驻的只有左上角一列小按钮，其余（遥测浮层、仿真控制条、区域列表）
  *   默认全部收起，点了才展开，把画面尽量让给场景。
  */
 
-type InspectorTab = 'entity' | 'metrics' | 'compare' | 'data' | 'scene' | 'events' | 'wizard' | 'sandbox' | 'decision' | 'plugins';
 type EntityFilter = 'device' | 'cargo';
 
 /** 属于"物料"的实体类型，其余都算设备。 */
@@ -55,19 +61,6 @@ const REGIONS: { id: CameraPreset; icon: string; label: string }[] = [
   { id: 'aisle', icon: '🚋', label: '巷道' },
   { id: 'outfeed', icon: '📤', label: '出库' },
   { id: 'external', icon: '🔗', label: '外部' },
-];
-
-const TABS: { id: InspectorTab; icon: string; label: string }[] = [
-  { id: 'entity', icon: '🧩', label: '实体' },
-  { id: 'metrics', icon: '📊', label: '指标' },
-  { id: 'compare', icon: '⚖️', label: '对比' },
-  { id: 'data', icon: '📡', label: '数据' },
-  { id: 'scene', icon: '🗂️', label: '场景' },
-  { id: 'events', icon: '📜', label: '事件' },
-  { id: 'wizard', icon: '🧭', label: '向导' },
-  { id: 'sandbox', icon: '🌊', label: '剖面' },
-  { id: 'decision', icon: '🎯', label: '决策' },
-  { id: 'plugins', icon: '🔌', label: '插件' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -135,31 +128,30 @@ export default function TwinViewport() {
   const [session, setSession] = createSignal(
     new StudioSession(restoreScene(), undefined, resolvePlugins(activePlugins())),
   );
-  /** 决策 / 剖面页只在对应插件在场时出现，纯物流场景不占位置。 */
-  const tabs = () =>
-    TABS.filter((item) => {
-      if (item.id === 'decision') return session().host.decisions.length > 0;
-      if (item.id === 'wizard' || item.id === 'sandbox') return activePlugins().includes('fishing');
-      return true;
-    });
+  /** 场景画像：决定右侧标签组、画布浮层（钓场才有向导 / HUD / 助手）。 */
+  const profileFor = (target: StudioSession): SceneProfile =>
+    sceneProfileOf({ hasRig: hasRig(target), plugins: target.pluginIds });
+  const profile = (): SceneProfile => profileFor(session());
+  const tabs = () => inspectorTabs(profile(), session().host.decisions.length > 0);
   let controller: TwinSceneController | undefined;
   let hostEl: HTMLDivElement | undefined;
 
   const [selected, setSelected] = createSignal<TwinEntityView>();
   const [entities, setEntities] = createSignal<TwinEntityView[]>([]);
+  const [tab, setTab] = createSignal<InspectorTab>(untrack(() => defaultTab(profile())));
   /**
-   * 初始页签：切到钓场且向导没做完时，直接落在「向导」上——
-   * "从一开始就有人带着调漂"，而不是让新手自己猜从哪儿开始。
-   * 其余情况维持"实体"页。
+   * 开钓向导浮层：进钓场且钓组还没配过就自动打开——"从一开始就有人带着"，
+   * 不让新手自己猜从哪儿开始。配过之后随时可从 HUD 的 ⚙ / 钓组页重新打开。
+   *
+   * 存的是"给哪个会话开的向导"而不是布尔：换会话时旧向导必须卸掉、新会话另起一个
+   * （向导持有会话做写入与暂停，不能在一个活着的向导底下偷换会话）。
    */
-  const initialTab = (): InspectorTab => {
-    if (activePlugins().includes('fishing')) {
-      const rig = session().world.getEntity('rig-01');
-      if (rig && rig.attrs?.wizardDone !== true) return 'wizard';
-    }
-    return 'entity';
+  const onboardingTarget = (target: StudioSession): StudioSession | undefined =>
+    profileFor(target) === 'fishing' && readRig(target)?.wizardDone !== true ? target : undefined;
+  const [onboardingFor, setOnboardingFor] = createSignal<StudioSession | undefined>(untrack(() => onboardingTarget(session())));
+  const openOnboarding = (): void => {
+    setOnboardingFor(session());
   };
-  const [tab, setTab] = createSignal<InspectorTab>(initialTab());
   const [filter, setFilter] = createSignal<EntityFilter>('device');
   /** 遥测浮层：默认**收起**，点工具条的小按钮才显示（"隐藏浮层"的默认值）。 */
   const [hud, setHud] = createSignal(false);
@@ -208,8 +200,14 @@ export default function TwinViewport() {
     setMenu({ x: event.clientX, y: event.clientY, entity });
   };
 
-  /** 在同一个挂载点上（重新）建三维控制器。换场景与首次挂载共用这条路径。 */
-  const buildController = () => {
+  /**
+   * 在同一个挂载点上（重新）建三维控制器。换场景与首次挂载共用这条路径。
+   *
+   * 会话必须显式传进来：Solid 2 的信号写入在 flush 之前对非响应式读取不可见，
+   * `setSession(next)` 之后紧接着读 `session()` 拿到的还是旧会话——以前换插件 / 换场景后
+   * 三维视图会接着驱动旧的（已暂停的）世界，时钟停在 0。
+   */
+  const buildController = (target: StudioSession) => {
     if (!hostEl) return;
     controller?.dispose();
     controller = new TwinSceneController(
@@ -220,8 +218,8 @@ export default function TwinViewport() {
         if (entity) setTab('entity');
       },
       {
-        scene: untrack(() => session().world.scene),
-        controller: untrack(() => session().controller),
+        scene: target.world.scene,
+        controller: target.controller,
         // 拖拽松手才提交（回调在用户操作时才执行，晚于下方这些 const 定义，无 TDZ 问题）。
         onDragCommit: (entityId, position) => commitDrag(entityId, position),
       },
@@ -234,7 +232,7 @@ export default function TwinViewport() {
 
   const mountViewport = (host: HTMLDivElement) => {
     hostEl = host;
-    buildController();
+    buildController(untrack(session));
   };
 
   /**
@@ -245,7 +243,43 @@ export default function TwinViewport() {
     session().controller.pause();
     setSession(next);
     setSelected(undefined);
-    buildController();
+    // 以下一律用 next，不读 session()（见 buildController 的注释）。
+    buildController(next);
+    // 换了场景就换一套检视页；钓场且没配过钓组 → 向导重新浮出来。
+    setTab(defaultTab(profileFor(next)));
+    setOnboardingFor(onboardingTarget(next));
+  };
+
+  /**
+   * 换会话的统一入口：**先对齐事件序号，再让世界开始跑**。
+   *
+   * 顺序是这一条 Pipeline 的全部要点。世界一动就发事件，事件的 sequence 是会话内
+   * 自增的游标；而"库里已经写到几号了"要等一次网络往返才知道。两者并行，
+   * 第一批事件就是 1..N（新会话的号），而服务端库里早有 1 —— 它不敢猜这批事件
+   * 该插在哪（拼出来是两条时间线接起来的假历史），于是 409 拒收。
+   * 构造时必须 `autoPlay: false`，把这个顺序让给这里。
+   *
+   * @param next 已经构造好但**尚未开跑**的会话。
+   * @param persisted 服务端仓储；不传（离线、纯内存）就没有历史要接，直接跑。
+   */
+  const adoptSession = async (next: StudioSession, persisted?: ReturnType<typeof createHttpStorage>): Promise<void> => {
+    replaceSession(next);
+    if (!persisted) return; // 内存仓储：构造时已经自动开跑。
+    try {
+      await next.resumeFromStorage();
+    } catch (error) {
+      setServer((current) =>
+        current
+          ? {
+              ...current,
+              note: `对齐事件序号失败：${error instanceof Error ? error.message : String(error)}`,
+            }
+          : current,
+      );
+    } finally {
+      // 对齐失败也要开跑：画面继续，写库会被拒收并由面板明示（见 refresh 里的 writeErrors）。
+      next.start();
+    }
   };
 
   /** 导入场景 JSON：解析 + 迁移 + 校验，成功才换会话。 */
@@ -254,25 +288,13 @@ export default function TwinViewport() {
     if (!parsed.ok || !parsed.scene) {
       return { ok: false, applied: parsed.applied, issues: parsed.issues };
     }
-    // 两处修复叠加：既带服务端仓储（否则导入的场景悄悄退回内存，刷新即丢），
-    // 也带当前插件集（否则切换过的插件会在导入后被打回默认领域包）。
-    const next = new StudioSession(parsed.scene, serverStorage(), resolvePlugins(activePlugins()));
-    replaceSession(next);
+    // 三处修复叠加：既带服务端仓储（否则导入的场景悄悄退回内存，刷新即丢），
+    // 也带当前插件集（否则切换过的插件会在导入后被打回默认领域包），
+    // 还要先对齐序号再开跑（库里已有事件时用新会话的 1 去撞，会被 409 拒收）。
+    const persisted = serverStorage();
+    const next = new StudioSession(parsed.scene, persisted, resolvePlugins(activePlugins()), { autoPlay: !persisted });
     rememberScene(parsed.scene);
-    // 这个 id 以前存过服务端的话，库里已有事件，不接着写会撞上"sequence 必须严格单调"。
-    // 构造是同步的（SceneImportOutcome 要同步返回），所以异步对齐一次。
-    if (serverStorage()) {
-      void next.resumeFromStorage().catch((error: unknown) => {
-        setServer((current) =>
-          current
-            ? {
-                ...current,
-                note: `导入后对齐事件序号失败：${error instanceof Error ? error.message : String(error)}`,
-              }
-            : current,
-        );
-      });
-    }
+    void adoptSession(next, persisted);
     return {
       ok: true,
       name: parsed.scene.name,
@@ -291,9 +313,11 @@ export default function TwinViewport() {
 
   /** 还原到所选领域包的模板场景（服务端在线时继续用服务端仓储）。 */
   const resetScene = () => {
-    const next = new StudioSession(undefined, serverStorage(), resolvePlugins(activePlugins()));
-    replaceSession(next);
+    // 模板场景的 id 也可能是"库里录过"的那个（例如重建台钓钓场），所以一样要对齐。
+    const persisted = serverStorage();
+    const next = new StudioSession(undefined, persisted, resolvePlugins(activePlugins()), { autoPlay: !persisted });
     rememberScene(next.world.scene);
+    void adoptSession(next, persisted);
   };
 
   /**
@@ -303,9 +327,10 @@ export default function TwinViewport() {
   const applyPlugins = (ids: string[]) => {
     setActivePlugins(ids);
     rememberPlugins(ids);
-    const next = new StudioSession(undefined, serverStorage(), resolvePlugins(ids));
-    replaceSession(next);
+    const persisted = serverStorage();
+    const next = new StudioSession(undefined, persisted, resolvePlugins(ids), { autoPlay: !persisted });
     rememberScene(next.world.scene);
+    void adoptSession(next, persisted);
   };
 
   // ---------------------------------------------------------------------------
@@ -358,11 +383,11 @@ export default function TwinViewport() {
       if (!storage) throw new Error('服务端未连接。');
       const scene = await storage.scenes.getScene(id);
       if (!scene) throw new Error(`服务端上没有场景 ${id}。`);
-      const next = new StudioSession(scene, storage, resolvePlugins(activePlugins()));
-      replaceSession(next);
+      // 这个场景可能已经被录制过，事件要接着写而不是从头覆盖：先对齐，再开跑。
+      const persisted = storage;
+      const next = new StudioSession(scene, persisted, resolvePlugins(activePlugins()), { autoPlay: false });
       rememberScene(scene);
-      // 这个场景可能已经被录制过，事件要接着写而不是从头覆盖。
-      await next.resumeFromStorage();
+      await adoptSession(next, persisted);
       return `已加载「${scene.name}」。`;
     });
 
@@ -402,12 +427,10 @@ export default function TwinViewport() {
       const storage = createHttpStorage({ baseUrl: url, token });
       setServerStorage(storage);
       setServer({ url, scenes: [], busy: false });
-      // 换仓储要重建会话（录制器绑定着 storage 实例）。
-      // 上次打开的场景一并恢复（本地有存档就用它），别让刷新把人打回默认模板。
-      const next = new StudioSession(restoreScene(), storage, resolvePlugins(activePlugins()));
-      replaceSession(next);
       // 事件流是 append-only 的：库里已有历史就接着写，不能从头覆盖。
-      await next.resumeFromStorage();
+      // 同样是"先对齐再开跑"，顺序反了就是上一版每 120ms 一条 409 的那条路径。
+      const next = new StudioSession(restoreScene(), storage, resolvePlugins(activePlugins()), { autoPlay: false });
+      await adoptSession(next, storage);
       await refreshServerScenes();
     })();
   });
@@ -417,18 +440,42 @@ export default function TwinViewport() {
     void serverStorage()?.flush();
   });
 
+  /**
+   * 服务端拒收过写入时，把原因摆到场景面板上。
+   *
+   * 静默是最坏的结果：画面还在跑、指标还在跳，人以为录了下来，其实仓库一根事件都
+   * 没收。HTTP 仓储对 4xx 是**丢弃 + 熔断**（重试只会再撞一次），所以这里必须给一条
+   * 明话，并告诉人怎么恢复。只有文案变化时才写信号，避免每拍重建一个对象。
+   */
+  const reportWriteErrors = (): void => {
+    const failures = serverStorage()?.writeErrors();
+    if (!failures || failures.size === 0) return;
+    const why = [...failures.entries()].map(([id, reason]) => `${id}：${reason}`).join('；');
+    const note = `写入被服务端拒收，录制已停止：${why}。刷新页面会重新对齐事件序号。`;
+    setServer((current) => (current && current.note !== note ? { ...current, note } : current));
+  };
+
   // 面板按固定频率采样，而不是每帧刷新：UI 不需要 60Hz 的事件流，
   // 每帧写信号只会把渲染循环拖进响应式更新里。
   const refresh = async () => {
     const current = session();
+    // 落库条数读失败不能打断整个采样节拍——面板照常刷新，原因由 writeErrors 明示。
+    // （不 catch 的话，它会变成未处理的 Promise rejection：控制台每 120ms 一条。）
+    let stored = untrack(() => view().stored);
+    try {
+      stored = await current.storedEventCount();
+    } catch {
+      /* 上面已经保底，错误另行呈现 */
+    }
     setView({
       time: current.controller.time,
       duration: current.controller.duration,
       playing: current.controller.playing,
       speed: current.controller.speed,
       events: current.recentEvents(8),
-      stored: await current.storedEventCount(),
+      stored,
     });
+    reportWriteErrors();
     setMetrics(current.metrics());
     setTelemetry(current.telemetry());
     setTick((value) => value + 1);
@@ -567,6 +614,7 @@ export default function TwinViewport() {
               >
                 📷
               </button>
+              <Show when={profile() === 'logistics'}>
               <button
                 type="button"
                 class={hud() ? 'vp-btn vp-btn-on' : 'vp-btn'}
@@ -577,6 +625,7 @@ export default function TwinViewport() {
               >
                 📡
               </button>
+              </Show>
               <button
                 type="button"
                 class={theme() === 'industrial' ? 'vp-btn vp-btn-on' : 'vp-btn'}
@@ -607,7 +656,7 @@ export default function TwinViewport() {
                 aria-pressed={tab() === 'scene'}
                 aria-label="场景导入导出"
                 title={`场景导入 / 导出（当前：${session().sceneSource === 'imported' ? '外部导入' : '插件模板'}）`}
-                onClick={() => setTab(tab() === 'scene' ? 'entity' : 'scene')}
+                onClick={() => setTab(tab() === 'scene' ? defaultTab(profile()) : 'scene')}
               >
                 🗂
               </button>
@@ -640,7 +689,7 @@ export default function TwinViewport() {
               </>
             </Show>
 
-            <Show when={hud()}>
+            <Show when={hud() && profile() === 'logistics'}>
 
               <div class="telemetry-hud" aria-label="仿真遥测">
                 <h3>📡 Sim Telemetry · t = {view().time.toFixed(1)}s</h3>
@@ -732,6 +781,16 @@ export default function TwinViewport() {
                   </div>
                 </div>
               </div>
+            </Show>
+
+            {/* 钓场：钓况 HUD（右上）+ 钓鱼助手（右下）常驻；开钓向导浮在画布中央。 */}
+            <Show when={profile() === 'fishing'}>
+              <FishingHud session={session()} tick={tick()} onReconfigure={openOnboarding} />
+              <FishingAssistant session={session()} />
+            </Show>
+            {/* keyed：每个会话一个向导实例；会话一换，旧向导卸掉、新会话另起。 */}
+            <Show when={onboardingFor() === session() ? onboardingFor() : undefined} keyed>
+              {(target: StudioSession) => <FishingOnboarding session={target} onClose={() => setOnboardingFor(undefined)} />}
             </Show>
 
             {/* 控制条收起时，左下角只留一枚时间胶囊；点它（或工具条 ⏱）才展开完整控制条。 */}
@@ -917,8 +976,8 @@ export default function TwinViewport() {
               <EventLogPanel events={view().events} stored={view().stored} />
             </Show>
 
-            <Show when={tab() === 'wizard'}>
-              <FishingSetupWizard session={session()} />
+            <Show when={tab() === 'rig'}>
+              <RigInspector session={session()} tick={tick()} onReconfigure={openOnboarding} />
             </Show>
 
             <Show when={tab() === 'sandbox'}>

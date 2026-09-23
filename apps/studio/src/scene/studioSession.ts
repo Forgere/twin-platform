@@ -112,6 +112,18 @@ export interface StudioTelemetry {
   recent: WorldEvent[];
 }
 
+/**
+ * 会话构造选项。
+ *
+ * `autoPlay` 唯一的作用，是让"读库对齐序号"排在"世界开始推进"之前：
+ * 持久仓储要用一次网络往返才知道写到几号了，而世界一动就在发事件，
+ * 事件编号又是会话内自增的——两者并行就会用旧号去撞服务端的"严格单调"。
+ */
+export interface StudioSessionOptions {
+  /** 默认 true。`false` 表示构造完先不动，等调用方对齐后再 `start()`。 */
+  autoPlay?: boolean;
+}
+
 export class StudioSession {
   readonly storage: TwinStorage;
   readonly host: PluginHost;
@@ -134,11 +146,14 @@ export class StudioSession {
    *   这里不再重复校验——调用方负责保证它合法。
    * @param storage 仓储。默认内存（纯静态可跑）；服务端在的时候传 HTTP 仓储，
    *   场景与事件就能真的存下来、刷新不丢。
+   * @param options `autoPlay: false` 时构造完**不自动开跑**，由调用方在
+   *   `resumeFromStorage()` 对齐完事件序号之后再调 `start()`。
    */
   constructor(
     scene?: TwinScene,
     storage: TwinStorage = createMemoryStorage(),
     plugins: readonly TwinPlugin[] = resolvePlugins(DEFAULT_PLUGIN_IDS),
+    options: StudioSessionOptions = {},
   ) {
     this.storage = storage;
     // 1) 安装当前插件集：拿到行为、指标、决策域、场景模板（故障隔离在宿主里）。
@@ -170,7 +185,21 @@ export class StudioSession {
       },
     });
     void this.recorder.start();
-    this.controller.play(1);
+    // ❸ 注意顺序：**先对齐序号，再开跑**。世界一动就发事件，事件编号是会话内自增的
+    // 游标；而库里的历史要一次网络往返才拿得到。边跑边等 = 用"新会话的 1"去撞
+    // "库里的 1"，服务端只能用 409 拒收（它不敢猜这批事件该插在哪）。
+    // 所以连着持久仓储时由调用方传 `autoPlay: false`，自己排好这个顺序。
+    if (options.autoPlay !== false) this.controller.play(1);
+  }
+
+  /**
+   * 开始推进世界（1×）。只有传了 `autoPlay: false` 才需要显式调用。
+   *
+   * 对齐失败**也要调**：画面该继续跑，只是写库会被拒收——那时候该给的是提示，
+   * 而不是一个停住的三维（HTTP 仓储会把拒收原因暴露出来，见 `writeErrors()`）。
+   */
+  start(speed = 1): void {
+    this.controller.play(speed);
   }
 
   /** 载入 CSV：切到 hybrid 模式，并把 CSV 里出现过的实体标成外部数据源。 */
