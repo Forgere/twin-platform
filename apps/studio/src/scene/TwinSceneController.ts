@@ -71,6 +71,9 @@ const HIGHLIGHT = '#F4A261';
 const CHAIN_SPIN = 7.0;
 /** 顶升链带线速度（m/s），链齿按它循环平移。 */
 const CHAIN_RUN = 0.6;
+/** 钓组线每帧拉伸复用的临时量，避免每帧分配。 */
+const FISHING_UP = new THREE.Vector3(0, 1, 0);
+const fishingDirection = new THREE.Vector3();
 
 /** 物料类实体：走实例化池，不走逐实体 Group。 */
 function isCargoKind(kind: string): boolean {
@@ -562,8 +565,11 @@ export class TwinSceneController {
     }
   }
 
-  /** 每渲染帧推进皮带箭头流动（播放时）；状态由帧差量驱动，这里只做连续动效。 */
-  private animateBeltAndRollers(realDelta: number): void {
+  /**
+   * 每渲染帧的连续动效：皮带箭头、顶升链带、钓组线。
+   * 状态本身由帧差量驱动，这里只做"位置已经是最新之后"的连续性补间。
+   */
+  private animateSubParts(realDelta: number): void {
     const playing = this.controller.playing;
     if (playing) this.beltTime += realDelta;
     for (const object of this.entityMeshes.values()) {
@@ -591,6 +597,30 @@ export class TwinSceneController {
               else if (tooth.mesh.position.z < -tooth.halfSpan) tooth.mesh.position.z += tooth.halfSpan * 2;
             }
           }
+        }
+      }
+
+      // 台钓钓组的主线 / 子线：两端实体每帧都在动，把单位圆柱拉伸到两端之间。
+      // 必须跑在 applyFrame 之后（位置已是本帧最新值），且与是否播放无关——
+      // 调漂后即使暂停，线也要立刻跟着新的钩饵位置走。
+      if (anim.fishingLines) {
+        for (const line of anim.fishingLines) {
+          const from = this.entityMeshes.get(line.fromId)?.position;
+          const to = this.entityMeshes.get(line.toId)?.position;
+          const length = from && to ? Math.hypot(to.x - from.x, to.y - from.y, to.z - from.z) : 0;
+          if (!from || !to || length < 1e-4) {
+            line.mesh.visible = false;
+            continue;
+          }
+          line.mesh.visible = true;
+          line.mesh.position.set(
+            (from.x + to.x) / 2 - object.position.x,
+            (from.y + to.y) / 2 - object.position.y,
+            (from.z + to.z) / 2 - object.position.z,
+          );
+          line.mesh.scale.set(1, length, 1);
+          fishingDirection.set(to.x - from.x, to.y - from.y, to.z - from.z).normalize();
+          line.mesh.quaternion.setFromUnitVectors(FISHING_UP, fishingDirection);
         }
       }
     }
@@ -741,7 +771,7 @@ export class TwinSceneController {
     this.timer.update();
     const delta = this.timer.getDelta();
     this.applyFrame(this.controller.advance(delta));
-    this.animateBeltAndRollers(delta);
+    this.animateSubParts(delta);
     if (this.selectionHelper && 'update' in this.selectionHelper && typeof (this.selectionHelper as { update?: unknown }).update === 'function') {
       (this.selectionHelper as unknown as { update: () => void }).update();
     }

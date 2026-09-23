@@ -56,7 +56,7 @@ export const fishingTemplate: SceneTemplateDescriptor<FishingTemplateParams> = {
         kind: 'water',
         transform: { position: [0, surfaceY - depth / 2, 0] },
         capabilities: ['water'],
-        visual: { kind: 'water', color: '#2E86AB', size: [12, depth, 8] },
+        visual: { kind: 'water', color: '#2E86AB', size: [8, depth, 5] },
         config: { depth, waterTemperature },
       },
       {

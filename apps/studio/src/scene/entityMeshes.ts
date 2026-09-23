@@ -41,6 +41,8 @@ export interface EntityAnim {
   statusLight?: THREE.MeshStandardMaterial;
   /** 缓存货架预置货位（仅 buffer），按 attrs.fill 显隐。 */
   bufferSlots?: THREE.Mesh[];
+  /** 台钓钓组的线（主线 / 子线）：每帧按两端实体的当前位置拉伸。 */
+  fishingLines?: { readonly mesh: THREE.Mesh; readonly fromId: string; readonly toId: string }[];
   /** 顶升链带的链轮（仅 cassette）：顶起后按出货方向自转。 */
   sprockets?: THREE.Mesh[];
   /** 顶升链带上的链齿（仅 cassette）：沿 local Z 循环平移，链条才像在跑。 */
@@ -1265,33 +1267,45 @@ function buildBeltPath(
 // ─────────────────────────────────────────────────────────────────────────
 // 台钓钓组（漂语插件）
 // ─────────────────────────────────────────────────────────────────────────
-// 真实台钓的漂 / 钩 / 饵是厘米级；按真实尺寸放进 2m 深的水里几乎看不见，
-// 所以这里用**示意比例**（漂身约 16cm）。位置来自 fishingLayout（米），
-// 尺寸只影响"看不看得清"，不影响仿真——几何与行为共用同一套坐标。
+// 真实台钓的漂 / 钩 / 饵是厘米级，放进 2m 深的水里根本看不清。这里是**示意比例**
+// （漂总长 ~0.9m），位置仍严格来自 fishingLayout（米）——尺寸只影响"看不看得清"，
+// 不影响仿真，几何与行为共用同一套坐标。
 
-const FLOAT_BODY = 0.05;
-const FLOAT_BODY_H = 0.16;
-const FLOAT_TAIL = 0.009;
-const FLOAT_TAIL_H = 0.2;
-const FLOAT_STEM_H = 0.1;
-const SINKER_R = 0.03;
-const SINKER_H = 0.07;
-const HOOK_R = 0.03;
-const HOOK_TUBE = 0.008;
-const BAIT_R = 0.032;
+/** 漂尾目数：红 / 黑相间的短节，数得出来才叫"看得清目"。 */
+const FLOAT_MARKS = 5;
+const FLOAT_MARK_H = 0.08;
+const FLOAT_TAIL_R = 0.028;
+const FLOAT_BODY_R = 0.075;
+const FLOAT_BODY_H = 0.3;
+const FLOAT_STEM_H = 0.2;
+const SINKER_R = 0.045;
+const SINKER_H = 0.11;
+const HOOK_R = 0.06;
+const HOOK_TUBE = 0.018;
+const BAIT_R = 0.07;
+/** 仿真里钩和饵是同一个点（饵挂在钩上）；渲染时左右分开，否则饵把钩整个盖住。 */
+const HOOK_DX = 0.1;
+const BAIT_DX = -0.1;
+/** 线的半径：按真实粗细缩下去就没了，这里给到缩放后仍看得出是一条线。 */
+const FISHING_LINE_R = 0.022;
 
-/** 浮漂：漂尾（荧光红）+ 漂身（纺锤）+ 漂脚。 */
+/** 浮漂：漂尾（红 / 黑目节）+ 漂身（纺锤）+ 漂脚。 */
 function buildFloat(color: string): THREE.Group {
   const group = new THREE.Group();
   group.userData.codePath = 'entityMeshes.ts:buildFloat';
 
-  const body = new THREE.Mesh(new THREE.SphereGeometry(FLOAT_BODY, 14, 12), material(color, { roughness: 0.32 }));
-  body.scale.set(1, FLOAT_BODY_H / (FLOAT_BODY * 2), 1);
+  const body = new THREE.Mesh(new THREE.SphereGeometry(FLOAT_BODY_R, 14, 12), material(color, { roughness: 0.32 }));
+  body.scale.set(1, FLOAT_BODY_H / (FLOAT_BODY_R * 2), 1);
   body.castShadow = true;
   group.add(body);
 
-  group.add(at(cyl(FLOAT_TAIL, FLOAT_TAIL_H, '#e63946', 8, { roughness: 0.35 }), 0, FLOAT_BODY_H / 2 + FLOAT_TAIL_H / 2 - 0.02, 0));
-  group.add(at(cyl(FLOAT_TAIL, FLOAT_STEM_H, '#5b6472', 8, { roughness: 0.4 }), 0, -FLOAT_BODY_H / 2 - FLOAT_STEM_H / 2 + 0.02, 0));
+  const tailBottom = FLOAT_BODY_H / 2;
+  for (let index = 0; index < FLOAT_MARKS; index += 1) {
+    const bandColor = index % 2 === 0 ? '#e63946' : '#1f2933';
+    group.add(at(cyl(FLOAT_TAIL_R, FLOAT_MARK_H, bandColor, 10, { roughness: 0.35 }), 0, tailBottom + FLOAT_MARK_H * (index + 0.5), 0));
+  }
+
+  group.add(at(cyl(FLOAT_TAIL_R, FLOAT_STEM_H, '#5b6472', 8, { roughness: 0.4 }), 0, -FLOAT_BODY_H / 2 - FLOAT_STEM_H / 2, 0));
   return group;
 }
 
@@ -1299,19 +1313,19 @@ function buildFloat(color: string): THREE.Group {
 function buildSinker(color: string): THREE.Group {
   const group = new THREE.Group();
   group.userData.codePath = 'entityMeshes.ts:buildSinker';
-  group.add(cyl(SINKER_R, SINKER_H, color, 10, { roughness: 0.45, metalness: 0.55 }));
+  group.add(cyl(SINKER_R, SINKER_H, color, 12, { roughness: 0.45, metalness: 0.55 }));
   return group;
 }
 
-/** 鱼钩：钩柄 + 半圆钩门（Torus 半圈）。 */
+/** 鱼钩：钩柄 + 半圆钩门（Torus 半圈），整体偏到一侧，别和饵叠在一起。 */
 function buildHook(color: string): THREE.Group {
   const group = new THREE.Group();
   group.userData.codePath = 'entityMeshes.ts:buildHook';
-  group.add(at(cyl(HOOK_TUBE, HOOK_R * 1.1, color, 8, { roughness: 0.3, metalness: 0.65 }), 0, HOOK_R * 0.55, 0));
-  const bend = new THREE.Mesh(new THREE.TorusGeometry(HOOK_R, HOOK_TUBE, 8, 18, Math.PI), material(color, { roughness: 0.3, metalness: 0.65 }));
+  group.add(at(cyl(HOOK_TUBE, HOOK_R * 1.6, color, 10, { roughness: 0.3, metalness: 0.65 }), HOOK_DX, HOOK_R * 0.8, 0));
+  const bend = new THREE.Mesh(new THREE.TorusGeometry(HOOK_R, HOOK_TUBE, 10, 20, Math.PI), material(color, { roughness: 0.3, metalness: 0.65 }));
   bend.rotation.z = Math.PI;
   bend.castShadow = true;
-  group.add(at(bend, 0, -HOOK_R * 0.05, 0));
+  group.add(at(bend, HOOK_DX, -HOOK_R * 0.05, 0));
   return group;
 }
 
@@ -1319,7 +1333,7 @@ function buildHook(color: string): THREE.Group {
 function buildBait(color: string): THREE.Group {
   const group = new THREE.Group();
   group.userData.codePath = 'entityMeshes.ts:buildBait';
-  group.add(sphere(BAIT_R, color, { roughness: 0.75 }));
+  group.add(at(sphere(BAIT_R, color, { roughness: 0.75 }), BAIT_DX, 0, 0));
   return group;
 }
 
@@ -1337,10 +1351,29 @@ function buildWater(size: TwinVector3, color: string): THREE.Group {
   return group;
 }
 
-/** 逻辑钓组：参数与观察的载体，不是可见零件——空组，别在场景里留个灰盒子。 */
+/**
+ * 逻辑钓组：参数与观察的载体，本身不画实体——但**线**由它提供。
+ *
+ * 主线 / 子线是动态的（两端实体每帧都在动），所以这里只准备单位长的圆柱段，
+ * 由控制器每帧按两端位置拉伸与转向。端点 id 与 fishingTemplate 的实体 id 对齐
+ * （钓场是固定模板）。
+ */
 function buildRigMarker(): THREE.Group {
   const group = new THREE.Group();
   group.userData.codePath = 'entityMeshes.ts:buildRig';
+
+  const links: [string, string][] = [
+    ['float-01', 'sinker-01'],
+    ['sinker-01', 'hook-upper-01'],
+    ['hook-upper-01', 'hook-lower-01'],
+  ];
+  const fishingLines = links.map(([fromId, toId]) => {
+    const mesh = cyl(FISHING_LINE_R, 1, '#f8f9fa', 8, { roughness: 0.5 });
+    mesh.castShadow = false;
+    group.add(mesh);
+    return { mesh, fromId, toId };
+  });
+  group.userData.anim = { kind: 'fishing-rig', fishingLines } as EntityAnim;
   return group;
 }
 
