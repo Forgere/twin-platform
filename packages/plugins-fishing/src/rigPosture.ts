@@ -232,7 +232,7 @@ export function rigPosture(state: RigState, env: PostureEnvironment = {}): RigPo
   const sinkerCode = contactOf(state.bottomLoad, state.H + 2 * state.w);
   const sinkerText = sinkerCode === 'on_bottom' ? '躺底（走铅）' : sinkerCode === 'touching' ? '接近水底' : '悬坠（离底）';
 
-  const parts: PartPosture[] = [
+  const parts: PartPosture[] = ([
     { part: 'rodTip', label: PART_LABEL.rodTip, code: 'fixed', text: '主线起点' },
     { part: 'float', label: PART_LABEL.float, code: floatCode, text: floatText },
     {
@@ -246,7 +246,7 @@ export function rigPosture(state: RigState, env: PostureEnvironment = {}): RigPo
     { part: 'baitUpper', label: PART_LABEL.baitUpper, code: contactOf(state.loads.upperBait, state.w), text: '' },
     { part: 'hookLower', label: PART_LABEL.hookLower, code: contactOf(state.loads.lowerHook, state.hw), text: '' },
     { part: 'baitLower', label: PART_LABEL.baitLower, code: contactOf(state.loads.lowerBait, state.w), text: '' },
-  ].map((part) => ({ ...part, text: part.text || CONTACT_TEXT[part.code as ContactState] }));
+  ] as PartPosture[]).map((part) => ({ ...part, text: part.text || CONTACT_TEXT[part.code as ContactState] }));
 
   const summary = ZONE_SUMMARY[state.zone] + '；长子线' + SUBLINE_TEXT[lowerState];
 
