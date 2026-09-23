@@ -7,12 +7,12 @@ import type { FishingObservation, FishingState } from './state';
  * 关键约束（来自 Jev 的能力边界）：
  * - Jev 不擅长数值比较与算术。所以底承重、灵钝、空竿率这些"需要比较数字"的
  *   判断全部由 fishingCore 先算成类别（zone / bucket），只把类别结果交给 Jev；
- * - Jev 不产出自由文本。选项与问题都在代码里定死，Jev 只在选项中选择。
+ * - Jev 不产出自由文本。选项与问题都在代码里定死，Jev 只在选项中选择；
+ * - **幅度类数值由代码兜底**：Jev 只选方向/类别，具体步长在代码里取保守值。
  * - 交互语言用中文（JEV_LANGUAGE=zh-CN）；但 answer 里的 action id 仍是英文，
  *   因为它们是与动作空间对齐的稳定标识。
  *
- * 这一层是纯函数、可单测；真正的 HTTP 调用在后续的 JevJudge 适配器里，
- * 不进 decision-core。
+ * 这一层是纯函数、可单测；HTTP 调用在 `jevClient.ts`，判断装配在 `judges/jev.ts`。
  */
 
 export type JevQuestion =
@@ -57,6 +57,18 @@ export function toJevRequest(state: FishingState): JevRequest {
         id: 'next_action',
         prompt: '综合当前钓组状态与观察，下一步优先尝试哪个动作？',
         options: FISHING_ACTION_IDS,
+      },
+      {
+        kind: 'choice',
+        id: 'float_direction',
+        prompt: '如果要调整浮漂，应该往哪个方向调？',
+        options: ['sensitive', 'blunt'],
+      },
+      {
+        kind: 'choice',
+        id: 'bait_target',
+        prompt: '如果要换饵，优先换哪一类？',
+        options: ['flavor', 'state', 'size'],
       },
       {
         kind: 'noul',

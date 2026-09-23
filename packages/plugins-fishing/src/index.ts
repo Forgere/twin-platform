@@ -15,4 +15,7 @@ export * from './domain';
 export * from './fishSim';
 export * from './template';
 export * from './environment';
+export * from './jevQuestions';
+export * from './jevClient';
+export * from './judges/jev';
 export * from './plugin';

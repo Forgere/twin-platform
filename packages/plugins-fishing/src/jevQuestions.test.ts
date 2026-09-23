@@ -41,6 +41,14 @@ describe('toJevRequest', () => {
     if (score?.kind === 'score') expect(score.levels.length).toBeLessThanOrEqual(10);
   });
 
+  test('把方向/类别也问出来，但幅度留给代码', () => {
+    const request = toJevRequest(build({ t0: 4, t: 2, w: 1, d: 1 }, {}));
+    const ids = request.questions.map((question) => question.id);
+    expect(ids).toEqual(['next_action', 'float_direction', 'bait_target', 'needs_observe', 'urgency']);
+    const direction = request.questions.find((question) => question.id === 'float_direction');
+    if (direction?.kind === 'choice') expect(direction.options).toEqual(['sensitive', 'blunt']);
+  });
+
   test('choice 结果收敛回封闭动作空间', () => {
     expect(actionFromChoice('ADJUST_FLOAT')).toBe('ADJUST_FLOAT');
     expect(actionFromChoice('TELEPORT')).toBeUndefined();
