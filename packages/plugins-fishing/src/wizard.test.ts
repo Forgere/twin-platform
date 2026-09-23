@@ -1,6 +1,13 @@
 import { describe, expect, test } from 'bun:test';
-import { wizardAdvance, wizardRigState, wizardStart, wizardSuggestPreset } from './wizard';
+import { wizardAdvance, wizardRigState, wizardStart as wizardFromScratch, wizardSuggestPreset, type WizardState } from './wizard';
 import { presetById } from './presets';
+import { recommendedLoadout } from './loadout';
+
+/** 测量类用例从"鱼和装备已选好"开始；选鱼 / 配装备另有专门用例。 */
+function wizardStart(): WizardState {
+  const withFish = wizardAdvance(wizardFromScratch(), { kind: 'fish', fishId: 'crucian' }).state;
+  return wizardAdvance(withFish, { kind: 'gear', loadout: withFish.loadout! }).state;
+}
 
 /**
  * 调漂向导状态机回归。
@@ -89,14 +96,18 @@ describe('调漂向导', () => {
     expect(state.d).toBe(0);
   });
 
-  test('预设推荐按实测单饵压目就近匹配', () => {
+  test('预设推荐：选了鱼按鱼推荐；没选鱼按实测单饵压目就近匹配', () => {
     let state = wizardAdvance(wizardStart(), { kind: 't0', value: 5 }).state;
     state = wizardAdvance(state, { kind: 't', value: 3 }).state;
     state = wizardAdvance(state, { kind: 'w', value: 0.8 }).state;
-    expect(wizardSuggestPreset(state).id).toBe('diao3-diao1');
+    expect(wizardSuggestPreset(state).id).toBe('diao4-diao2'); // 鲫鱼 → 调四钓二
+    expect(wizardSuggestPreset({ ...state, loadout: undefined }).id).toBe('diao3-diao1');
 
-    // 没测完时兜底给调四钓二
-    expect(wizardSuggestPreset(wizardStart()).id).toBe('diao4-diao2');
+    const carp = wizardAdvance(wizardFromScratch(), { kind: 'fish', fishId: 'carp' }).state;
+    expect(wizardSuggestPreset(carp).id).toBe('ping-shui-diao2');
+
+    // 什么都没有时兜底给调四钓二
+    expect(wizardSuggestPreset(wizardFromScratch()).id).toBe('diao4-diao2');
     expect(presetById('diao4-diao2')).toBeDefined();
   });
 
@@ -105,5 +116,51 @@ describe('调漂向导', () => {
     const wrong = wizardAdvance(state, { kind: 'w', value: 1 });
     expect(wrong.ok).toBe(false);
     expect(wrong.issue).toContain('带钩调目');
+  });
+
+  test('从零开始：先选鱼，再配装备，推荐装备直接放行', () => {
+    const start = wizardFromScratch();
+    expect(start.step).toBe('choose_fish');
+    expect(wizardAdvance(start, { kind: 't0', value: 6 }).issue).toContain('鱼');
+
+    const fish = wizardAdvance(start, { kind: 'fish', fishId: 'carp' });
+    expect(fish.ok).toBe(true);
+    expect(fish.state.step).toBe('choose_gear');
+    expect(fish.state.loadout).toEqual(recommendedLoadout('carp'));
+
+    const gear = wizardAdvance(fish.state, { kind: 'gear', loadout: fish.state.loadout! });
+    expect(gear.ok).toBe(true);
+    expect(gear.state.step).toBe('measure_t0');
+  });
+
+  test('装备配伍有 error：先拦一次并保留改动，坚持使用才放行', () => {
+    const fish = wizardAdvance(wizardFromScratch(), { kind: 'fish', fishId: 'crucian' }).state;
+    const bad = { ...fish.loadout!, hookSize: 7 };
+    const blocked = wizardAdvance(fish, { kind: 'gear', loadout: bad });
+    expect(blocked.ok).toBe(false);
+    expect(blocked.state.step).toBe('choose_gear');
+    expect(blocked.state.loadout?.hookSize).toBe(7);
+    expect(blocked.issue).toContain('坚持使用');
+
+    const forced = wizardAdvance(blocked.state, { kind: 'gear', loadout: bad, force: true });
+    expect(forced.ok).toBe(true);
+    expect(forced.state.loadout?.hookSize).toBe(7);
+  });
+
+  test('back 回退一步且保留已填值；换鱼重置推荐装备，同一条鱼保留改动', () => {
+    let state = wizardAdvance(wizardStart(), { kind: 't0', value: 6 }).state;
+    state = wizardAdvance(state, { kind: 'back' }).state;
+    expect(state.step).toBe('measure_t0');
+    expect(state.t0).toBe(6);
+
+    state = wizardAdvance(state, { kind: 'back' }).state;
+    state = wizardAdvance(state, { kind: 'gear', loadout: { ...state.loadout!, rodLength: 6.3 } }).state;
+    state = wizardAdvance(state, { kind: 'back' }).state;
+    state = wizardAdvance(state, { kind: 'back' }).state;
+    expect(state.step).toBe('choose_fish');
+    expect(wizardAdvance(state, { kind: 'back' }).ok).toBe(false);
+
+    expect(wizardAdvance(state, { kind: 'fish', fishId: 'crucian' }).state.loadout?.rodLength).toBe(6.3);
+    expect(wizardAdvance(state, { kind: 'fish', fishId: 'carp' }).state.loadout).toEqual(recommendedLoadout('carp'));
   });
 });
