@@ -347,3 +347,27 @@ h2 { margin: 0 0 12px; color: var(--accent); font-size: 0.82rem; letter-spacing:
   color: var(--accent);
   border-top: 1px solid rgba(58, 74, 79, 0.1);
 }
+
+/* 布局位姿编辑器（阶段 J）：改的是场景**声明**，不是运行时位姿 */
+.pose-editor { display: grid; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--cream-card); }
+.pose-group { display: grid; gap: 4px; }
+.pose-title { color: var(--ink-soft); font-size: 0.7rem; letter-spacing: 0.04em; }
+.pose-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.pose-field { display: flex; align-items: center; gap: 4px; color: var(--ink-soft); font-size: 0.7rem; }
+.pose-field input {
+  width: 100%;
+  min-width: 0;
+  padding: 4px 5px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fffdf7;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+.pose-field input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(45, 164, 178, 0.18); }
+.pose-field input:disabled { background: var(--cream-soft); color: var(--ink-soft); cursor: not-allowed; }
+.pose-lock { margin: 0; color: var(--ink-soft); font-size: 0.72rem; }
+.pose-error { margin: 0; color: #b3261e; font-size: 0.72rem; }
+.pose-dirty { margin: 0; color: var(--accent); font-size: 0.7rem; }

@@ -2,7 +2,7 @@ import { CsvFrameSource, type CsvParseIssue } from '@twin-platform/data-source-c
 import { ReplayController, SessionRecorder } from '@twin-platform/replay-core';
 import { createMemoryStorage } from '@twin-platform/storage-memory';
 import type { TwinStorage } from '@twin-platform/storage-contracts';
-import { TwinWorld, type WorldEvent } from '@twin-platform/world-kernel';
+import { TwinWorld, type PoseEditability, type WorldEvent } from '@twin-platform/world-kernel';
 import { lineMetrics, seriesLatest, type LineMetrics } from '@twin-platform/analytics-core';
 import { PluginHost } from '@twin-platform/plugin-sdk';
 import {
@@ -17,7 +17,7 @@ import {
   logisticsPlugin,
 } from '@twin-platform/plugins-logistics';
 import { compareScenarios, type ScenarioDiff } from '@twin-platform/scenario-compare';
-import { sceneSummary, type SceneSummary, type TwinScene } from '@twin-platform/scene-schema';
+import { sceneSummary, type SceneOp, type SceneSummary, type TwinScene, type TwinTransform } from '@twin-platform/scene-schema';
 
 /**
  * Studio 的一次运行会话：插件宿主 + 世界 + 仓储 + 录制器 + 时间轴控制器。
@@ -37,6 +37,15 @@ export interface CsvLoadResult {
   issues: CsvParseIssue[];
   /** CSV 里出现过的实体 id，用来把它们切成"听外部数据"。 */
   entities: string[];
+}
+
+/** 一次布局编辑的结果。失败不抛异常——把内核的人话错误带回面板显示。 */
+export interface EditOutcome {
+  ok: boolean;
+  /** 失败原因（人话），UI 直接展示。 */
+  error?: string;
+  /** 实际应用的 ops（失败为空）。 */
+  applied: SceneOp[];
 }
 
 /**
@@ -113,6 +122,11 @@ export class StudioSession {
   /** 当前场景的来源：模板生成还是外部导入。UI 靠它提示"你正在跑别人的布局"。 */
   readonly sceneSource: SceneSource;
 
+  /** 本次会话累计的布局编辑 ops：阶段 K 落库，现在只在前端内存。 */
+  private readonly pendingEdits: SceneOp[] = [];
+  /** 有没有还没保存到服务端的布局改动（面板的"有未保存修改"提示）。 */
+  private layoutDirty = false;
+
   /**
    * @param scene 外部场景。不传则用插件模板生成默认产线；
    *   传入的场景必须已经过 `parseSceneDocument`（校验 + 迁移），
@@ -171,6 +185,58 @@ export class StudioSession {
   /** 当前场景（声明部分）。导出与摘要都从它取，保证 UI 与内核看到的是同一份。 */
   currentScene(): TwinScene {
     return this.world.scene;
+  }
+
+  // ---------------------------------------------------------------------------
+  // 布局编辑（阶段 J）
+  // ---------------------------------------------------------------------------
+
+  /**
+   * 实体**声明里**的位姿。面板输入框绑的是文档，不是运行时状态——
+   * 仿真位姿再怎么跑动，也不该出现在布局输入框里（否则一刷新回滚都不知道改了啥）。
+   */
+  declaredTransform(id: string): TwinTransform | undefined {
+    return this.world.scene.entities.find((entity) => entity.id === id)?.transform;
+  }
+
+  /** 这个实体的位姿由谁说了算。直接转内核的答案，UI 不自己猜（会漂移）。 */
+  poseEditability(id: string): PoseEditability {
+    return this.world.poseEditability(id);
+  }
+
+  /**
+   * 应用一批布局编辑 ops（拖拽松手、输入框改值都走这里）。
+   *
+   * 失败不抛：把内核的人话原样带回 UI，且内核保证**一条都没改**
+   * （整批检查通过才动手，不留半截状态）。
+   *
+   * 成功后 ops 累计进 `pendingEdits`：阶段 K 要把它们落到存储侧；
+   * 现在只在前端内存，与"整文档保存到服务端"是两条独立通道。
+   */
+  applyEdit(ops: readonly SceneOp[]): EditOutcome {
+    try {
+      this.world.applySceneOps(ops);
+      this.pendingEdits.push(...ops);
+      this.layoutDirty = true;
+      return { ok: true, applied: [...ops] };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : String(error), applied: [] };
+    }
+  }
+
+  /** 有没有未保存的布局改动。 */
+  hasLayoutEdits(): boolean {
+    return this.layoutDirty;
+  }
+
+  /** 整文档保存成功后调用：改动已经落库。 */
+  markLayoutSaved(): void {
+    this.layoutDirty = false;
+  }
+
+  /** 本次会话累计的布局编辑 ops（阶段 K 的存储侧通道入口）。 */
+  layoutOps(): readonly SceneOp[] {
+    return this.pendingEdits;
   }
 
   /**

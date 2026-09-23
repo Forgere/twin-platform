@@ -499,3 +499,101 @@ describe('resumeFrom / 事件续写', () => {
     expect(world.resumeFrom(Number.NaN)).toBe(before);
   });
 });
+
+describe('TwinWorld / 布局编辑（阶段 J）', () => {
+  /** 只取时间轴事实：布局编辑不产生事件，事件流必须逐位一致。 */
+  const eventsOnly = (world: TwinWorld): string =>
+    JSON.stringify(world.getEventLog().map((event) => [event.sequence, event.type, event.occurredAt, event.entityId ?? null]));
+
+  const moveQc = {
+    type: 'setTransform',
+    entityId: 'qc-01',
+    before: { position: [8, 0.8, 0] },
+    after: { position: [3, 0.8, 5], rotation: [0, 1.5, 0] },
+  } as const;
+
+  test('poseEditability：静态声明设备可编辑，其余四类各有原因', () => {
+    const world = new TwinWorld(makeScene(), { seed: 1 });
+    expect(world.poseEditability('qc-01')).toEqual({ editable: true });
+
+    // ① 运行时生成的实体没有场景声明
+    world.addEntity({ id: 'parcel-x', kind: 'parcel', transform: { position: [0, 1, 0] }, capabilities: [] });
+    expect(world.poseEditability('parcel-x')).toEqual({ editable: false, reason: expect.stringContaining('运行时生成') });
+
+    // ② 声明了 motion：位姿是路径弧长的函数
+    expect(world.poseEditability('belt-01')).toEqual({ editable: false, reason: expect.stringContaining('路径') });
+
+    // ④ 有行为在改写位姿（这里直接模拟行为的写法：只写运行时状态）
+    world.setTransform('qc-01', { position: [1, 0.8, 1] });
+    expect(world.poseEditability('qc-01')).toEqual({ editable: false, reason: expect.stringContaining('行为') });
+  });
+
+  test('applySceneOps：改声明 + 同步运行时位姿与 baseTransform，脏实体进下一帧差量', () => {
+    const world = new TwinWorld(makeScene(), { seed: 1 });
+    world.step(1 / 60);
+    world.applySceneOps([moveQc]);
+
+    expect(world.scene.entities[1].transform.position).toEqual([3, 0.8, 5]);
+    expect(world.scene.entities[1].transform.rotation).toEqual([0, 1.5, 0]);
+
+    const state = world.getEntity('qc-01')!;
+    expect(state.transform.position).toEqual([3, 0.8, 5]); // 单向：声明 → 运行时
+    expect(state.baseTransform.position).toEqual([3, 0.8, 5]); // "以声明为原点"要跟着新布局
+
+    // 暂停（0 步）也必须能把编辑刷出去，否则暂停时拖设备画面不动。
+    const frame = world.runSteps(0);
+    const delta = frame.changed.find((change) => change.id === 'qc-01');
+    expect(delta?.transform?.position).toEqual([3, 0.8, 5]);
+    expect(frame.changed.length).toBeGreaterThan(0);
+
+    // baseTransform 一起更新了，所以编辑完还能再编辑（不会把自己判成"行为驱动"）
+    expect(world.poseEditability('qc-01')).toEqual({ editable: true });
+  });
+
+  test('批次里有一条不可编辑，就一条都不改（不留半截状态）', () => {
+    const world = new TwinWorld(makeScene(), { seed: 1 });
+    expect(() =>
+      world.applySceneOps([
+        { type: 'setTransform', entityId: 'qc-01', before: { position: [8, 0.8, 0] }, after: { position: [1, 1, 1] } },
+        { type: 'setTransform', entityId: 'belt-01', before: { position: [0, 0.8, 0] }, after: { position: [1, 1, 1] } },
+      ]),
+    ).toThrow(/不可编辑/);
+
+    expect(world.scene.entities[1].transform.position).toEqual([8, 0.8, 0]); // 合法的那条也没被改
+    expect(world.getEntity('qc-01')?.transform.position).toEqual([8, 0.8, 0]);
+    expect(world.runSteps(0).changed).toEqual([]); // 也没有留下半截脏标记
+  });
+
+  test('编辑布局不改变同种子的事件流（编辑是输入，不是时间轴事实）', () => {
+    const plain = new TwinWorld(makeScene(), { seed: 7, behaviors: [stampBehavior] });
+    const edited = new TwinWorld(makeScene(), { seed: 7, behaviors: [stampBehavior] });
+    run(plain, 60);
+    run(edited, 60);
+
+    edited.applySceneOps([moveQc]); // 只有 edited 这条时间线上改了布局
+    run(plain, 60);
+    run(edited, 60);
+
+    expect(eventsOnly(edited)).toBe(eventsOnly(plain)); // 事件逐位一致
+    expect(edited.scene.entities[1].transform.position).toEqual([3, 0.8, 5]); // 但位姿确实改了
+    expect(edited.getEntity('qc-01')?.transform.position).toEqual([3, 0.8, 5]);
+  });
+
+  test('同一批 ops 在两个同种子世界各应用一次，结果逐位一致（编辑可复现）', () => {
+    const a = new TwinWorld(makeScene(), { seed: 11, behaviors: [stampBehavior] });
+    const b = new TwinWorld(makeScene(), { seed: 11, behaviors: [stampBehavior] });
+    a.applySceneOps([moveQc]);
+    b.applySceneOps([moveQc]);
+    run(a, 300);
+    run(b, 300);
+    expect(fingerprint(a)).toBe(fingerprint(b));
+  });
+
+  test('before 对不上直接抛，场景保持原样', () => {
+    const world = new TwinWorld(makeScene(), { seed: 1 });
+    expect(() =>
+      world.applySceneOps([{ type: 'setTransform', entityId: 'qc-01', before: { position: [0, 0, 0] }, after: { position: [1, 1, 1] } }]),
+    ).toThrow(/旧状态/);
+    expect(world.scene.entities[1].transform.position).toEqual([8, 0.8, 0]);
+  });
+});
