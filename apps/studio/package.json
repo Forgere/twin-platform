@@ -34,6 +34,7 @@
     "@solidjs/web": "^2.0.0-rc.6",
     "@twin-platform/analytics-core": "workspace:*",
     "@twin-platform/data-source-csv": "workspace:*",
+    "@twin-platform/decision-core": "workspace:*",
     "@twin-platform/plugin-sdk": "workspace:*",
     "@twin-platform/plugins-fishing": "workspace:*",
     "@twin-platform/plugins-logistics": "workspace:*",

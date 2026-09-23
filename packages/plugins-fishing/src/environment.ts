@@ -1,5 +1,5 @@
 import type { Decision, Environment, Outcome } from '@twin-platform/decision-core';
-import { TwinWorld } from '@twin-platform/world-kernel';
+import { TwinWorld, type WorldEntityState } from '@twin-platform/world-kernel';
 import type { TwinScene } from '@twin-platform/scene-schema';
 import type { FishingActionId } from './actionSpace';
 import { calculateRigState, type TaidiaoInput } from './fishingCore';
@@ -19,6 +19,45 @@ import { num, str } from './values';
  */
 
 const RIG_ID = 'rig-01';
+
+/** 只读世界：让观察既能用于 TwinWorld，也能用于任何提供 getEntity 的世界。 */
+export interface WorldReader {
+  getEntity(id: string): WorldEntityState | undefined;
+}
+
+/**
+ * 从任意世界读出当前台钓状态。
+ *
+ * 场景里没有 rig 实体时返回 undefined（调用方据此判断"这不是钓场"）；
+ * 有 rig 但参数不合法时抛错——那是配置错误，不该静默。
+ */
+export function observeFishingWorld(world: WorldReader, rigId = RIG_ID): FishingState | undefined {
+  const entity = world.getEntity(rigId);
+  if (!entity) return undefined;
+  const config = entity.config ?? {};
+  const input: TaidiaoInput = {
+    t0: num(entity.attrs.t0, 4),
+    t: num(entity.attrs.t, 2),
+    w: num(entity.attrs.w, 1),
+    d: num(entity.attrs.d, 2),
+  };
+  const result = calculateRigState(input);
+  if (!result.ok) throw new Error('钓场里的钓组参数不合法。');
+
+  const observation = {
+    bites: num(entity.attrs.bites, 0),
+    catches: num(entity.attrs.catches, 0),
+    emptyHooks: num(entity.attrs.emptyHooks, 0),
+  };
+  const drift = config.drift === true;
+  const targetFish = str(config.targetFish, '');
+  return toFishingState(result.state, {
+    intent: deriveIntent(observation, drift, num(entity.attrs.casts, 0)),
+    drift,
+    observation,
+    ...(targetFish === '' ? {} : { targetFish }),
+  });
+}
 
 export interface FishingEnvironmentOptions {
   readonly seed?: number;
@@ -60,30 +99,9 @@ export class FishingEnvironment implements Environment<FishingState, FishingActi
   }
 
   observe(): FishingState {
-    const entity = this.world.getEntity(RIG_ID);
-    const config = entity?.config ?? {};
-    const input: TaidiaoInput = {
-      t0: num(entity?.attrs.t0, 4),
-      t: num(entity?.attrs.t, 2),
-      w: num(entity?.attrs.w, 1),
-      d: num(entity?.attrs.d, 2),
-    };
-    const result = calculateRigState(input);
-    if (!result.ok) throw new Error('钓场里的钓组参数不合法。');
-
-    const observation = {
-      bites: num(entity?.attrs.bites, 0),
-      catches: num(entity?.attrs.catches, 0),
-      emptyHooks: num(entity?.attrs.emptyHooks, 0),
-    };
-    const drift = config.drift === true;
-    const targetFish = str(config.targetFish, '');
-    return toFishingState(result.state, {
-      intent: deriveIntent(observation, drift, num(entity?.attrs.casts, 0)),
-      drift,
-      observation,
-      ...(targetFish === '' ? {} : { targetFish }),
-    });
+    const state = observeFishingWorld(this.world);
+    if (!state) throw new Error('钓场缺少 rig 实体。');
+    return state;
   }
 
   step(decision: Decision<FishingActionId>): Outcome {

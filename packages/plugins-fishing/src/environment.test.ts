@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { DecisionEngine } from '@twin-platform/decision-core';
 import { TwinWorld } from '@twin-platform/world-kernel';
 import { fishingDomain } from './domain';
-import { FishingEnvironment } from './environment';
+import { FishingEnvironment, observeFishingWorld } from './environment';
 import { createFishSimBehavior } from './fishSim';
 import { buildFishingScene } from './template';
 
@@ -42,6 +42,14 @@ describe('FishingEnvironment · 闭环', () => {
     expect(outcome.metrics.casts).toBeGreaterThan(0);
     // 往钝 2 目后钓目应为 2（t0=4,t=2,w=1 的不灵不钝点）。
     expect(Number(env.world.getEntity('rig-01')?.attrs.d)).toBe(2);
+  });
+
+  test('observeFishingWorld 直接读任意世界；非钓场返回 undefined', () => {
+    const fishing = new TwinWorld(buildFishingScene({ rig: { d: 2 } }), { seed: 1, behaviors: [createFishSimBehavior()] });
+    expect(observeFishingWorld(fishing)?.rig.zone).toBe('neutral');
+
+    const empty = new TwinWorld({ version: 1, id: 'empty', name: '空场景', entities: [] }, { seed: 1 });
+    expect(observeFishingWorld(empty)).toBeUndefined();
   });
 
   test('同种子的环境结果可复现', () => {
