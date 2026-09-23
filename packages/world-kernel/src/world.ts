@@ -1,5 +1,5 @@
 import type { TwinEntity, TwinScene, TwinTransform, TwinValue, TwinVector3 } from '@twin-platform/scene-schema';
-import { migrateTwinScene } from '@twin-platform/scene-schema';
+import { applySceneOps as applySceneOpsPure, migrateTwinScene, sameTransform, type SceneOp } from '@twin-platform/scene-schema';
 import type { BehaviorContext, WorldBehavior } from './behaviors';
 import { FixedStepClock } from './clock';
 import { createEntityState, toSnapshotEntity, type EntityMotionState, type WorldEntityState, type WorldSnapshotEntity } from './entities';
@@ -75,6 +75,18 @@ export interface FrameDelta {
 }
 
 const DEFAULT_STEP = 1 / 60;
+
+/**
+ * `poseEditability()` 的回答：这个实体的位姿现在由谁说了算。
+ *
+ * `editable` 为 false 时 `reason` 是给人看的中文，直接进属性面板，
+ * 不要让 UI 自己猜不可编辑的原因（那会和内核的判定标准漂移）。
+ */
+export interface PoseEditability {
+  editable: boolean;
+  /** 不可编辑时的原因，可直接展示。 */
+  reason?: string;
+}
 
 export class TwinWorld {
   readonly scene: TwinScene;
@@ -166,7 +178,10 @@ export class TwinWorld {
   runSteps(count: number): FrameDelta {
     if (!Number.isInteger(count) || count < 0) throw new Error('步数必须是非负整数。');
     for (let i = 0; i < count; i += 1) this.stepOnce(this.clock.step);
-    return count === 0 ? this.emptyFrame() : this.flushFrame();
+    // `count = 0` 也照样刷帧：暂停时的布局编辑、外部直接 setAttr 这类
+    // "不推演就改了状态"的操作，必须能把 dirty 交给渲染层，
+    // 否则暂停时改设备位置，画面要等恢复播放才动。
+    return this.flushFrame();
   }
 
   // ---------------------------------------------------------------------------
@@ -273,6 +288,83 @@ export class TwinWorld {
     if (!state?.motion) return false;
     this.applyDistance(state, state.motion.distance + distanceDelta);
     return true;
+  }
+
+  // ---------------------------------------------------------------------------
+  // 布局编辑（阶段 J）
+  // ---------------------------------------------------------------------------
+
+  /**
+   * 这个实体的位姿现在由**谁**说了算——只有"场景声明说了算"的才允许编辑。
+   *
+   * 四类不可编辑，各有具体原因，`reason` 直接给 UI 展示（不要让用户猜）：
+   * 1. 运行时生成的实体（发生器产出的小货物、打包出的托盘）根本没有场景声明；
+   * 2. 声明了 `motion`：位姿是路径弧长的函数，改 transform 下一步就被路径盖掉；
+   * 3. 位姿被外部数据源接管：下一帧外部信号又会写回来；
+   * 4. 运行时位姿 ≠ 声明原始位姿：说明有行为在管它的位姿（堆垛机、卡车…）。
+   */
+  poseEditability(id: string): PoseEditability {
+    if (!this.sceneIds.has(id)) return { editable: false, reason: '运行时生成的实体没有场景声明，改不了布局。' };
+    const state = this.entities.get(id);
+    if (!state) return { editable: false, reason: '实体已从世界中移除。' };
+    if (state.motion) return { editable: false, reason: '位姿由路径决定（声明了 motion），要改得改路径。' };
+    if (state.dataSource !== 'sim') return { editable: false, reason: '位姿由外部数据源驱动，改了下一帧就被写回来。' };
+    // `baseTransform` 就是"声明里的原始位姿"（布局编辑会跟着一起更新它），
+    // 所以拿它当基准：两者不一致 = 有行为正在改写这个实体的位姿。
+    if (!sameTransform(state.transform, state.baseTransform)) {
+      return { editable: false, reason: '位姿由行为驱动，改了下一步就会被覆盖。' };
+    }
+    return { editable: true };
+  }
+
+  /**
+   * 应用布局编辑 ops：改**场景声明**，并把运行时位姿同步过去。
+   *
+   * 方向是单向的：声明 → 运行时。仿真里跑动的货**永远不回写声明**——
+   * 否则跑一分钟，布局就被运动轨迹冲掉了（Studio 里 `state.transform`
+   * 与 `scene.entities[i].transform` 分家，正是为了守住这条边界）。
+   *
+   * 这里只改文档层与位姿，不碰 rng / 时钟 / 事件：编辑是**输入**，不是时间轴上
+   * 的事实。因此"有编辑功能"本身不改变同种子指纹（world.test 有专门的测试）。
+   *
+   * 语义边界（阶段 K 要解决）：布局编辑**不进 WorldSnapshot**。往回 seek 到
+   * 编辑发生之前，位姿按当时的快照显示（= 当时的样子），与当前声明可能对不上；
+   * 要能精确回放"历史上的布局"，得靠场景版本化把文档也分叉出去。
+   *
+   * @throws 整批里有任意一条不可编辑 / before 对不上 / 结果非法时抛出，
+   *         且**一条都不改**（先整批检查再动手，不留半截状态）。
+   */
+  applySceneOps(ops: readonly SceneOp[]): void {
+    for (const op of ops) {
+      const check = this.poseEditability(op.entityId);
+      if (!check.editable) throw new Error(`实体 ${op.entityId} 不可编辑：${check.reason ?? '原因未知'}`);
+    }
+
+    const next = applySceneOpsPure(this.scene, ops); // 纯函数，内部会校验结果依然合法
+    this.scene.entities = next.entities; // 场景对象引用不变、只换实体数组（结构共享）
+
+    for (const op of ops) {
+      if (op.type !== 'setTransform') continue;
+      const state = this.entities.get(op.entityId);
+      const declaration = next.entities.find((entity) => entity.id === op.entityId);
+      if (!state || !declaration) continue; // 上面已挡过，这里是防御
+      // `declaration` / `baseTransform` 对**行为**是只读的（防止行为改写声明），
+      // 但布局编辑走的是内核这条通道：声明换了，"以声明为原点"的 baseTransform
+      // 当然要跟着换，否则外部 pose 的 local 坐标系还锚在旧位置上。
+      const mutable = state as { declaration?: TwinEntity; baseTransform: TwinTransform };
+      mutable.declaration = declaration;
+      mutable.baseTransform = {
+        position: [...op.after.position],
+        rotation: op.after.rotation ? [...op.after.rotation] : undefined,
+        scale: op.after.scale ? [...op.after.scale] : undefined,
+      };
+      // 运行时位姿同步 → 标 dirty → 下一帧 FrameDelta 把网格挪过去。
+      this.setTransform(op.entityId, {
+        position: [...op.after.position],
+        rotation: op.after.rotation ? [...op.after.rotation] : undefined,
+        scale: op.after.scale ? [...op.after.scale] : undefined,
+      });
+    }
   }
 
   // ---------------------------------------------------------------------------

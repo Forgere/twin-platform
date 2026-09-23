@@ -344,3 +344,13 @@ export {
   sceneSummary,
   serializeSceneDocument,
 } from './io';
+
+/**
+ * 布局编辑操作（ops）的出口，理由同上：统一走主入口，不用子路径。
+ *
+ * 循环依赖同样靠"运行时绑定只在函数体内用"解决：
+ * 本模块的 `validateTwinScene` 被 `ops.ts` 在 `applySceneOps` 体内调用，
+ * 而本模块只是 re-export `ops`，顶层不互相执行。
+ */
+export type { SceneOp, SetTransformOp } from './ops';
+export { applySceneOps, sameTransform, SceneOpError } from './ops';

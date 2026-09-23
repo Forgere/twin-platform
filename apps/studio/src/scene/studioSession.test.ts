@@ -155,3 +155,99 @@ describe('StudioSession · 导入外部场景', () => {
     expect(session.world.scene.id).toBe('fork-base');
   });
 });
+
+/**
+ * 布局编辑（阶段 J）：改的是**场景声明**，产物是结构化 ops。
+ *
+ * 这里不挂 WebGL，所以断言的是面板背后的契约：谁可编辑、编辑改了什么、
+ * 失败会不会留下半截状态、以及最要紧的那条——编辑不改变同种子的事件流。
+ */
+describe('StudioSession · 布局编辑', () => {
+  const firstEditable = (session: StudioSession): string => {
+    const id = session.world.scene.entities.find((entity) => session.poseEditability(entity.id).editable)?.id;
+    expect(id).toBeDefined();
+    return id as string;
+  };
+
+  const firstLocked = (session: StudioSession): { id: string; reason: string } => {
+    const entity = session.world.scene.entities.find((item) => !session.poseEditability(item.id).editable);
+    expect(entity).toBeDefined();
+    return { id: entity!.id, reason: session.poseEditability(entity!.id).reason as string };
+  };
+
+  const eventsOf = (session: StudioSession): string =>
+    JSON.stringify(session.world.getEventLog().map((event) => [event.sequence, event.type, event.occurredAt, event.entityId ?? null]));
+
+  test('改一个静态设备：声明与运行时一起动，ops 记进会话', () => {
+    const session = new StudioSession();
+    session.controller.pause();
+    const id = firstEditable(session);
+    const before = session.declaredTransform(id)!;
+    const after = {
+      position: [before.position[0] + 2.5, before.position[1], before.position[2]] as [number, number, number],
+      rotation: [0, 0.5, 0] as [number, number, number],
+    };
+
+    const outcome = session.applyEdit([{ type: 'setTransform', entityId: id, before, after }]);
+    expect(outcome.ok).toBe(true);
+    expect(outcome.error).toBeUndefined();
+
+    expect(session.declaredTransform(id)!.position).toEqual(after.position); // 文档改了
+    expect(session.world.getEntity(id)!.transform.position).toEqual(after.position); // 运行时同步（单向）
+    expect(session.layoutOps()).toHaveLength(1);
+    expect(session.hasLayoutEdits()).toBe(true);
+
+    session.markLayoutSaved();
+    expect(session.hasLayoutEdits()).toBe(false);
+    expect(session.layoutOps()).toHaveLength(1); // ops 留着（阶段 K 要落库），只是标记已保存
+  });
+
+  test('被路径 / 行为接管的实体拒绝编辑，一条都不改、ops 不记账', () => {
+    const session = new StudioSession();
+    session.controller.pause();
+    const { id, reason } = firstLocked(session);
+    expect(reason.length).toBeGreaterThan(0); // 原因是给人看的，不能是空的
+    const before = { position: [...session.declaredTransform(id)!.position] as [number, number, number] };
+
+    const outcome = session.applyEdit([{ type: 'setTransform', entityId: id, before, after: { position: [0, 0, 0] } }]);
+
+    expect(outcome.ok).toBe(false);
+    expect(outcome.error).toContain('不可编辑');
+    expect(session.declaredTransform(id)!.position).toEqual(before.position); // 声明没被动过
+    expect(session.layoutOps()).toHaveLength(0);
+    expect(session.hasLayoutEdits()).toBe(false);
+  });
+
+  test('暂停时编辑照样出帧（渲染层就靠这一帧挪网格）', () => {
+    const session = new StudioSession();
+    session.controller.pause();
+    const id = firstEditable(session);
+    const before = session.declaredTransform(id)!;
+    session.applyEdit([{ type: 'setTransform', entityId: id, before, after: { position: [1, 1, 1] } }]);
+
+    const frame = session.controller.advance(1 / 60);
+    expect(frame.changed.map((change) => change.id)).toContain(id);
+    expect(session.world.stepCount).toBe(0); // 没有因为编辑而偷偷推进仿真
+  });
+
+  test('编辑布局不改变同种子的事件流（编辑是输入，不是时间轴事实）', () => {
+    const plain = new StudioSession();
+    const edited = new StudioSession();
+    plain.controller.pause();
+    edited.controller.pause();
+
+    plain.controller.stepFrames(600);
+    edited.controller.stepFrames(600);
+
+    const id = firstEditable(edited);
+    const before = edited.declaredTransform(id)!;
+    edited.applyEdit([{ type: 'setTransform', entityId: id, before, after: { position: [12, before.position[1], -4] } }]);
+
+    plain.controller.stepFrames(600);
+    edited.controller.stepFrames(600);
+
+    expect(eventsOf(edited)).toBe(eventsOf(plain)); // 事件逐位一致
+    expect(edited.telemetry().spawned).toBe(plain.telemetry().spawned);
+    expect(edited.declaredTransform(id)!.position).toEqual([12, before.position[1], -4]); // 但布局确实改了
+  });
+});

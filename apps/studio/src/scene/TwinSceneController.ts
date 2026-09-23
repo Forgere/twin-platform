@@ -11,7 +11,6 @@ import {
   type EntityAnim,
 } from './entityMeshes';
 import { CargoPool } from './CargoPool';
-import { describeEntityState } from './entityState';
 import { getActiveTheme, setActiveTheme, themeByName, cargoColorFor, type ThemeName } from './theme';
 
 CameraControls.install({ THREE });
@@ -36,6 +35,33 @@ export interface TwinSceneControllerOptions {
   scene: TwinScene;
   /** 时间轴控制器：渲染层的推进完全由它决定，视口自己不推演状态。 */
   controller: ReplayController;
+  /**
+   * 画布内拖拽松手时的回调：把最终位置交出去，由 UI 层拼成 `setTransform` op。
+   *
+   * 拖拽过程**只动渲染层的网格**（纯预览，不写世界），松手才提交一条 op——
+   * 中间每帧写世界会让"取消拖拽"无从回滚，也会让可编辑性判定来回抖。
+   *
+   * @returns 这条编辑是否被接受；false 时渲染层自己把网格吸附回世界状态。
+   */
+  onDragCommit?: (entityId: string, position: TwinVector3) => boolean;
+}
+
+/** 拖拽阈值（米）：小于它就算一次点击（只选中，不改布局）。 */
+const DRAG_THRESHOLD = 0.06;
+
+/** 进行中的拖拽。 */
+interface DragState {
+  id: string;
+  object: THREE.Object3D;
+  /** 过实体当前高度的水平面：拖拽只改 XZ，高度保持声明值。 */
+  plane: THREE.Plane;
+  /** 抓取点相对实体的偏移，免得一开拖物体就跳到光标正下方。 */
+  offsetX: number;
+  offsetZ: number;
+  /** 按下时的原点，用来判断"到底拖没拖"以及 Esc 取消时回滚。 */
+  originX: number;
+  originZ: number;
+  moved: boolean;
 }
 
 const DEFAULT_SIZE: TwinVector3 = [0.7, 0.7, 0.7];
@@ -80,6 +106,8 @@ export class TwinSceneController {
   private beltTime = 0;
   private selectionHelper: THREE.Object3D | undefined;
   private selectedId: string | undefined;
+  /** 进行中的拖拽（预览期间只改网格，不写世界）。 */
+  private drag: DragState | undefined;
   private readonly resizeObserver: ResizeObserver;
   private readonly renderer: THREE.WebGLRenderer;
   private readonly controls: CameraControls;
@@ -122,6 +150,11 @@ export class TwinSceneController {
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(this.host);
     this.renderer.domElement.addEventListener('pointerdown', this.pick);
+    // 捕获阶段挂在**容器**上：camera-controls 的监听器比我们先注册在画布上，
+    // 同一个节点上的监听器按注册顺序跑、不吃 capture 标志，直接在画布上抢不过它；
+    // 挂到父容器的捕获阶段才能先于画布执行，从而在它看到 pointerdown 之前
+    // 把 `controls.enabled` 关掉——否则"拖设备"会同时变成"转相机"。
+    this.host.addEventListener('pointerdown', this.pick, true);
     this.resize();
     this.renderFrame();
   }
@@ -158,18 +191,6 @@ export class TwinSceneController {
       });
     }
     return out;
-  }
-
-  /**
-   * 选中实体的**实时状态**（只读世界状态，不在渲染层推演）。
-   *
-   * 托盘货位 / 货架占用 / 堆垛机任务都写在实体 attrs 里，翻译成人话的那部分
-   * 放在 `entityState.ts`（纯函数、可单测）；这里只负责把世界状态取出来。
-   */
-  describeEntity(id: string): string[] {
-    const state = this.controller.world.getEntity(id);
-    if (!state) return [];
-    return describeEntityState(state);
   }
 
   /** 点中实体后，回答"它由哪段代码渲染"——模型溯源，调试用。 */
@@ -271,7 +292,9 @@ export class TwinSceneController {
   dispose(): void {
     if (this.frameId !== undefined) cancelAnimationFrame(this.frameId);
     this.resizeObserver.disconnect();
+    this.finishDrag(false); // 拖到一半卸载：先撤监听、把网格放回原处
     this.renderer.domElement.removeEventListener('pointerdown', this.pick);
+    this.host.removeEventListener('pointerdown', this.pick, true);
     this.controls.dispose();
     this.removeSelectionHelper();
     for (const object of this.entityMeshes.values()) disposeObject(object);
@@ -391,7 +414,11 @@ export class TwinSceneController {
     const object = buildEntityMesh(entity);
     object.position.set(...entity.transform.position);
     // 叠加而不是覆盖：输送段可能已经在模型工厂里转过 90°（沿 Z 铺设）。
-    object.rotation.y += entity.transform.rotation?.[1] ?? 0;
+    const declarationYaw = entity.transform.rotation?.[1] ?? 0;
+    object.rotation.y += declarationYaw;
+    // 记下"模型工厂自己转过的角度"：之后运行时位姿更新要用 `工厂角度 + 当前朝向`，
+    // 直接赋值会把工厂转过的那 90° 抹掉（布局编辑改个位置，皮带头就转正了）。
+    object.userData.baseRotationY = object.rotation.y - declarationYaw;
     object.userData.entityId = entity.id;
     // 记下初始高度：托举座靠"相对它的偏移"判断自己有没有被顶起来。
     object.userData.baseY = entity.transform.position[1] ?? 0;
@@ -429,7 +456,9 @@ export class TwinSceneController {
         config: state.config,
       });
       object.position.set(...state.transform.position);
-      object.rotation.y += state.transform.rotation?.[1] ?? 0;
+      const runtimeYaw = state.transform.rotation?.[1] ?? 0;
+      object.rotation.y += runtimeYaw;
+      object.userData.baseRotationY = object.rotation.y - runtimeYaw;
       object.userData.entityId = state.id;
       object.userData.baseY = state.transform.position[1] ?? 0;
       for (const material of collectMaterials(object)) {
@@ -469,7 +498,7 @@ export class TwinSceneController {
       if (!mesh) continue;
       if (change.transform) {
         mesh.position.set(...change.transform.position);
-        mesh.rotation.y = change.transform.rotation?.[1] ?? 0;
+        mesh.rotation.y = Number(mesh.userData.baseRotationY ?? 0) + (change.transform.rotation?.[1] ?? 0);
       }
       // 内核发来的状态 / 属性驱动模型动画（状态灯、缓存货位……）。
       this.applyState(mesh, change.status, change.attrs);
@@ -572,8 +601,99 @@ export class TwinSceneController {
     } else {
       id = this.entityIdOf(hit.object);
     }
-    if (id) this.selectEntity(id);
+    if (id) {
+      this.selectEntity(id);
+      // 左键按下即进入拖拽待命：可编辑性由内核回答，路径 / 行为接管的实体根本起不来。
+      if (event.button === 0) this.beginDrag(id, hit.point);
+    }
   };
+
+  // ---------------------------------------------------------------------------
+  // 画布内拖拽（阶段 J）：预览只动网格，松手才提交一条 op
+  // ---------------------------------------------------------------------------
+
+  private beginDrag(id: string, point: THREE.Vector3): void {
+    // 物料走实例化池，不在这张网格表里；即便在，它们的位姿也由路径 / 行为管，
+    // 内核的 poseEditability 本来就会拒绝。
+    const object = this.entityMeshes.get(id);
+    if (!object) return;
+    if (!this.controller.world.poseEditability(id).editable) return;
+
+    this.drag = {
+      id,
+      object,
+      plane: new THREE.Plane(new THREE.Vector3(0, 1, 0), -object.position.y),
+      offsetX: object.position.x - point.x,
+      offsetZ: object.position.z - point.z,
+      originX: object.position.x,
+      originZ: object.position.z,
+      moved: false,
+    };
+    // 相机让位：必须在 camera-controls 看到 pointerdown 之前关掉（我们在捕获阶段）。
+    this.controls.enabled = false;
+    this.renderer.domElement.style.cursor = 'grabbing';
+    window.addEventListener('pointermove', this.onDragMove);
+    window.addEventListener('pointerup', this.onDragEnd);
+    window.addEventListener('pointercancel', this.onDragCancel);
+    window.addEventListener('keydown', this.onDragKey);
+  }
+
+  private readonly onDragMove = (event: PointerEvent): void => {
+    const drag = this.drag;
+    if (!drag) return;
+    const point = this.raycastToPlane(event, drag.plane);
+    if (!point) return; // 视线与拖拽平面平行：保持原样，别把物体甩飞
+    const x = point.x + drag.offsetX;
+    const z = point.z + drag.offsetZ;
+    // 先越过阈值才算真的在拖：否则一次普通点击也会被记成"编辑"。
+    if (!drag.moved && Math.hypot(x - drag.originX, z - drag.originZ) < DRAG_THRESHOLD) return;
+    drag.moved = true;
+    drag.object.position.set(x, drag.object.position.y, z); // 预览：只改网格
+  };
+
+  private readonly onDragEnd = (): void => this.finishDrag(true);
+  private readonly onDragCancel = (): void => this.finishDrag(false);
+  private readonly onDragKey = (event: KeyboardEvent): void => {
+    if (event.key === 'Escape') this.finishDrag(false);
+  };
+
+  private finishDrag(commit: boolean): void {
+    const drag = this.drag;
+    if (!drag) return;
+    this.drag = undefined;
+    window.removeEventListener('pointermove', this.onDragMove);
+    window.removeEventListener('pointerup', this.onDragEnd);
+    window.removeEventListener('pointercancel', this.onDragCancel);
+    window.removeEventListener('keydown', this.onDragKey);
+    this.controls.enabled = true;
+    this.renderer.domElement.style.cursor = '';
+
+    if (!drag.moved) return; // 只是点了一下：位置没动过，也就不产生编辑
+    if (!commit) {
+      drag.object.position.set(drag.originX, drag.object.position.y, drag.originZ); // Esc / 中断：回滚预览
+      return;
+    }
+
+    const position: TwinVector3 = [drag.object.position.x, drag.object.position.y, drag.object.position.z];
+    const applied = this.onDragCommit?.(drag.id, position) ?? false;
+    if (!applied) this.snapToState(drag.id); // op 被拒（不可编辑 / before 对不上）：吸附回世界状态
+  }
+
+  private raycastToPlane(event: PointerEvent, plane: THREE.Plane): THREE.Vector3 | undefined {
+    const bounds = this.renderer.domElement.getBoundingClientRect();
+    this.pointer.x = ((event.clientX - bounds.left) / bounds.width) * 2 - 1;
+    this.pointer.y = -((event.clientY - bounds.top) / bounds.height) * 2 + 1;
+    this.raycaster.setFromCamera(this.pointer, this.camera);
+    return this.raycaster.ray.intersectPlane(plane, new THREE.Vector3()) ?? undefined;
+  }
+
+  /** 把网格吸附回世界状态：编辑被拒时靠它消除"看起来改了其实没改"的错觉。 */
+  private snapToState(id: string): void {
+    const object = this.entityMeshes.get(id);
+    const state = this.controller.world.getEntity(id);
+    if (!object || !state) return;
+    object.position.set(...state.transform.position);
+  }
 
   /** 沿父链找最近的 entityId（组合模型挂在 Group 上）。 */
   private entityIdOf(object: THREE.Object3D | undefined): string | undefined {

@@ -4,11 +4,14 @@ import type { LineMetrics } from '@twin-platform/analytics-core';
 import { StudioSession, type StudioTelemetry } from '../scene/studioSession';
 import { DEFAULT_PLUGIN_IDS, resolvePlugins } from '../plugins/catalog';
 import { TwinSceneController, type CameraPreset, type TwinEntityView } from '../scene/TwinSceneController';
+import { selectionCard, type SelectionCard } from '../scene/selectionCard';
 import type { ThemeName } from '../scene/theme';
-import { parseSceneDocument, sceneFileName, serializeSceneDocument } from '@twin-platform/scene-schema';
-import { createHttpStorage, defaultServerUrl, pingServer } from '@twin-platform/storage-http';
+import { parseSceneDocument, sceneFileName, serializeSceneDocument, type SceneOp, type TwinTransform } from '@twin-platform/scene-schema';
+import { createHttpStorage, pingServer } from '@twin-platform/storage-http';
+import { resolveServerUrl } from '../scene/serverUrl';
 import type { SceneSummary as StoredSceneSummary } from '@twin-platform/storage-contracts';
 import ScenePanel, { type SceneExportPayload, type SceneImportOutcome, type ServerState } from './ScenePanel';
+import PoseEditor, { copyTransform } from './PoseEditor';
 import DataSourcePanel from './DataSourcePanel';
 import EventLogPanel from './EventLogPanel';
 import TimelineBar from './TimelineBar';
@@ -144,7 +147,12 @@ export default function TwinViewport() {
         // 点中场景里的东西就把实体页翻出来，不然选中了也看不见。
         if (entity) setTab('entity');
       },
-      { scene: untrack(() => session().world.scene), controller: untrack(() => session().controller) },
+      {
+        scene: untrack(() => session().world.scene),
+        controller: untrack(() => session().controller),
+        // 拖拽松手才提交（回调在用户操作时才执行，晚于下方这些 const 定义，无 TDZ 问题）。
+        onDragCommit: (entityId, position) => commitDrag(entityId, position),
+      },
     );
     setEntities(controller.entities);
     setTheme(controller.themeName);
@@ -172,7 +180,24 @@ export default function TwinViewport() {
     if (!parsed.ok || !parsed.scene) {
       return { ok: false, applied: parsed.applied, issues: parsed.issues };
     }
-    replaceSession(new StudioSession(parsed.scene, undefined, resolvePlugins(activePlugins())));
+    // 两处修复叠加：既带服务端仓储（否则导入的场景悄悄退回内存，刷新即丢），
+    // 也带当前插件集（否则切换过的插件会在导入后被打回默认领域包）。
+    const next = new StudioSession(parsed.scene, serverStorage(), resolvePlugins(activePlugins()));
+    replaceSession(next);
+    // 这个 id 以前存过服务端的话，库里已有事件，不接着写会撞上"sequence 必须严格单调"。
+    // 构造是同步的（SceneImportOutcome 要同步返回），所以异步对齐一次。
+    if (serverStorage()) {
+      void next.resumeFromStorage().catch((error: unknown) => {
+        setServer((current) =>
+          current
+            ? {
+                ...current,
+                note: `导入后对齐事件序号失败：${error instanceof Error ? error.message : String(error)}`,
+              }
+            : current,
+        );
+      });
+    }
     return {
       ok: true,
       name: parsed.scene.name,
@@ -241,6 +266,7 @@ export default function TwinViewport() {
       if (!storage) throw new Error('服务端未连接。');
       const scene = session().currentScene();
       await storage.scenes.putScene(scene);
+      session().markLayoutSaved(); // 手动保存也把布局改动算作已落库
       return `已保存「${scene.name}」（${scene.entities.length} 个实体）。`;
     });
 
@@ -278,7 +304,9 @@ export default function TwinViewport() {
       // 线上同源（经 Cloudflare Worker，token 由 Worker 注入）时这两个都是空：
       // URL 走 origin，前端不带 token，也带不了——它根本不知道 token。
       // 本地跨源联调才用 VITE_TWIN_SERVER / VITE_TWIN_API_TOKEN 覆盖。
-      const url = import.meta.env.VITE_TWIN_SERVER || defaultServerUrl();
+      // dev 同样走同源：vite.config.ts 的 /api 代理会反代到 :8787 并注入 token，
+      // 于是 dev 与部署是同一条拓扑（不再靠 CORS + hostname:8787 的跨源回落）。
+      const url = resolveServerUrl();
       const token = import.meta.env.VITE_TWIN_API_TOKEN || undefined;
       const ping = await pingServer(url, { token });
       if (ping.status === 'offline') return; // 纯静态部署：正常状态，不打扰。
@@ -329,15 +357,91 @@ export default function TwinViewport() {
   });
 
   /**
-   * 当前选中实体的实时状态行。
+   * "当前选择"卡片的取数：唯一入口是 `selectionCard()`（scene/selectionCard.ts）——
+   * 面板渲染它，工具与 AI 也调它，人看到的和模型看到的是同一份数据。
    *
-   * 读一下 `tick()` 是为了让这段在采样节拍上重算——状态存在世界 attrs 里，
-   * 不经过信号，必须靠节拍显式拉取（和遥测 HUD 同一个套路）。
+   * 这里只补两样只有 UI 才知道的：采样节拍（实时状态存在世界 attrs 里，不走信号，
+   * 得靠节拍显式拉取——和遥测 HUD 同一个套路）与渲染来源（模型溯源，渲染层答得上来）。
+   *
+   * 注意：**别拿它的返回值当 `<Show when>`** —— 每拍都是新对象，
+   * 会把子树（含 PoseEditor 输入框）整个重挂，输入框就打不了字了。
    */
-  const selectedState = (): string[] => {
-    tick();
+  const selectedCard = (): SelectionCard | undefined => {
     const entity = selected();
-    return entity && controller ? controller.describeEntity(entity.id) : [];
+    if (!entity) return undefined;
+    tick();
+    return selectionCard(session().world, entity.id, controller?.codePath(entity.id));
+  };
+
+  // ---------------------------------------------------------------------------
+  // 布局编辑（阶段 J）：改**场景声明**，产物是结构化 ops（阶段 K 的存储侧入口）
+  // ---------------------------------------------------------------------------
+
+  /** 编辑版本号：一次提交成功 +1。PoseEditor 只认它回填输入框（不挂采样节拍）。 */
+  const [editRevision, setEditRevision] = createSignal(0);
+  const [editError, setEditError] = createSignal<string>();
+  /** 还没落库的布局改动。纯静态部署时永远为 true，面板如实提示"刷新会丢"。 */
+  const [layoutDirty, setLayoutDirty] = createSignal(false);
+  let layoutSaveTimer: ReturnType<typeof setTimeout> | undefined;
+
+  const applyEdit = (ops: readonly SceneOp[]): boolean => {
+    const outcome = session().applyEdit(ops);
+    if (!outcome.ok) {
+      setEditError(outcome.error); // 内核的人话，直接显示（一条都不会被改）
+      return false;
+    }
+    setEditError(undefined);
+    setLayoutDirty(true);
+    setEditRevision((value) => value + 1);
+    scheduleLayoutSave();
+    return true;
+  };
+
+  /** 去抖自动保存：连着服务端时过一拍把整文档落库——否则"拖完刷新就没"。 */
+  const scheduleLayoutSave = (): void => {
+    if (layoutSaveTimer !== undefined) clearTimeout(layoutSaveTimer);
+    if (!serverStorage()) return; // 纯静态：与其它数据一样刷新即丢，面板如实提示
+    layoutSaveTimer = setTimeout(() => void saveLayoutNow(), 900);
+  };
+
+  const saveLayoutNow = async (): Promise<void> => {
+    const storage = serverStorage();
+    const current = session();
+    if (!storage || !current.hasLayoutEdits()) return;
+    const scene = current.currentScene();
+    try {
+      await storage.scenes.putScene(scene);
+      current.markLayoutSaved();
+      setLayoutDirty(false);
+      setServer((state) => (state ? { ...state, note: `布局已自动保存（${scene.entities.length} 个实体）。` } : state));
+    } catch (error) {
+      setServer((state) =>
+        state
+          ? { ...state, note: `自动保存布局失败：${error instanceof Error ? error.message : String(error)}` }
+          : state,
+      );
+    }
+  };
+
+  onCleanup(() => {
+    if (layoutSaveTimer !== undefined) clearTimeout(layoutSaveTimer);
+  });
+
+  /** 拼一条 setTransform op 并应用；`before` 取自当前声明（乐观校验，对不上就拒）。 */
+  const commitPose = (entityId: string, next: TwinTransform): boolean => {
+    const before = session().declaredTransform(entityId);
+    if (!before) return false;
+    return applyEdit([{ type: 'setTransform', entityId, before: copyTransform(before), after: next }]);
+  };
+
+  /**
+   * 画布拖拽松手：只改位置，朝向与缩放保持声明值。
+   * 拖拽预览只动了渲染层的网格，所以这里的 `before` 依然是拖之前的声明，天然对得上。
+   */
+  const commitDrag = (entityId: string, position: [number, number, number]): boolean => {
+    const before = session().declaredTransform(entityId);
+    if (!before) return false;
+    return commitPose(entityId, { ...copyTransform(before), position });
   };
 
   /**
@@ -599,6 +703,55 @@ export default function TwinViewport() {
           {/* 六个面板互斥：同一时刻只有一个被渲染，不会堆成一长条。 */}
           <div class="tab-panel">
             <Show when={tab() === 'entity'}>
+              {/* 卡片放最上面 + sticky（App.css），实体列表再长也不会把它顶出屏幕；
+                  列表自己限高滚动，滚动发生在卡片下方。 */}
+              <section class="entity-detail" aria-live="polite">
+                <h2>🎯 当前选择</h2>
+                <Show when={selected()} fallback={<p>点击场景中的设备或物料，或从下方列表选择。</p>}>
+                  {(entity) => {
+                    // 卡片数据只从 selectionCard() 取（工具 / AI 同款），它每拍现算，
+                    // 所以下面一律用普通表达式消费，不能再套一层 <Show when={卡片}>。
+                    const card = selectedCard;
+                    return (
+                      <>
+                        <strong onContextMenu={(event) => openMenu(event, entity())} title="右键可复制名字 / ID">
+                          {card()?.label ?? entity().label}
+                        </strong>
+                        <span>
+                          {card()?.kind ?? entity().kind} · {entity().id}
+                        </span>
+                        <Show when={(card()?.stateLines.length ?? 0) > 0}>
+                          <dl class="entity-state">
+                            <For each={card()?.stateLines}>
+                              {(line) => <dd>{line}</dd>}
+                            </For>
+                          </dl>
+                        </Show>
+                        <span class="code-path">渲染来源：{card()?.codePath ?? '—'}</span>
+                        <PoseEditor
+                          entityId={entity().id}
+                          revision={editRevision()}
+                          getDeclared={() => session().declaredTransform(entity().id)}
+                          locked={card()?.editability.editable ? undefined : card()?.editability.reason}
+                          onCommit={(next) => commitPose(entity().id, next)}
+                        />
+                        <Show when={editError()}>
+                          {(message) => <p class="pose-error">⚠️ {message()}</p>}
+                        </Show>
+                        <Show when={layoutDirty()}>
+                          <p class="pose-dirty">
+                            ● 有未保存的布局改动{serverStorage() ? '（马上自动保存）' : '（纯静态部署，刷新会丢）'}
+                          </p>
+                        </Show>
+                        <button type="button" onClick={() => controller?.focusEntity(entity().id)}>
+                          聚焦此实体
+                        </button>
+                      </>
+                    );
+                  }}
+                </Show>
+              </section>
+
               <div class="segmented" role="group" aria-label="实体类别">
                 <button
                   type="button"
@@ -633,35 +786,6 @@ export default function TwinViewport() {
                   )}
                 </For>
               </div>
-
-              <section class="entity-detail" aria-live="polite">
-                <h2>🎯 当前选择</h2>
-                <Show when={selected()} fallback={<p>点击场景中的设备或物料，或从上方列表选择。</p>}>
-                  {(entity) => (
-                    <>
-                      <strong onContextMenu={(event) => openMenu(event, entity())} title="右键可复制名字 / ID">
-                        {entity().label}
-                      </strong>
-                      <span>
-                        {entity().kind} · {entity().id}
-                      </span>
-                      <Show when={selectedState().length > 0}>
-                        <dl class="entity-state">
-                          <For each={selectedState()}>
-                            {(line) => <dd>{line}</dd>}
-                          </For>
-                        </dl>
-                      </Show>
-                      <span class="code-path">
-                        渲染来源：{controller ? controller.codePath(entity().id) : '—'}
-                      </span>
-                      <button type="button" onClick={() => controller?.focusEntity(entity().id)}>
-                        聚焦此实体
-                      </button>
-                    </>
-                  )}
-                </Show>
-              </section>
             </Show>
 
             <Show when={tab() === 'metrics'}>

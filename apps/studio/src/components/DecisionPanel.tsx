@@ -14,7 +14,7 @@ import {
   observeFishingWorld,
   type FishingState,
 } from '@twin-platform/plugins-fishing';
-import { defaultServerUrl } from '@twin-platform/storage-http';
+import { resolveServerUrl } from '../scene/serverUrl';
 import type { StudioSession } from '../scene/studioSession';
 
 /**
@@ -60,7 +60,7 @@ function saveLog(log: DecisionLog): void {
 export default function DecisionPanel(props: { session: StudioSession }) {
   // 与 TwinViewport 同一套服务端解析：dev 时 vite:3000 跨源打 8787；
   // 生产同源时就是 origin，token 由 Worker 注入，前端不需要。
-  const apiUrl = import.meta.env.VITE_TWIN_SERVER || defaultServerUrl();
+  const apiUrl = resolveServerUrl();
   const apiToken = import.meta.env.VITE_TWIN_API_TOKEN || undefined;
   const authHeaders = (): Record<string, string> => (apiToken ? { authorization: 'Bearer ' + apiToken } : {});
 
