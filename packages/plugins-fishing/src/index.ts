@@ -8,6 +8,8 @@
  */
 
 export * from './fishingCore';
+export * from './presets';
+export * from './wizard';
 export * from './actionSpace';
 export * from './state';
 export * from './ruleJudge';

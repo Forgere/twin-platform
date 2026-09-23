@@ -331,7 +331,7 @@ export class TwinSceneController {
     this.scene.background = new THREE.Color('#F5F2EB');
     const grid = new THREE.GridHelper(64, 64, '#D8D0C2', '#E8E4DC');
     this.scene.add(grid);
-    this.addCoordinateAxes();
+    this.addCoordinateAxes(scene);
     this.scene.add(new THREE.HemisphereLight('#FFF4E6', '#E8E4DC', 1.7));
     const key = new THREE.DirectionalLight('#FFF4E6', 2.4);
     key.position.set(14, 20, 16);
@@ -367,13 +367,22 @@ export class TwinSceneController {
   }
 
   /**
-   * 加一个世界坐标系（X 红 / Y 绿 / Z 蓝 + 文字标注），放在场景左下角空白处，
+   * 加一个世界坐标系（X 红 / Y 绿 / Z 蓝 + 文字标注），放在场景西南角外侧，
    * 方便肉眼核对朝向——尤其确认外部车道/移栽机的 +X（东）、+Z（北）方向对不对。
+   * 原点按**当前场景实体的包围盒**外推：小场景（台钓钓场）里固定坐标会把
+   * 红色 X 标签压在水面上，看着像场景出了 bug。
    * 不进 entityMeshes / cargoPool，所以不会被拾取/选中逻辑干扰。
    */
-  private addCoordinateAxes(): void {
-    const origin = new THREE.Vector3(-17, 0, -7); // 主环线西南角外侧的空地
+  private addCoordinateAxes(scene: TwinScene): void {
     const len = 6;
+    const box = new THREE.Box3();
+    for (const entity of scene.entities) {
+      const position = entity.transform.position;
+      box.expandByPoint(new THREE.Vector3(position[0], position[1] ?? 0, position[2] ?? 0));
+    }
+    const origin = box.isEmpty()
+      ? new THREE.Vector3(-17, 0, -7) // 空场景兜底：沿用老主环线西南角外的位置
+      : new THREE.Vector3(box.min.x - len - 2.5, 0, box.min.z - len - 2.5);
     const axes = new THREE.AxesHelper(len);
     axes.position.copy(origin);
     axes.renderOrder = 999; // 压在其它几何之上，避免被皮带/货架挡住

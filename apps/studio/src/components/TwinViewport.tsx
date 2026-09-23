@@ -2,11 +2,11 @@ import { createSignal, For, onCleanup, onSettled, Show, untrack } from 'solid-js
 import type { WorldEvent } from '@twin-platform/world-kernel';
 import type { LineMetrics } from '@twin-platform/analytics-core';
 import { StudioSession, type StudioTelemetry } from '../scene/studioSession';
-import { DEFAULT_PLUGIN_IDS, resolvePlugins } from '../plugins/catalog';
+import { DEFAULT_PLUGIN_IDS, entryFor, resolvePlugins } from '../plugins/catalog';
 import { TwinSceneController, type CameraPreset, type TwinEntityView } from '../scene/TwinSceneController';
 import { selectionCard, type SelectionCard } from '../scene/selectionCard';
 import type { ThemeName } from '../scene/theme';
-import { parseSceneDocument, sceneFileName, serializeSceneDocument, type SceneOp, type TwinTransform } from '@twin-platform/scene-schema';
+import { parseSceneDocument, sceneFileName, serializeSceneDocument, type SceneOp, type TwinScene, type TwinTransform } from '@twin-platform/scene-schema';
 import { createHttpStorage, pingServer } from '@twin-platform/storage-http';
 import { resolveServerUrl } from '../scene/serverUrl';
 import type { SceneSummary as StoredSceneSummary } from '@twin-platform/storage-contracts';
@@ -18,6 +18,7 @@ import TimelineBar from './TimelineBar';
 import PluginsPanel from './PluginsPanel';
 import DecisionPanel from './DecisionPanel';
 import FishingSandbox from './FishingSandbox';
+import FishingSetupWizard from './FishingSetupWizard';
 import MetricsPanel from './MetricsPanel';
 import ScenarioComparePanel from './ScenarioComparePanel';
 
@@ -35,7 +36,7 @@ import ScenarioComparePanel from './ScenarioComparePanel';
  *   默认全部收起，点了才展开，把画面尽量让给场景。
  */
 
-type InspectorTab = 'entity' | 'metrics' | 'compare' | 'data' | 'scene' | 'events' | 'sandbox' | 'decision' | 'plugins';
+type InspectorTab = 'entity' | 'metrics' | 'compare' | 'data' | 'scene' | 'events' | 'wizard' | 'sandbox' | 'decision' | 'plugins';
 type EntityFilter = 'device' | 'cargo';
 
 /** 属于"物料"的实体类型，其余都算设备。 */
@@ -63,25 +64,82 @@ const TABS: { id: InspectorTab; icon: string; label: string }[] = [
   { id: 'data', icon: '📡', label: '数据' },
   { id: 'scene', icon: '🗂️', label: '场景' },
   { id: 'events', icon: '📜', label: '事件' },
+  { id: 'wizard', icon: '🧭', label: '向导' },
   { id: 'sandbox', icon: '🌊', label: '剖面' },
   { id: 'decision', icon: '🎯', label: '决策' },
   { id: 'plugins', icon: '🔌', label: '插件' },
 ];
+
+// ---------------------------------------------------------------------------
+// 上次选择的记忆（localStorage）：插件集与场景文档分开存。
+// 场景存的是**完整文档**而不是 id——纯静态部署没有服务端，也能原样恢复。
+// ---------------------------------------------------------------------------
+
+const PLUGIN_MEMORY_KEY = 'twin.plugins.v1';
+const SCENE_MEMORY_KEY = 'twin.scene.v1';
+
+/** 恢复上次的插件集；id 逐个校验，旧配置里的已删插件不会把页面卡死。 */
+function restorePluginIds(): readonly string[] {
+  if (typeof localStorage === 'undefined') return [...DEFAULT_PLUGIN_IDS];
+  try {
+    const raw = localStorage.getItem(PLUGIN_MEMORY_KEY);
+    if (!raw) return [...DEFAULT_PLUGIN_IDS];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [...DEFAULT_PLUGIN_IDS];
+    const ids = parsed.filter((id): id is string => typeof id === 'string' && entryFor(id) !== undefined);
+    return ids.length > 0 ? ids : [...DEFAULT_PLUGIN_IDS];
+  } catch {
+    return [...DEFAULT_PLUGIN_IDS];
+  }
+}
+
+/** 恢复上次的场景文档；解析 / 校验失败就当没存过（回落到插件模板）。 */
+function restoreScene(): TwinScene | undefined {
+  if (typeof localStorage === 'undefined') return undefined;
+  try {
+    const raw = localStorage.getItem(SCENE_MEMORY_KEY);
+    if (!raw) return undefined;
+    const parsed = parseSceneDocument(raw);
+    return parsed.ok ? parsed.scene : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function rememberScene(scene: TwinScene): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(SCENE_MEMORY_KEY, serializeSceneDocument(scene));
+  } catch {
+    // 配额满 / 隐私模式：记不住就不记，功能不受影响。
+  }
+}
+
+function rememberPlugins(ids: readonly string[]): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(PLUGIN_MEMORY_KEY, JSON.stringify(ids));
+  } catch {
+    // 同上：记忆失败不阻塞主流程。
+  }
+}
 
 export default function TwinViewport() {
   /**
    * 会话是**可替换**的信号，不是常量：导入外部场景要整个换掉（世界、录制器、
    * 时间轴控制器全得重建），旧的那一份必须停掉，否则两个世界会同时推进。
    */
-  const [activePlugins, setActivePlugins] = createSignal<readonly string[]>([...DEFAULT_PLUGIN_IDS]);
+  const [activePlugins, setActivePlugins] = createSignal<readonly string[]>(restorePluginIds());
   /** 机位：物流的产线机位只在物流领域包在场时才列；否则只留全景（全景按包围盒自动取景）。 */
   const regionPresets = () => (activePlugins().includes('logistics') ? REGIONS : REGIONS.filter((item) => item.id === 'overview'));
-  const [session, setSession] = createSignal(new StudioSession());
+  const [session, setSession] = createSignal(
+    new StudioSession(restoreScene(), undefined, resolvePlugins(activePlugins())),
+  );
   /** 决策 / 剖面页只在对应插件在场时出现，纯物流场景不占位置。 */
   const tabs = () =>
     TABS.filter((item) => {
       if (item.id === 'decision') return session().host.decisions.length > 0;
-      if (item.id === 'sandbox') return activePlugins().includes('fishing');
+      if (item.id === 'wizard' || item.id === 'sandbox') return activePlugins().includes('fishing');
       return true;
     });
   let controller: TwinSceneController | undefined;
@@ -89,7 +147,19 @@ export default function TwinViewport() {
 
   const [selected, setSelected] = createSignal<TwinEntityView>();
   const [entities, setEntities] = createSignal<TwinEntityView[]>([]);
-  const [tab, setTab] = createSignal<InspectorTab>('entity');
+  /**
+   * 初始页签：切到钓场且向导没做完时，直接落在「向导」上——
+   * "从一开始就有人带着调漂"，而不是让新手自己猜从哪儿开始。
+   * 其余情况维持"实体"页。
+   */
+  const initialTab = (): InspectorTab => {
+    if (activePlugins().includes('fishing')) {
+      const rig = session().world.getEntity('rig-01');
+      if (rig && rig.attrs?.wizardDone !== true) return 'wizard';
+    }
+    return 'entity';
+  };
+  const [tab, setTab] = createSignal<InspectorTab>(initialTab());
   const [filter, setFilter] = createSignal<EntityFilter>('device');
   /** 遥测浮层：默认**收起**，点工具条的小按钮才显示（"隐藏浮层"的默认值）。 */
   const [hud, setHud] = createSignal(false);
@@ -188,6 +258,7 @@ export default function TwinViewport() {
     // 也带当前插件集（否则切换过的插件会在导入后被打回默认领域包）。
     const next = new StudioSession(parsed.scene, serverStorage(), resolvePlugins(activePlugins()));
     replaceSession(next);
+    rememberScene(parsed.scene);
     // 这个 id 以前存过服务端的话，库里已有事件，不接着写会撞上"sequence 必须严格单调"。
     // 构造是同步的（SceneImportOutcome 要同步返回），所以异步对齐一次。
     if (serverStorage()) {
@@ -219,7 +290,11 @@ export default function TwinViewport() {
   };
 
   /** 还原到所选领域包的模板场景（服务端在线时继续用服务端仓储）。 */
-  const resetScene = () => replaceSession(new StudioSession(undefined, serverStorage(), resolvePlugins(activePlugins())));
+  const resetScene = () => {
+    const next = new StudioSession(undefined, serverStorage(), resolvePlugins(activePlugins()));
+    replaceSession(next);
+    rememberScene(next.world.scene);
+  };
 
   /**
    * 换插件集：行为在 TwinWorld 构造时固定，且插件集是回放输入的一部分，
@@ -227,7 +302,10 @@ export default function TwinViewport() {
    */
   const applyPlugins = (ids: string[]) => {
     setActivePlugins(ids);
-    replaceSession(new StudioSession(undefined, serverStorage(), resolvePlugins(ids)));
+    rememberPlugins(ids);
+    const next = new StudioSession(undefined, serverStorage(), resolvePlugins(ids));
+    replaceSession(next);
+    rememberScene(next.world.scene);
   };
 
   // ---------------------------------------------------------------------------
@@ -282,6 +360,7 @@ export default function TwinViewport() {
       if (!scene) throw new Error(`服务端上没有场景 ${id}。`);
       const next = new StudioSession(scene, storage, resolvePlugins(activePlugins()));
       replaceSession(next);
+      rememberScene(scene);
       // 这个场景可能已经被录制过，事件要接着写而不是从头覆盖。
       await next.resumeFromStorage();
       return `已加载「${scene.name}」。`;
@@ -324,7 +403,8 @@ export default function TwinViewport() {
       setServerStorage(storage);
       setServer({ url, scenes: [], busy: false });
       // 换仓储要重建会话（录制器绑定着 storage 实例）。
-      const next = new StudioSession(undefined, storage, resolvePlugins(activePlugins()));
+      // 上次打开的场景一并恢复（本地有存档就用它），别让刷新把人打回默认模板。
+      const next = new StudioSession(restoreScene(), storage, resolvePlugins(activePlugins()));
       replaceSession(next);
       // 事件流是 append-only 的：库里已有历史就接着写，不能从头覆盖。
       await next.resumeFromStorage();
@@ -835,6 +915,10 @@ export default function TwinViewport() {
 
             <Show when={tab() === 'events'}>
               <EventLogPanel events={view().events} stored={view().stored} />
+            </Show>
+
+            <Show when={tab() === 'wizard'}>
+              <FishingSetupWizard session={session()} />
             </Show>
 
             <Show when={tab() === 'sandbox'}>

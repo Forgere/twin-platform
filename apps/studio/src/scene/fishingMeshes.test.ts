@@ -53,15 +53,31 @@ describe('台钓钓组模型', () => {
     expect(hookBox.min.x).toBeGreaterThan(baitBox.max.x);
   });
 
-  test('逻辑钓组提供三段线，端点与场景实体对齐', () => {
+  test('逻辑钓组提供四段线（主线从竿到漂 + 两段子线），端点与场景实体对齐', () => {
     const rig = buildEntityMesh(entity('rig', '#c9b79c', [0.1, 0.1, 0.1]));
-    expect(meshCount(rig)).toBe(3);
+    expect(meshCount(rig)).toBe(4);
     const anim = rig.userData.anim as { fishingLines?: { fromId: string; toId: string }[] } | undefined;
     expect(anim?.fishingLines?.map((line) => line.fromId + '->' + line.toId)).toEqual([
+      'rod-01->float-01',
       'float-01->sinker-01',
       'sinker-01->hook-upper-01',
       'hook-upper-01->hook-lower-01',
     ]);
+  });
+
+  test('钓场装饰（岸坡 / 钓台 / 鱼竿 / 芦苇 / 水草 / 鱼影 / 水底）都有实体几何', () => {
+    const parts: [string, string, [number, number, number]][] = [
+      ['shore', '#d8c69b', [9.6, 0.05, 6.6]],
+      ['pondBottom', '#d9c49a', [8, 0.08, 5]],
+      ['platform', '#c94f3d', [0.62, 0.34, 0.45]],
+      ['rod', '#8a5a2b', [0.07, 2.6, 0.07]],
+      ['reed', '#8a6a45', [0.5, 1.0, 0.2]],
+      ['weed', '#4c7a3f', [0.5, 0.36, 0.3]],
+      ['fish', '#5c6b73', [0.42, 0.16, 0.1]],
+    ];
+    for (const [kind, color, size] of parts) {
+      expect(meshCount(buildEntityMesh(entity(kind, color, size))), kind).toBeGreaterThan(0);
+    }
   });
 
   test('水面不投影，避免水下钓组被自己的水面阴影糊掉', () => {
