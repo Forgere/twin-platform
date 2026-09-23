@@ -8,10 +8,12 @@
     "start": "bun src/index.ts",
     "typecheck": "tsc --noEmit",
     "smoke:postgres": "bun scripts/smoke-postgres.ts",
+    "smoke:jev": "bun scripts/jev-smoke.ts",
     "live:mqtt": "bun scripts/live-twin.ts"
   },
   "dependencies": {
     "@twin-platform/data-source-mqtt": "workspace:*",
+    "@twin-platform/plugins-fishing": "workspace:*",
     "@twin-platform/replay-core": "workspace:*",
     "@twin-platform/scene-schema": "workspace:*",
     "@twin-platform/storage-contracts": "workspace:*",

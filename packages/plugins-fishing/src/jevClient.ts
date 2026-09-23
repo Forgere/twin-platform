@@ -71,10 +71,11 @@ export interface JevEnvConfig {
 
 /** 从环境变量读配置。缺 key 是"还没配置"，返回 undefined，不抛错。 */
 export function jevConfigFromEnv(env: Readonly<Record<string, string | undefined>>): JevEnvConfig | undefined {
-  const apiKey = env['JEV_API_KEY'];
-  if (typeof apiKey !== 'string' || apiKey === '') return undefined;
+  const raw = env['JEV_API_KEY'];
+  // 与 auth.ts 一致：纯空白算未配置；有值时去掉首尾空白。
+  if (typeof raw !== 'string' || raw.trim() === '') return undefined;
   return {
-    apiKey,
+    apiKey: raw.trim(),
     baseUrl: env['JEV_API_BASE_URL'] ?? DEFAULT_JEV_BASE_URL,
     model: env['JEV_MODEL'] ?? DEFAULT_JEV_MODEL,
     language: env['JEV_LANGUAGE'] === 'en-US' ? 'en-US' : 'zh-CN',
@@ -162,6 +163,53 @@ export function createHttpJevClient(options: JevHttpOptions): JevClient {
       const answers = payload.data?.result?.answers;
       if (!answers) throw new JevError('Jev 响应缺少 data.result.answers。');
       return decodeJevAnswers(answers);
+    },
+  };
+}
+
+export interface JevProxyOptions {
+  /** 同源代理路径，默认 `/api/jev/decide`。 */
+  readonly basePath?: string;
+  readonly fetchImpl?: JevFetch;
+  readonly headers?: Readonly<Record<string, string>>;
+}
+
+/**
+ * 浏览器侧客户端：只打同源代理，**key 留在服务端**。
+ *
+ * 与 `createHttpJevClient` 的区别只有一个：一个拿 key 直连 Jev（服务端用），
+ * 一个经过 `/api/jev/decide`（前端用）。两者都是 `JevClient`，判断层无感。
+ */
+export function createProxyJevClient(options: JevProxyOptions = {}): JevClient {
+  const basePath = options.basePath ?? '/api/jev/decide';
+  return {
+    id: 'jev-proxy',
+    async decide(request: JevRequest): Promise<JevDecision> {
+      const doFetch = options.fetchImpl ?? (globalThis as unknown as { fetch?: JevFetch }).fetch;
+      if (!doFetch) throw new JevError('当前环境没有 fetch，请注入 fetchImpl。');
+
+      let response: JevFetchResponse;
+      try {
+        response = await doFetch(basePath, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', ...(options.headers ?? {}) },
+          body: JSON.stringify(request),
+        });
+      } catch (error) {
+        throw new JevError('Jev 代理请求失败：' + (error instanceof Error ? error.message : String(error)));
+      }
+
+      if (!response.ok) throw new JevError('Jev 代理返回 HTTP ' + response.status, response.status);
+      const payload = (await response.json()) as Partial<JevDecision> & { error?: unknown };
+      if (typeof payload.error === 'string') throw new JevError('Jev 代理错误：' + payload.error);
+      return {
+        action: typeof payload.action === 'string' ? payload.action : undefined,
+        actionConfidence: typeof payload.actionConfidence === 'number' ? payload.actionConfidence : 0.5,
+        floatDirection: typeof payload.floatDirection === 'string' ? payload.floatDirection : undefined,
+        baitTarget: typeof payload.baitTarget === 'string' ? payload.baitTarget : undefined,
+        observeProbability: typeof payload.observeProbability === 'number' ? payload.observeProbability : 0,
+        urgency: typeof payload.urgency === 'number' ? payload.urgency : undefined,
+      };
     },
   };
 }

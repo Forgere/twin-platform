@@ -3,6 +3,7 @@ import { join, resolve } from 'node:path';
 import { parseSceneDocument, type TwinScene } from '@twin-platform/scene-schema';
 import { authorizeApi, readApiToken } from './auth';
 import { createServerStorage, removeScene, type ServerStorage } from './storage';
+import { handleJevDecide, jevStatus } from './jev';
 
 /**
  * Twin Platform 服务端。
@@ -256,6 +257,21 @@ const server = Bun.serve({
           toBucket: num(url.searchParams.get('to')),
         }),
       );
+    }
+
+    // -------------------------------------------------------------------------
+    // Jev 判断：密钥只在服务端。前端打同源 /api/jev/*，与 TWIN_API_TOKEN 同思路。
+    // -------------------------------------------------------------------------
+    if (path === '/api/jev/status' && request.method === 'GET') {
+      const result = jevStatus({ env: process.env });
+      return json(result.body, result.status);
+    }
+
+    if (path === '/api/jev/decide' && request.method === 'POST') {
+      const payload = await readJson<unknown>(request);
+      if (payload === undefined) return fail('请求体必须是 JSON。');
+      const result = await handleJevDecide(payload, { env: process.env });
+      return json(result.body, result.status);
     }
 
     if (path.startsWith('/api/')) return fail('未知接口。', 404);

@@ -14,6 +14,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@twin-platform/data-source-mqtt": "workspace:*",
+        "@twin-platform/plugins-fishing": "workspace:*",
         "@twin-platform/replay-core": "workspace:*",
         "@twin-platform/scene-schema": "workspace:*",
         "@twin-platform/storage-contracts": "workspace:*",

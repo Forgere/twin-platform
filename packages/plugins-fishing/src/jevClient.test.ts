@@ -4,6 +4,7 @@ import {
   DEFAULT_JEV_MODEL,
   JevError,
   createHttpJevClient,
+  createProxyJevClient,
   decodeJevAnswers,
   jevConfigFromEnv,
   questionsToWire,
@@ -122,5 +123,35 @@ describe('jevConfigFromEnv', () => {
     expect(config?.baseUrl).toBe('https://thejevai.com');
     expect(config?.language).toBe('zh-CN');
     expect(jevConfigFromEnv({ JEV_API_KEY: 'k', JEV_LANGUAGE: 'en-US' })?.language).toBe('en-US');
+  });
+});
+
+describe('createProxyJevClient', () => {
+  test('打同源代理并解码服务端返回的决策', async () => {
+    let url = '';
+    let body = '';
+    const fetchImpl: JevFetch = async (target, init) => {
+      url = target;
+      body = init.body;
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ action: 'CHANGE_BAIT', actionConfidence: 0.6, baitTarget: 'flavor', observeProbability: 0.2 }),
+      };
+    };
+    const decision = await createProxyJevClient({ fetchImpl }).decide(request());
+    expect(url).toBe('/api/jev/decide');
+    expect((JSON.parse(body) as { state: Record<string, string> }).state['zone']).toBe('sensitive');
+    expect(decision.action).toBe('CHANGE_BAIT');
+    expect(decision.baitTarget).toBe('flavor');
+    expect(decision.observeProbability).toBe(0.2);
+  });
+
+  test('非 2xx 与错误体都抛 JevError', async () => {
+    const denied: JevFetch = async () => ({ ok: false, status: 501, json: async () => ({ error: 'JEV_API_KEY 未配置' }) });
+    await expect(createProxyJevClient({ fetchImpl: denied }).decide(request())).rejects.toBeInstanceOf(JevError);
+
+    const errored: JevFetch = async () => ({ ok: true, status: 200, json: async () => ({ error: 'Jev 调用失败' }) });
+    await expect(createProxyJevClient({ fetchImpl: errored }).decide(request())).rejects.toThrow(/Jev 调用失败/);
   });
 });
