@@ -159,7 +159,24 @@ export default function TwinViewport() {
     if (!parsed.ok || !parsed.scene) {
       return { ok: false, applied: parsed.applied, issues: parsed.issues };
     }
-    replaceSession(new StudioSession(parsed.scene));
+    // 导入也必须带上服务端仓储：漏了这一个参数，导入的场景会悄悄退回内存仓储，
+    // 事件/快照/场景全部刷新即丢（resetScene / loadFromServer 一直带着，就这里漏过）。
+    const next = new StudioSession(parsed.scene, serverStorage());
+    replaceSession(next);
+    // 这个 id 以前存过服务端的话，库里已有事件，不接着写会撞上"sequence 必须严格单调"。
+    // 构造是同步的（SceneImportOutcome 要同步返回），所以异步对齐一次。
+    if (serverStorage()) {
+      void next.resumeFromStorage().catch((error: unknown) => {
+        setServer((current) =>
+          current
+            ? {
+                ...current,
+                note: `导入后对齐事件序号失败：${error instanceof Error ? error.message : String(error)}`,
+              }
+            : current,
+        );
+      });
+    }
     return {
       ok: true,
       name: parsed.scene.name,
@@ -256,7 +273,11 @@ export default function TwinViewport() {
       // 线上同源（经 Cloudflare Worker，token 由 Worker 注入）时这两个都是空：
       // URL 走 origin，前端不带 token，也带不了——它根本不知道 token。
       // 本地跨源联调才用 VITE_TWIN_SERVER / VITE_TWIN_API_TOKEN 覆盖。
-      const url = import.meta.env.VITE_TWIN_SERVER || defaultServerUrl();
+      // dev 同样走同源：vite.config.ts 的 /api 代理会反代到 :8787 并注入 token，
+      // 于是 dev 与部署是同一条拓扑（不再靠 CORS + hostname:8787 的跨源回落）。
+      const url =
+        import.meta.env.VITE_TWIN_SERVER ||
+        (import.meta.env.DEV ? location.origin : defaultServerUrl());
       const token = import.meta.env.VITE_TWIN_API_TOKEN || undefined;
       const ping = await pingServer(url, { token });
       if (ping.status === 'offline') return; // 纯静态部署：正常状态，不打扰。
