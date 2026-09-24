@@ -34,6 +34,14 @@ const GEAR_FIELDS: { key: 'rodLength' | 'mainLine' | 'subLine' | 'hookSize' | 'f
   { key: 'floatSize', label: '浮漂', unit: 'g' },
 ];
 
+const ZONE_TEXT: Readonly<Record<string, [string, string]>> = {
+  off_bottom: ['未到底', 'zone-chip-off'],
+  sensitive: ['偏灵', 'zone-chip-sens'],
+  neutral: ['不灵不钝', 'zone-chip-neutral'],
+  blunt: ['偏钝', 'zone-chip-blunt'],
+  sinker_on_bottom: ['铅坠触底', 'zone-chip-lead'],
+};
+
 const CHECK_ICON: Readonly<Record<string, string>> = { ok: '✅', warn: '⚠️', error: '⛔' };
 const fmt = (value: number): string => String(Math.round(value * 100) / 100);
 
@@ -93,6 +101,12 @@ export default function RigInspector(props: { session: StudioSession; tick: numb
                     <button type="button" aria-label={field.label + ' 加半目'} onClick={() => step(field.key, 0.5)}>
                       +
                     </button>
+                    {/* 钓目的后果就在旁边：改 d 立刻看到落到哪个灵钝区，不用去读上面的总结句。 */}
+                    <Show when={field.key === 'd' && current().state}>
+                      {(state) => (
+                        <span class={'zone-chip ' + (ZONE_TEXT[state().rig.zone]?.[1] ?? '')}>{ZONE_TEXT[state().rig.zone]?.[0] ?? state().rig.zone}</span>
+                      )}
+                    </Show>
                   </div>
                 )}
               </For>
