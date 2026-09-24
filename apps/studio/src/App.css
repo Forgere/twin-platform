@@ -565,3 +565,4 @@ h2 { margin: 0 0 12px; color: var(--accent); font-size: 0.82rem; letter-spacing:
 .assist-likely { color: #b8621b; font-weight: 700; font-size: 0.66rem; }
 .fish-hud-setup { font-size: 0.74rem; padding: 6px 10px; }
 .assist-fab-badge { display: inline-grid; place-items: center; min-width: 18px; height: 18px; margin-left: 6px; padding: 0 5px; border-radius: 999px; background: #d98a2b; color: #fff; font-size: 0.68rem; }
+.fish-hud-rate { font-style: normal; font-size: 0.66rem; color: var(--ink-soft); }

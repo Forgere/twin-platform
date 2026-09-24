@@ -107,6 +107,10 @@ export default function FishingHud(props: {
             </span>
             <span class="up">
               中 <b>{current().counts.catches}</b>
+              {/* 中口率回答"打得准不准"：有口才有意义。 */}
+              <Show when={current().counts.bites > 0}>
+                <em class="fish-hud-rate"> {Math.round((100 * current().counts.catches) / current().counts.bites)}%</em>
+              </Show>
             </span>
             <span>
               空 <b>{current().counts.emptyHooks}</b>
