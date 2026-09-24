@@ -197,6 +197,12 @@ export default function FishingAssistant(props: { session: StudioSession; tick: 
       <Show when={!open()}>
         <button type="button" class="assist-fab" onClick={() => setOpen(true)} title="遇到情况随时问：点选或直接说">
           🎣 助手
+          {/* 收起时也要让人知道"现在有情况值得问"：命中的现状数挂在按钮上。 */}
+          <Show when={likely().size > 0}>
+            <span class="assist-fab-badge" aria-label={likely().size + ' 个现状情况'}>
+              {likely().size}
+            </span>
+          </Show>
         </button>
       </Show>
 
