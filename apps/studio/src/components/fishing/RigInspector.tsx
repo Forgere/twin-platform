@@ -43,6 +43,7 @@ const ZONE_TEXT: Readonly<Record<string, [string, string]>> = {
 };
 
 const CHECK_ICON: Readonly<Record<string, string>> = { ok: '✅', warn: '⚠️', error: '⛔' };
+const problems = (loadout: Loadout) => loadoutChecks(loadout).filter((check) => check.level !== 'ok');
 const fmt = (value: number): string => String(Math.round(value * 100) / 100);
 
 export default function RigInspector(props: { session: StudioSession; tick: number; onReconfigure: () => void }) {
@@ -152,7 +153,13 @@ export default function RigInspector(props: { session: StudioSession; tick: numb
               </label>
             </div>
             <ul class="gear-checks">
-              <For each={loadoutChecks(current().loadout)}>
+              {/* 老手页只列需要处理的问题；全部合格时一行带过，不把 ✅ 刷满一屏。 */}
+              <Show when={problems(current().loadout).length === 0}>
+                <li class="gear-check gear-check-ok">
+                  <span aria-hidden="true">✅</span> 配伍合理
+                </li>
+              </Show>
+              <For each={problems(current().loadout)}>
                 {(check) => (
                   <li class={'gear-check gear-check-' + check.level}>
                     <span aria-hidden="true">{CHECK_ICON[check.level]}</span> {check.message}
