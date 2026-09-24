@@ -284,3 +284,53 @@ export function applyFishingDecision(
       return '保持现状';
   }
 }
+
+/** 一个决策会改动的一项 attrs（执行前预览、执行后回显共用）。 */
+export interface DecisionChange {
+  readonly key: string;
+  readonly label: string;
+  readonly before: unknown;
+  readonly after: unknown;
+}
+
+const CHANGE_LABEL: Readonly<Record<string, string>> = {
+  d: '钓目',
+  t0: '无钩调目',
+  t: '带钩调目',
+  bait: '饵',
+  hookSize: '钩号',
+  mainLine: '主线',
+  subLine: '子线',
+  floatSize: '浮漂',
+  antiDrift: '抗流铅',
+  nestUntil: '窝料',
+  smallFish: '小鱼闹窝',
+  drift: '走水',
+};
+
+/**
+ * 预览一个决策：在只读世界上"假执行"一遍 applyFishingDecision，收集会改的 attrs，
+ * 真实世界一个字都不写。UI 用它把"建议"变成写明后果的按钮（钓目 2 → 3）。
+ */
+export function previewFishingDecision(
+  world: WorldReader,
+  decision: { readonly action: FishingActionId; readonly params: Readonly<Record<string, number | string>> },
+  now: number,
+  rigId = RIG_ID,
+): { readonly note: string; readonly changes: readonly DecisionChange[] } {
+  const before = world.getEntity(rigId)?.attrs ?? {};
+  const written = new Map<string, unknown>();
+  const scratch: WorldWriter = {
+    getEntity: (id) => world.getEntity(id),
+    setAttr: (entityId, key, value) => {
+      if (entityId === rigId) written.set(key, value);
+    },
+  };
+  const note = applyFishingDecision(scratch, decision, now, rigId);
+  const changes: DecisionChange[] = [];
+  for (const [key, after] of written) {
+    if (before[key] === after) continue;
+    changes.push({ key, label: CHANGE_LABEL[key] ?? key, before: before[key], after });
+  }
+  return { note, changes };
+}

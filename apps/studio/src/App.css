@@ -579,3 +579,21 @@ h2 { margin: 0 0 12px; color: var(--accent); font-size: 0.82rem; letter-spacing:
 /* 钓组页：收起的次要区块 */
 .rig-more { margin-top: 12px; }
 .rig-more > summary { cursor: pointer; font-size: 0.78rem; color: var(--ink-soft); }
+
+/* 助手：建议 = 写明后果的操作按钮；做完列出实际改动 */
+.assist-op { display: grid; gap: 4px; padding-top: 6px; border-top: 1px dashed var(--frame); }
+.assist-op-kicker { font-size: 0.66rem; font-weight: 700; color: var(--ink-soft); letter-spacing: 0.04em; }
+.op { display: grid; gap: 3px; justify-items: start; }
+.op-btn { font-size: 0.78rem; padding: 6px 12px; }
+.op-btn-alt { border-color: var(--accent); color: var(--accent); background: #fffdf7; box-shadow: none; }
+.op-effect { font-family: var(--mono); font-size: 0.68rem; color: var(--ink-soft); }
+.assist-judge { display: grid; gap: 4px; padding-top: 6px; border-top: 1px dashed var(--frame); }
+.assist-judge-head { display: flex; align-items: center; justify-content: space-between; font-size: 0.72rem; font-weight: 700; color: var(--ink-soft); }
+.assist-agree { color: #1c6b40; }
+.assist-done-title { font-weight: 700; }
+.assist-changes { margin: 4px 0 0; padding: 0; list-style: none; display: grid; gap: 2px; font-size: 0.72rem; }
+.assist-changes li { display: grid; grid-template-columns: 5em auto auto; gap: 8px; justify-content: start; align-items: baseline; }
+.assist-changes span { color: var(--ink-soft); }
+.assist-changes s { color: var(--ink-soft); }
+.assist-changes b::before { content: '→ '; font-weight: 400; color: var(--ink-soft); }
+.assist-feedback { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-size: 0.7rem; }

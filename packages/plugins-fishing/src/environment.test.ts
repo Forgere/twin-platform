@@ -75,3 +75,16 @@ describe('FishingEnvironment · 闭环', () => {
     expect(run()).toBe(run());
   });
 });
+
+describe('previewFishingDecision', () => {
+  test('只预览不写世界，列出会改的项', async () => {
+    const { previewFishingDecision } = await import('./environment');
+    const { TwinWorld } = await import('@twin-platform/world-kernel');
+    const { buildFishingScene } = await import('./template');
+    const world = new TwinWorld(buildFishingScene({}), { seed: 1 });
+    const d = world.getEntity('rig-01')!.attrs.d;
+    const preview = previewFishingDecision(world, { action: 'ADJUST_FLOAT', params: { direction: 'blunt', steps: 1 } }, 0);
+    expect(world.getEntity('rig-01')!.attrs.d).toBe(d);
+    expect(preview.changes).toEqual([{ key: 'd', label: '钓目', before: d, after: Number(d) + 1 }]);
+  });
+});

@@ -5,6 +5,10 @@ import {
   SITUATIONS,
   adviseSituation,
   applyFishingDecision,
+  BAITS,
+  calculateRigState,
+  previewFishingDecision,
+  type DecisionChange,
   matchSituation,
   situationById,
   stateForSituation,
@@ -51,6 +55,48 @@ const PARAM_TEXT: Readonly<Record<string, string>> = {
   later: '稍后',
 };
 
+const ZONE_TEXT: Readonly<Record<string, string>> = {
+  off_bottom: '未到底',
+  sensitive: '偏灵',
+  neutral: '不灵不钝',
+  blunt: '偏钝',
+  sinker_on_bottom: '铅坠触底',
+};
+
+interface OpPreview {
+  readonly note: string;
+  readonly changes: readonly DecisionChange[];
+  readonly zone?: { readonly before: string; readonly after: string };
+}
+
+const fmt = (value: number): string => String(Math.round(value * 100) / 100);
+
+/** attrs 值 → 人话（数字去尾零、饵用名字、开关用有 / 无）。 */
+function showValue(key: string, value: unknown): string {
+  if (key === 'nestUntil') return typeof value === 'number' && value > 0 ? '生效' : '无';
+  if (key === 'bait') return BAITS.find((bait) => bait.id === value)?.label ?? String(value ?? '—');
+  if (typeof value === 'boolean') return value ? '有' : '无';
+  if (typeof value === 'number') return fmt(value);
+  return value === undefined ? '—' : String(value);
+}
+
+/** 一步操作：按钮写动作，下面一行写后果（钓目 2 → 3 · 偏灵 → 不灵不钝）。 */
+function OpButton(props: { label: string; preview: OpPreview; primary?: boolean; onRun: () => void }) {
+  const consequence = (): string =>
+    [
+      ...props.preview.changes.map((change) => change.label + ' ' + showValue(change.key, change.before) + ' → ' + showValue(change.key, change.after)),
+      ...(props.preview.zone ? [props.preview.zone.before + ' → ' + props.preview.zone.after] : []),
+    ].join(' · ');
+  return (
+    <div class="op">
+      <button type="button" class={props.primary ? 'onboard-next op-btn' : 'op-btn op-btn-alt'} onClick={props.onRun}>
+        {props.label}
+      </button>
+      <span class="op-effect">{consequence() || '不改动钓组，只是观察'}</span>
+    </div>
+  );
+}
+
 function describeDecision(action: string, params: Readonly<Record<string, number | string>>): string {
   const detail = Object.values(params)
     .map((value) => (typeof value === 'string' ? (PARAM_TEXT[value] ?? value) : String(value)))
@@ -75,7 +121,7 @@ export default function FishingAssistant(props: { session: StudioSession; tick: 
   const [jev, setJev] = createSignal<JevStatus>();
   const [record, setRecord] = createSignal<DecisionRecord>();
   const [judging, setJudging] = createSignal(false);
-  const [done, setDone] = createSignal<string>();
+  const [done, setDone] = createSignal<OpPreview & { fromJudge: boolean }>();
   const [feedbackGiven, setFeedbackGiven] = createSignal<boolean>();
   /** 照做那一刻的计数：之后与当前计数相减，回答"改了之后有没有用"。 */
   const [baseline, setBaseline] = createSignal<Counts>();
@@ -116,9 +162,10 @@ export default function FishingAssistant(props: { session: StudioSession; tick: 
     if (situationById(id)?.kind === 'problem') void runJudge(id);
   };
 
-  const runJudge = async (id: SituationId): Promise<void> => {
+  // Solid 2 的信号写入延迟生效：切换判断者时把新模式显式传进来，别读刚写的 mode()。
+  const runJudge = async (id: SituationId, judge: JudgeMode = mode()): Promise<void> => {
     const rig = readRig(props.session);
-    const domain = judgeDomain(props.session, mode());
+    const domain = judgeDomain(props.session, judge);
     if (!rig?.state || !domain || !log) return;
     setJudging(true);
     try {
@@ -140,16 +187,40 @@ export default function FishingAssistant(props: { session: StudioSession; tick: 
     }
   };
 
-  const execute = (action: string, params: Readonly<Record<string, number | string>>): void => {
-    const note = applyFishingDecision(
-      props.session.world,
-      { action: action as FishingActionId, params },
-      props.session.world.time,
-    );
+  const execute = (action: string, params: Readonly<Record<string, number | string>>, fromJudge = false): void => {
+    const decision = { action: action as FishingActionId, params };
+    const preview = previewOf(action, params);
+    applyFishingDecision(props.session.world, decision, props.session.world.time);
     setBaseline(readRig(props.session)?.counts);
     refreshWhilePaused(props.session);
     props.session.controller.play();
-    setDone(note);
+    setDone({ ...preview, fromJudge });
+  };
+
+  const switchJudge = (judge: JudgeMode): void => {
+    setMode(judge);
+    const id = situation();
+    if (id) void runJudge(id, judge);
+  };
+
+  /** 预览一个动作：会改哪几项 + 灵钝区前后（只读，不写世界）。 */
+  const previewOf = (action: string, params: Readonly<Record<string, number | string>>): OpPreview => {
+    const result = previewFishingDecision(props.session.world, { action: action as FishingActionId, params }, props.session.world.time);
+    const rig = readRig(props.session)?.state?.rig;
+    let zone: OpPreview['zone'];
+    if (rig) {
+      const next = { t0: rig.t0, t: rig.t, w: rig.w, d: rig.d };
+      for (const change of result.changes) if (change.key in next && typeof change.after === 'number') next[change.key as keyof typeof next] = change.after;
+      const after = calculateRigState(next);
+      if (after.ok && after.state.zone !== rig.zone) zone = { before: ZONE_TEXT[rig.zone] ?? rig.zone, after: ZONE_TEXT[after.state.zone] ?? after.state.zone };
+    }
+    return { note: result.note, changes: result.changes, zone };
+  };
+
+  /** 判断者给的是否就是规则建议的那一步（同动作同参数）。 */
+  const sameAsAdvice = (action: string, params: Readonly<Record<string, number | string>>): boolean => {
+    const mine = advice()?.action;
+    return !!mine && mine.action === action && JSON.stringify(mine.params) === JSON.stringify(params);
   };
 
   const feedback = (useful: boolean): void => {
@@ -310,72 +381,89 @@ export default function FishingAssistant(props: { session: StudioSession; tick: 
                   <For each={current().diagnosis}>{(line) => <li>{line}</li>}</For>
                 </ul>
                 <p class="assist-rule">{current().rule}</p>
-                <Show when={current().action}>
-                  {(action) => (
-                    // 照做过就锁住：同一条建议再点一次会把动作叠加两遍（如连推两次钓目）。
-                    <button type="button" class="onboard-next" disabled={done() !== undefined} onClick={() => execute(action().action, action().params)}>
-                      {done() !== undefined ? '✓ 已照做：' : '照做：'}
-                      {action().label}
-                    </button>
-                  )}
+
+                {/* 建议 = 一个写明后果的按钮：点之前就看到会改哪几项、灵钝区怎么变。 */}
+                <Show when={current().action && !done()}>
+                  <div class="assist-op">
+                    <span class="assist-op-kicker">建议操作</span>
+                    <OpButton primary label={current().action!.label} preview={previewOf(current().action!.action, current().action!.params)} onRun={() => execute(current().action!.action, current().action!.params)} />
+                  </div>
+                </Show>
+
+                <Show when={current().action && !done()}>
+                  <div class="assist-judge">
+                    <div class="assist-judge-head">
+                      <span>🤖 判断者</span>
+                      <div class="assist-mode" role="group" aria-label="判断者">
+                        <button type="button" class={mode() === 'rule' ? 'seg seg-active' : 'seg'} onClick={() => switchJudge('rule')}>
+                          规则
+                        </button>
+                        <button
+                          type="button"
+                          class={mode() === 'jev' ? 'seg seg-active' : 'seg'}
+                          disabled={jev()?.configured !== true}
+                          title={jev()?.configured === true ? 'Jev（' + String(jev()?.model) + '）' : 'Jev 未配置'}
+                          onClick={() => switchJudge('jev')}
+                        >
+                          Jev
+                        </button>
+                      </div>
+                    </div>
+                    <Show when={record()} fallback={<p class="assist-note">{judging() ? '判断中…' : '—'}</p>}>
+                      {(item) => (
+                        <Show
+                          when={!sameAsAdvice(item().decision.action, item().decision.params)}
+                          fallback={
+                            <p class="assist-note assist-agree">
+                              ✓ 判断者也建议这么做（置信度 {(item().decision.confidence * 100).toFixed(0)}%）
+                            </p>
+                          }
+                        >
+                          <p class="assist-note">
+                            判断者有不同看法（置信度 {(item().decision.confidence * 100).toFixed(0)}%
+                            {item().accepted ? '' : '，已降级：' + String(item().degradeReason)}）：
+                          </p>
+                          <OpButton
+                            label={describeDecision(item().decision.action, item().decision.params)}
+                            preview={previewOf(item().decision.action, item().decision.params)}
+                            onRun={() => execute(item().decision.action, item().decision.params, true)}
+                          />
+                        </Show>
+                      )}
+                    </Show>
+                  </div>
                 </Show>
               </article>
             )}
           </Show>
 
-          <Show when={advice()?.action}>
-            <details class="assist-card assist-judge">
-              <summary>🤖 第二意见（判断者）</summary>
-              <header>
-                <div class="assist-mode" role="group" aria-label="判断者">
-                  <button type="button" class={mode() === 'rule' ? 'seg seg-active' : 'seg'} onClick={() => setMode('rule')}>
-                    规则
-                  </button>
-                  <button
-                    type="button"
-                    class={mode() === 'jev' ? 'seg seg-active' : 'seg'}
-                    disabled={jev()?.configured !== true}
-                    title={jev()?.configured === true ? 'Jev（' + String(jev()?.model) + '）' : 'Jev 未配置'}
-                    onClick={() => setMode('jev')}
-                  >
-                    Jev
-                  </button>
-                  <button type="button" class="seg" disabled={judging()} onClick={() => situation() && void runJudge(situation()!)}>
-                    {judging() ? '…' : '再问'}
-                  </button>
-                </div>
-              </header>
-              <Show when={record()} fallback={<p class="assist-note">{judging() ? '判断中…' : '选好判断者后点「再问」。'}</p>}>
-                {(item) => (
-                  <>
-                    <p class="assist-verdict">
-                      {describeDecision(item().decision.action, item().decision.params)}
-                      <span class="assist-conf"> 置信度 {(item().decision.confidence * 100).toFixed(0)}%</span>
-                    </p>
-                    <Show when={!item().accepted}>
-                      <p class="assist-note assist-bad">已降级：{item().degradeReason}</p>
-                    </Show>
-                    <div class="onboard-row">
-                      <button type="button" class="seg" disabled={done() !== undefined} onClick={() => execute(item().decision.action, item().decision.params)}>
-                        {done() !== undefined ? '已执行过' : '改照它做'}
-                      </button>
-                      <button type="button" disabled={feedbackGiven() !== undefined} onClick={() => feedback(true)}>
-                        👍
-                      </button>
-                      <button type="button" disabled={feedbackGiven() !== undefined} onClick={() => feedback(false)}>
-                        👎
-                      </button>
-                    </div>
-                  </>
-                )}
-              </Show>
-            </details>
-          </Show>
-
+          {/* 做完就明确告诉用户"世界里真的改了什么"，再跟踪改后的鱼口。 */}
           <Show when={done()}>
-            {(message) => (
+            {(result) => (
               <div class="assist-done">
-                <p>✅ {message()}</p>
+                <p class="assist-done-title">✅ 已调整：{result().note}</p>
+                <Show when={result().changes.length > 0}>
+                  <ul class="assist-changes">
+                    <For each={result().changes}>
+                      {(change) => (
+                        <li>
+                          <span>{change.label}</span>
+                          <s>{showValue(change.key, change.before)}</s>
+                          <b>{showValue(change.key, change.after)}</b>
+                        </li>
+                      )}
+                    </For>
+                    <Show when={result().zone}>
+                      {(zone) => (
+                        <li>
+                          <span>灵钝</span>
+                          <s>{zone().before}</s>
+                          <b>{zone().after}</b>
+                        </li>
+                      )}
+                    </Show>
+                  </ul>
+                </Show>
                 <Show when={since()}>
                   {(delta) => (
                     <p class="assist-since">
@@ -388,6 +476,17 @@ export default function FishingAssistant(props: { session: StudioSession; tick: 
                       </Show>
                     </p>
                   )}
+                </Show>
+                <Show when={result().fromJudge && record()}>
+                  <div class="assist-feedback">
+                    <span>判断者这次管用吗？</span>
+                    <button type="button" class="seg" disabled={feedbackGiven() !== undefined} onClick={() => feedback(true)}>
+                      👍
+                    </button>
+                    <button type="button" class="seg" disabled={feedbackGiven() !== undefined} onClick={() => feedback(false)}>
+                      👎
+                    </button>
+                  </div>
                 </Show>
               </div>
             )}
