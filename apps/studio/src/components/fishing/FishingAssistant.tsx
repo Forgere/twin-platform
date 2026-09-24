@@ -168,6 +168,12 @@ export default function FishingAssistant(props: { session: StudioSession; tick: 
     },
   });
 
+  /** 点 chip：换了问题，上一句"我理解为…"就不再对应当前答案，一并清掉。 */
+  const pick = (id: SituationId): void => {
+    setHeard(undefined);
+    ask(id);
+  };
+
   /** 由当前钓况推断"眼下最可能要问的"情况，在 chip 上标出来，先点它。 */
   const likely = (): ReadonlySet<SituationId> => {
     props.tick;
@@ -214,7 +220,7 @@ export default function FishingAssistant(props: { session: StudioSession; tick: 
                   }
                   aria-pressed={situation() === item.id ? 'true' : 'false'}
                   title={likely().has(item.id) ? '根据当前钓况，你可能正遇到这个' : undefined}
-                  onClick={() => ask(item.id)}
+                  onClick={() => pick(item.id)}
                 >
                   {item.emoji} {item.label}
                   <Show when={likely().has(item.id)}>
@@ -231,7 +237,7 @@ export default function FishingAssistant(props: { session: StudioSession; tick: 
                   type="button"
                   class={situation() === item.id ? 'assist-chip assist-chip-on' : 'assist-chip'}
                   aria-pressed={situation() === item.id ? 'true' : 'false'}
-                  onClick={() => ask(item.id)}
+                  onClick={() => pick(item.id)}
                 >
                   {item.emoji} {item.label}
                 </button>
