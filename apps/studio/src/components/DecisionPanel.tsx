@@ -15,7 +15,6 @@ import { fetchJevStatus, loadDecisionLog, saveDecisionLog, type JevStatus, type 
  */
 
 export default function DecisionPanel(props: { session: StudioSession }) {
-  const [mode, setMode] = createSignal<JudgeMode>('rule');
   const [jev, setJev] = createSignal<JevStatus>();
   const [log, setLog] = createSignal<DecisionLog>();
   const [version, setVersion] = createSignal(0);
@@ -30,7 +29,29 @@ export default function DecisionPanel(props: { session: StudioSession }) {
     return log()?.all() ?? [];
   };
 
-  const report = () => calibrationReport(records(), { methodId: mode(), success: fishingSuccess, buckets: 5, minSamples: 3 });
+  const JUDGES: { id: JudgeMode; label: string }[] = [
+    { id: 'rule', label: '规则' },
+    { id: 'jev', label: 'Jev' },
+  ];
+
+  const reportOf = (judge: JudgeMode) => calibrationReport(records(), { methodId: judge, success: fishingSuccess, buckets: 5, minSamples: 3 });
+
+  /**
+   * 一句话结论：回答"这个判断者靠不靠谱"。平均置信度比实际管用率高出 10 个点以上 = 偏自信，
+   * 低 10 个点以上 = 偏保守，其余 = 说到做到。样本不够就只说还差几条。
+   */
+  const verdict = (judge: JudgeMode): { text: string; tone: 'ok' | 'warn' | 'idle' } => {
+    const report = reportOf(judge);
+    if (judge === 'jev' && jev()?.configured !== true && report.decided === 0) return { text: '未配置', tone: 'idle' };
+    if (report.decided === 0) return { text: '还没有记录', tone: 'idle' };
+    if (!report.trustworthy) return { text: '样本不足，再攒几条', tone: 'idle' };
+    const gap = report.meanConfidence - report.successRate;
+    if (gap > 0.1) return { text: '偏自信：说得比做得好', tone: 'warn' };
+    if (gap < -0.1) return { text: '偏保守：其实比它说的准', tone: 'ok' };
+    return { text: '说到做到', tone: 'ok' };
+  };
+
+  const pct = (value: number): string => (value * 100).toFixed(0) + '%';
 
   const clear = (): void => {
     const fresh = new DecisionLog('ui');
@@ -40,64 +61,82 @@ export default function DecisionPanel(props: { session: StudioSession }) {
   };
 
   return (
-    <section aria-label="判断者记录与校准">
+    <section aria-label="判断者记录与校准" class="calib">
       <Show when={props.session.host.decisions.length > 0} fallback={<p class="plugin-note">当前插件没有决策域。</p>}>
-        <div class="segmented" role="group" aria-label="看哪个判断者">
-          <button type="button" class={mode() === 'rule' ? 'seg seg-active' : 'seg'} onClick={() => setMode('rule')}>
-            规则
-          </button>
-          <button
-            type="button"
-            class={mode() === 'jev' ? 'seg seg-active' : 'seg'}
-            title={jev()?.configured === true ? 'Jev（' + String(jev()?.model) + '）' : 'Jev 未配置：在 apps/server/.env 设 JEV_API_KEY'}
-            onClick={() => setMode('jev')}
-          >
-            Jev
-          </button>
-        </div>
-
-        <Show when={report().decided === 0}>
-          <p class="plugin-note">还没有记录。在钓鱼助手里问一次判断者、打个 👍👎，这里就开始攒样本。</p>
-        </Show>
-
-        <Show when={report().decided > 0}>
-          <div class="decision-report">
-            <p class="plugin-contrib">
-              Brier {report().brier.toFixed(3)} · 成功率 {report().successRate.toFixed(2)} · 平均置信度 {report().meanConfidence.toFixed(2)} · 样本 {report().decided}
-            </p>
-            <Show when={!report().trustworthy}>
-              <p class="plugin-note">样本不足（{report().decided} 条），以下比率仅供参考。</p>
-            </Show>
-            <table class="decision-calibration">
-              <thead>
-                <tr>
-                  <th>置信度</th>
-                  <th>次数</th>
-                  <th>命中率</th>
-                </tr>
-              </thead>
-              <tbody>
-                <For each={report().buckets}>
-                  {(bucket) => (
+        <Show
+          when={records().length > 0}
+          fallback={<p class="plugin-note">还没有记录。在钓鱼助手里采用一次判断者的建议并打 👍👎，这里就开始攒样本。</p>}
+        >
+          {/* 一行一个判断者：先给结论，数字作为依据跟在后面。 */}
+          <table class="calib-table">
+            <thead>
+              <tr>
+                <th>判断者</th>
+                <th>记录</th>
+                <th>管用率</th>
+                <th>自报置信</th>
+              </tr>
+            </thead>
+            <tbody>
+              <For each={JUDGES}>
+                {(judge) => (
+                  <>
                     <tr>
-                      <td>
-                        {(bucket.lo * 100).toFixed(0)}–{(bucket.hi * 100).toFixed(0)}%
-                      </td>
-                      <td>{bucket.decisions}</td>
-                      <td>{bucket.decisions === 0 ? '—' : (bucket.rate * 100).toFixed(0) + '%'}</td>
+                      <th scope="row">{judge.label}</th>
+                      <td>{reportOf(judge.id).decided}</td>
+                      <td>{reportOf(judge.id).decided > 0 ? pct(reportOf(judge.id).successRate) : '—'}</td>
+                      <td>{reportOf(judge.id).decided > 0 ? pct(reportOf(judge.id).meanConfidence) : '—'}</td>
                     </tr>
-                  )}
-                </For>
-              </tbody>
-            </table>
-          </div>
-        </Show>
+                    <tr class="calib-verdict-row">
+                      <td colspan={4}>
+                        <span class={'calib-verdict calib-' + verdict(judge.id).tone}>{verdict(judge.id).text}</span>
+                      </td>
+                    </tr>
+                  </>
+                )}
+              </For>
+            </tbody>
+          </table>
 
-        <div class="decision-actions">
-          <button type="button" class="seg" disabled={records().length === 0} onClick={clear}>
-            清空记录
+          <details class="calib-more">
+            <summary>分桶明细（Brier）</summary>
+            <For each={JUDGES.filter((judge) => reportOf(judge.id).decided > 0)}>
+              {(judge) => (
+                <div class="calib-buckets">
+                  <p>
+                    {judge.label} · Brier {reportOf(judge.id).brier.toFixed(3)}（越小越好）
+                  </p>
+                  <table class="decision-calibration">
+                    <thead>
+                      <tr>
+                        <th>置信度</th>
+                        <th>次数</th>
+                        <th>命中率</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <For each={reportOf(judge.id).buckets.filter((bucket) => bucket.decisions > 0)}>
+                        {(bucket) => (
+                          <tr>
+                            <td>
+                              {(bucket.lo * 100).toFixed(0)}–{(bucket.hi * 100).toFixed(0)}%
+                            </td>
+                            <td>{bucket.decisions}</td>
+                            <td>{pct(bucket.rate)}</td>
+                          </tr>
+                        )}
+                      </For>
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </For>
+          </details>
+
+          <button type="button" class="calib-clear" onClick={clear}>
+            清空 {records().length} 条记录
           </button>
-        </div>
+        </Show>
       </Show>
     </section>
   );

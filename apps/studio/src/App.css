@@ -597,3 +597,18 @@ h2 { margin: 0 0 12px; color: var(--accent); font-size: 0.82rem; letter-spacing:
 .assist-changes s { color: var(--ink-soft); }
 .assist-changes b::before { content: '→ '; font-weight: 400; color: var(--ink-soft); }
 .assist-feedback { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-size: 0.7rem; }
+
+/* 判断者记录与校准：一行一个判断者，结论在前，明细收起 */
+.calib { display: grid; gap: 8px; padding-top: 6px; }
+.calib-table { width: 100%; border-collapse: collapse; font-size: 0.74rem; }
+.calib-table th, .calib-table td { padding: 4px 6px; text-align: right; font-variant-numeric: tabular-nums; }
+.calib-table thead th { font-weight: 600; font-size: 0.66rem; color: var(--ink-soft); border-bottom: 1px solid var(--frame); }
+.calib-table th[scope='row'], .calib-table thead th:first-child { text-align: left; }
+.calib-verdict-row td { text-align: left; padding-top: 0; border-bottom: 1px solid var(--frame); }
+.calib-verdict { font-size: 0.68rem; }
+.calib-ok { color: #1c6b40; }
+.calib-warn { color: #b8621b; }
+.calib-idle { color: var(--ink-soft); }
+.calib-more > summary { cursor: pointer; font-size: 0.7rem; color: var(--ink-soft); }
+.calib-buckets p { margin: 6px 0 2px; font-size: 0.7rem; color: var(--ink-soft); }
+.calib-clear { justify-self: start; padding: 2px 0; border: 0; background: none; box-shadow: none; font-size: 0.68rem; color: var(--ink-soft); text-decoration: underline; cursor: pointer; }
