@@ -52,11 +52,11 @@ export default function FishingHud(props: {
     if (!current) return [];
     const { conditions } = current;
     return [
-      { id: 'drift', label: '🌊 起风走水', on: conditions.drift, apply: () => writeRig(props.session, { drift: !conditions.drift, antiDrift: false }) },
-      { id: 'small', label: '🐟 小鱼闹窝', on: conditions.smallFish, apply: () => writeRig(props.session, { smallFish: !conditions.smallFish }) },
+      { id: 'drift', label: conditions.drift ? '✕ 停止走水' : '🌊 起风走水', on: conditions.drift, apply: () => writeRig(props.session, { drift: !conditions.drift, antiDrift: false }) },
+      { id: 'small', label: conditions.smallFish ? '✕ 小鱼散了' : '🐟 小鱼闹窝', on: conditions.smallFish, apply: () => writeRig(props.session, { smallFish: !conditions.smallFish }) },
       {
         id: 'cold',
-        label: '🥶 降温到 8℃',
+        label: conditions.waterTemperature < 12 ? '✕ 回暖到 20℃' : '🥶 降温到 8℃',
         on: conditions.waterTemperature < 12,
         apply: () => writeRig(props.session, { waterTemperature: conditions.waterTemperature < 12 ? 20 : 8 }),
       },
