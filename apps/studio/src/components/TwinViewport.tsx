@@ -6,12 +6,11 @@ import { DEFAULT_PLUGIN_IDS, entryFor, resolvePlugins } from '../plugins/catalog
 import { TwinSceneController, type CameraPreset, type TwinEntityView } from '../scene/TwinSceneController';
 import { selectionCard, type SelectionCard } from '../scene/selectionCard';
 import type { ThemeName } from '../scene/theme';
-import { parseSceneDocument, sceneFileName, serializeSceneDocument, type SceneOp, type TwinScene, type TwinTransform } from '@twin-platform/scene-schema';
+import { parseSceneDocument, sceneFileName, serializeSceneDocument, type TwinScene } from '@twin-platform/scene-schema';
 import { createHttpStorage, pingServer } from '@twin-platform/storage-http';
 import { resolveServerUrl } from '../scene/serverUrl';
 import type { SceneSummary as StoredSceneSummary } from '@twin-platform/storage-contracts';
 import ScenePanel, { type SceneExportPayload, type SceneImportOutcome, type ServerState } from './ScenePanel';
-import PoseEditor, { copyTransform } from './PoseEditor';
 import DataSourcePanel from './DataSourcePanel';
 import EventLogPanel from './EventLogPanel';
 import TimelineBar from './TimelineBar';
@@ -219,8 +218,7 @@ export default function TwinViewport() {
       {
         scene: target.world.scene,
         controller: target.controller,
-        // 拖拽松手才提交（回调在用户操作时才执行，晚于下方这些 const 定义，无 TDZ 问题）。
-        onDragCommit: (entityId, position) => commitDrag(entityId, position),
+        // 数字孪生只看不改：不传 onDragCommit，画布上的物体不可拖拽。
       },
     );
     // 换场景 / 换插件后按包围盒重新取景：写死机位会让小场景（台钓钓场）直接看不见。
@@ -494,84 +492,13 @@ export default function TwinViewport() {
    * 得靠节拍显式拉取——和遥测 HUD 同一个套路）与渲染来源（模型溯源，渲染层答得上来）。
    *
    * 注意：**别拿它的返回值当 `<Show when>`** —— 每拍都是新对象，
-   * 会把子树（含 PoseEditor 输入框）整个重挂，输入框就打不了字了。
+   * 会把子树整个重挂（闪烁、丢失展开状态）。
    */
   const selectedCard = (): SelectionCard | undefined => {
     const entity = selected();
     if (!entity) return undefined;
     tick();
     return selectionCard(session().world, entity.id, controller?.codePath(entity.id));
-  };
-
-  // ---------------------------------------------------------------------------
-  // 布局编辑（阶段 J）：改**场景声明**，产物是结构化 ops（阶段 K 的存储侧入口）
-  // ---------------------------------------------------------------------------
-
-  /** 编辑版本号：一次提交成功 +1。PoseEditor 只认它回填输入框（不挂采样节拍）。 */
-  const [editRevision, setEditRevision] = createSignal(0);
-  const [editError, setEditError] = createSignal<string>();
-  /** 还没落库的布局改动。纯静态部署时永远为 true，面板如实提示"刷新会丢"。 */
-  const [layoutDirty, setLayoutDirty] = createSignal(false);
-  let layoutSaveTimer: ReturnType<typeof setTimeout> | undefined;
-
-  const applyEdit = (ops: readonly SceneOp[]): boolean => {
-    const outcome = session().applyEdit(ops);
-    if (!outcome.ok) {
-      setEditError(outcome.error); // 内核的人话，直接显示（一条都不会被改）
-      return false;
-    }
-    setEditError(undefined);
-    setLayoutDirty(true);
-    setEditRevision((value) => value + 1);
-    scheduleLayoutSave();
-    return true;
-  };
-
-  /** 去抖自动保存：连着服务端时过一拍把整文档落库——否则"拖完刷新就没"。 */
-  const scheduleLayoutSave = (): void => {
-    if (layoutSaveTimer !== undefined) clearTimeout(layoutSaveTimer);
-    if (!serverStorage()) return; // 纯静态：与其它数据一样刷新即丢，面板如实提示
-    layoutSaveTimer = setTimeout(() => void saveLayoutNow(), 900);
-  };
-
-  const saveLayoutNow = async (): Promise<void> => {
-    const storage = serverStorage();
-    const current = session();
-    if (!storage || !current.hasLayoutEdits()) return;
-    const scene = current.currentScene();
-    try {
-      await storage.scenes.putScene(scene);
-      current.markLayoutSaved();
-      setLayoutDirty(false);
-      setServer((state) => (state ? { ...state, note: `布局已自动保存（${scene.entities.length} 个实体）。` } : state));
-    } catch (error) {
-      setServer((state) =>
-        state
-          ? { ...state, note: `自动保存布局失败：${error instanceof Error ? error.message : String(error)}` }
-          : state,
-      );
-    }
-  };
-
-  onCleanup(() => {
-    if (layoutSaveTimer !== undefined) clearTimeout(layoutSaveTimer);
-  });
-
-  /** 拼一条 setTransform op 并应用；`before` 取自当前声明（乐观校验，对不上就拒）。 */
-  const commitPose = (entityId: string, next: TwinTransform): boolean => {
-    const before = session().declaredTransform(entityId);
-    if (!before) return false;
-    return applyEdit([{ type: 'setTransform', entityId, before: copyTransform(before), after: next }]);
-  };
-
-  /**
-   * 画布拖拽松手：只改位置，朝向与缩放保持声明值。
-   * 拖拽预览只动了渲染层的网格，所以这里的 `before` 依然是拖之前的声明，天然对得上。
-   */
-  const commitDrag = (entityId: string, position: [number, number, number]): boolean => {
-    const before = session().declaredTransform(entityId);
-    if (!before) return false;
-    return commitPose(entityId, { ...copyTransform(before), position });
   };
 
   /**
@@ -870,21 +797,6 @@ export default function TwinViewport() {
                           </dl>
                         </Show>
                         <span class="code-path">渲染来源：{card()?.codePath ?? '—'}</span>
-                        <PoseEditor
-                          entityId={entity().id}
-                          revision={editRevision()}
-                          getDeclared={() => session().declaredTransform(entity().id)}
-                          locked={card()?.editability.editable ? undefined : card()?.editability.reason}
-                          onCommit={(next) => commitPose(entity().id, next)}
-                        />
-                        <Show when={editError()}>
-                          {(message) => <p class="pose-error">⚠️ {message()}</p>}
-                        </Show>
-                        <Show when={layoutDirty()}>
-                          <p class="pose-dirty">
-                            ● 有未保存的布局改动{serverStorage() ? '（马上自动保存）' : '（纯静态部署，刷新会丢）'}
-                          </p>
-                        </Show>
                         <button type="button" onClick={() => controller?.focusEntity(entity().id)}>
                           聚焦此实体
                         </button>
