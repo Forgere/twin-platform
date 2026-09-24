@@ -303,8 +303,10 @@ export default function FishingAssistant(props: { session: StudioSession; tick: 
                 <p class="assist-rule">{current().rule}</p>
                 <Show when={current().action}>
                   {(action) => (
-                    <button type="button" class="onboard-next" onClick={() => execute(action().action, action().params)}>
-                      照做：{action().label}
+                    // 照做过就锁住：同一条建议再点一次会把动作叠加两遍（如连推两次钓目）。
+                    <button type="button" class="onboard-next" disabled={done() !== undefined} onClick={() => execute(action().action, action().params)}>
+                      {done() !== undefined ? '✓ 已照做：' : '照做：'}
+                      {action().label}
                     </button>
                   )}
                 </Show>
