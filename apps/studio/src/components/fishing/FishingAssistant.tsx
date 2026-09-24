@@ -58,7 +58,12 @@ function describeDecision(action: string, params: Readonly<Record<string, number
   return (ACTION_LABEL[action] ?? action) + (detail ? '（' + detail + '）' : '');
 }
 
-export default function FishingAssistant(props: { session: StudioSession }) {
+/** 让外部（HUD 的情况 chip）把助手直接打开到某个情况。 */
+export interface FishingAssistantApi {
+  askAbout(situation: SituationId): void;
+}
+
+export default function FishingAssistant(props: { session: StudioSession; connect?: (api: FishingAssistantApi) => void }) {
   const [open, setOpen] = createSignal(false);
   const [situation, setSituation] = createSignal<SituationId>();
   const [advice, setAdvice] = createSignal<Advice>();
@@ -136,6 +141,14 @@ export default function FishingAssistant(props: { session: StudioSession }) {
     saveDecisionLog(log);
     setFeedbackGiven(useful);
   };
+
+  props.connect?.({
+    askAbout: (id) => {
+      setHeard(undefined);
+      setOpen(true);
+      ask(id);
+    },
+  });
 
   const problems = SITUATIONS.filter((item) => item.kind === 'problem');
   const howtos = SITUATIONS.filter((item) => item.kind === 'howto');
@@ -249,9 +262,9 @@ export default function FishingAssistant(props: { session: StudioSession }) {
           </Show>
 
           <Show when={advice()?.action}>
-            <article class="assist-card assist-judge">
+            <details class="assist-card assist-judge">
+              <summary>🤖 第二意见（判断者）</summary>
               <header>
-                <h4>🤖 判断者</h4>
                 <div class="assist-mode" role="group" aria-label="判断者">
                   <button type="button" class={mode() === 'rule' ? 'seg seg-active' : 'seg'} onClick={() => setMode('rule')}>
                     规则
@@ -281,8 +294,8 @@ export default function FishingAssistant(props: { session: StudioSession }) {
                       <p class="assist-note assist-bad">已降级：{item().degradeReason}</p>
                     </Show>
                     <div class="onboard-row">
-                      <button type="button" onClick={() => execute(item().decision.action, item().decision.params)}>
-                        照它做
+                      <button type="button" class="seg" onClick={() => execute(item().decision.action, item().decision.params)}>
+                        改照它做
                       </button>
                       <button type="button" disabled={feedbackGiven() !== undefined} onClick={() => feedback(true)}>
                         👍
@@ -294,7 +307,7 @@ export default function FishingAssistant(props: { session: StudioSession }) {
                   </>
                 )}
               </Show>
-            </article>
+            </details>
           </Show>
 
           <Show when={done()}>{(message) => <p class="assist-done">✅ {message()}</p>}</Show>

@@ -20,7 +20,7 @@ import DecisionPanel from './DecisionPanel';
 import FishingSandbox from './FishingSandbox';
 import FishingOnboarding from './fishing/FishingOnboarding';
 import FishingHud from './fishing/FishingHud';
-import FishingAssistant from './fishing/FishingAssistant';
+import FishingAssistant, { type FishingAssistantApi } from './fishing/FishingAssistant';
 import RigInspector from './fishing/RigInspector';
 import { hasRig, readRig } from './fishing/fishingWorld';
 import { defaultTab, inspectorTabs, sceneProfileOf, type InspectorTab, type SceneProfile } from '../scene/sceneProfile';
@@ -149,6 +149,7 @@ export default function TwinViewport() {
   const onboardingTarget = (target: StudioSession): StudioSession | undefined =>
     profileFor(target) === 'fishing' && readRig(target)?.wizardDone !== true ? target : undefined;
   const [onboardingFor, setOnboardingFor] = createSignal<StudioSession | undefined>(untrack(() => onboardingTarget(session())));
+  let assistant: FishingAssistantApi | undefined;
   const openOnboarding = (): void => {
     setOnboardingFor(session());
   };
@@ -785,8 +786,8 @@ export default function TwinViewport() {
 
             {/* 钓场：钓况 HUD（右上）+ 钓鱼助手（右下）常驻；开钓向导浮在画布中央。 */}
             <Show when={profile() === 'fishing'}>
-              <FishingHud session={session()} tick={tick()} onReconfigure={openOnboarding} />
-              <FishingAssistant session={session()} />
+              <FishingHud session={session()} tick={tick()} onReconfigure={openOnboarding} onAsk={(id) => assistant?.askAbout(id)} />
+              <FishingAssistant session={session()} connect={(api) => (assistant = api)} />
             </Show>
             {/* keyed：每个会话一个向导实例；会话一换，旧向导卸掉、新会话另起。 */}
             <Show when={onboardingFor() === session() ? onboardingFor() : undefined} keyed>

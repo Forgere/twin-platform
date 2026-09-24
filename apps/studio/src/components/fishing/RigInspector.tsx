@@ -76,7 +76,7 @@ export default function RigInspector(props: { session: StudioSession; tick: numb
             </div>
 
             <Show when={current().state}>
-              {(state) => <p class="rig-summary">{rigPosture(state().rig, { drift: state().drift }).summary}</p>}
+              {(state) => <p class="rig-summary">{rigPosture(state().rig, { drift: state().drift }).summary}（逐部件状态见「剖面」页）</p>}
             </Show>
             <Show when={current().error}>{(message) => <p class="plugin-errors">{message()}</p>}</Show>
 
@@ -147,23 +147,6 @@ export default function RigInspector(props: { session: StudioSession; tick: numb
               </For>
             </ul>
 
-            <Show when={current().state}>
-              {(state) => (
-                <>
-                  <h3>各部件状态</h3>
-                  <ul class="rig-posture">
-                    <For each={rigPosture(state().rig, { drift: state().drift }).parts}>
-                      {(part) => (
-                        <li>
-                          <span class="rp-label">{part.label}</span>
-                          <span class="rp-text">{part.text}</span>
-                        </li>
-                      )}
-                    </For>
-                  </ul>
-                </>
-              )}
-            </Show>
           </>
         )}
       </Show>

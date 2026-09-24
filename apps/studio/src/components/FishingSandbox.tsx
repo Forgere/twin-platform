@@ -181,13 +181,6 @@ export default function FishingSandbox(props: { session: StudioSession; tick: nu
               )}</For>
             </ul>
 
-            <p class="plugin-contrib">
-              t0 {fmt(current().state.rig.t0)} · 带钩调目 t {fmt(current().state.rig.t)} · 单饵压目 w {fmt(current().state.rig.w)} · 钓目 d {fmt(current().state.rig.d)}
-            </p>
-            <p class="plugin-contrib">
-              底承重 B {fmt(current().state.rig.bottomLoad)} · {zoneLabel(current().state.rig.zone)} · 钩 {current().state.rig.hookState} · 饵 {current().state.rig.baitState}
-            </p>
-
             <div class="sandbox-ruler" style="margin:8px 0 4px">
               <div style="position:relative;height:10px;border-radius:5px;overflow:hidden;background:#eee">
                 <div style={sensitiveStyle(current())} />
@@ -201,10 +194,20 @@ export default function FishingSandbox(props: { session: StudioSession; tick: nu
               </div>
             </div>
 
+            <details class="sandbox-tech">
+              <summary>技术参数与核对</summary>
+            <p class="plugin-contrib">
+              t0 {fmt(current().state.rig.t0)} · 带钩调目 t {fmt(current().state.rig.t)} · 单饵压目 w {fmt(current().state.rig.w)} · 钓目 d {fmt(current().state.rig.d)}
+            </p>
+            <p class="plugin-contrib">
+              底承重 B {fmt(current().state.rig.bottomLoad)} · {zoneLabel(current().state.rig.zone)} · 钩 {current().state.rig.hookState} · 饵 {current().state.rig.baitState}
+            </p>
+
             <p class="plugin-note">
               可调 {fmt(current().state.rig.adjustableRange.min)}–{fmt(current().state.rig.adjustableRange.max)} 目 · 每次抛竿间隔 {fmt(current().castInterval)}s
             </p>
             <Show when={driftText()}>{(text) => <p class="plugin-note">{text()}</p>}</Show>
+            </details>
           </>
         )}
       </Show>

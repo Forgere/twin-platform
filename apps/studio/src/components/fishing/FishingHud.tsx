@@ -1,5 +1,5 @@
 import { createSignal, For, Show } from 'solid-js';
-import { fishById, SIGNAL_LABEL, type FloatSignal } from '@twin-platform/plugins-fishing';
+import { fishById, SIGNAL_LABEL, type FloatSignal, type SituationId } from '@twin-platform/plugins-fishing';
 import type { StudioSession } from '../../scene/studioSession';
 import { readRig, writeRig } from './fishingWorld';
 
@@ -9,7 +9,7 @@ import { readRig, writeRig } from './fishingWorld';
  * 只读：计数、灵钝、装备、漂相都来自 rig attrs（readRig）。
  * 唯一的写入是「情况演练」：给新手制造走水 / 闹窝 / 降温，练习应对。
  * 这些写进 attrs，和真实变化一样可回放、可被助手读到。
- */
+ *
 
 const ZONE_LABEL: Readonly<Record<string, string>> = {
   off_bottom: '未到底',
@@ -27,7 +27,14 @@ const ZONE_CLASS: Readonly<Record<string, string>> = {
   sinker_on_bottom: 'zone-chip-lead',
 };
 
-export default function FishingHud(props: { session: StudioSession; tick: number; onReconfigure: () => void }) {
+ * 情况 chip 可点：直接把助手打开到对应情况的解答，看到问题的地方就能拿到对策。
+ */
+export default function FishingHud(props: {
+  session: StudioSession;
+  tick: number;
+  onReconfigure: () => void;
+  onAsk: (situation: SituationId) => void;
+}) {
   const [drill, setDrill] = createSignal(false);
 
   const rig = () => {
@@ -60,8 +67,20 @@ export default function FishingHud(props: { session: StudioSession; tick: number
     <Show when={rig()}>
       {(current) => (
         <div class="fish-hud" aria-label="钓况">
+          <Show when={signal() !== 'none'}>
+            <button type="button" class="fish-hud-signal" title="这是什么口？点开助手看怎么应对" onClick={() => props.onAsk('float_unclear')}>
+              🔔 {SIGNAL_LABEL[signal()]}
+            </button>
+          </Show>
+
           <div class="fish-hud-row">
-            <span class="fish-hud-fish">
+            <span
+              class="fish-hud-fish"
+              title={
+                current().loadout.rodLength + 'm · 主' + current().loadout.mainLine + '/子' + current().loadout.subLine + ' · ' +
+                current().loadout.hookSize + '号钩 · ' + current().loadout.floatSize + 'g漂（在右侧「钓组」页修改）'
+              }
+            >
               {fishById(current().loadout.targetFish)?.emoji} {fishById(current().loadout.targetFish)?.label}
             </span>
             <Show when={current().state}>
@@ -86,30 +105,27 @@ export default function FishingHud(props: { session: StudioSession; tick: number
               空 <b>{current().counts.emptyHooks}</b>
             </span>
             <Show when={current().counts.breaks > 0}>
-              <span class="down">
+              <button type="button" class="fish-hud-ask down" title="切线跑鱼怎么办？" onClick={() => props.onAsk('line_break')}>
                 切 <b>{current().counts.breaks}</b>
-              </span>
+              </button>
             </Show>
           </div>
 
-          <p class="fish-hud-gear">
-            {current().loadout.rodLength}m · 主{current().loadout.mainLine}/子{current().loadout.subLine} · {current().loadout.hookSize}号钩 ·{' '}
-            {current().loadout.floatSize}g漂
-          </p>
-
-          <Show when={signal() !== 'none'}>
-            <p class="fish-hud-signal">🔔 {SIGNAL_LABEL[signal()]}</p>
-          </Show>
-
           <div class="fish-hud-conds">
             <Show when={current().conditions.drift}>
-              <span class="chip chip-busy">走水{current().conditions.antiDrift ? '（已加铅）' : ''}</span>
+              <button type="button" class="chip chip-busy chip-ask" title="走水怎么办？" onClick={() => props.onAsk('drift')}>
+                走水{current().conditions.antiDrift ? '（已加铅）' : ''} ›
+              </button>
             </Show>
             <Show when={current().conditions.smallFish}>
-              <span class="chip chip-busy">小鱼闹窝</span>
+              <button type="button" class="chip chip-busy chip-ask" title="小鱼闹窝怎么办？" onClick={() => props.onAsk('small_fish')}>
+                小鱼闹窝 ›
+              </button>
             </Show>
             <Show when={current().conditions.waterTemperature < 12}>
-              <span class="chip chip-idle">水温 {current().conditions.waterTemperature}℃</span>
+              <button type="button" class="chip chip-idle chip-ask" title="降温怎么钓？" onClick={() => props.onAsk('cold')}>
+                水温 {current().conditions.waterTemperature}℃ ›
+              </button>
             </Show>
             <Show when={props.session.world.time < current().conditions.nestUntil}>
               <span class="chip chip-idle">窝料在效</span>

@@ -491,8 +491,7 @@ h2 { margin: 0 0 12px; color: var(--accent); font-size: 0.82rem; letter-spacing:
 .fish-hud-btn { margin-left: auto; width: 24px; height: 24px; padding: 0; display: grid; place-items: center; font-size: 0.75rem; }
 .fish-hud-stats { display: flex; gap: 10px; font-size: 0.72rem; color: var(--ink-soft); }
 .fish-hud-stats b { color: var(--ink); font-size: 0.9rem; font-variant-numeric: tabular-nums; }
-.fish-hud-gear { margin: 0; color: var(--ink-soft); font-size: 0.66rem; font-family: var(--mono); }
-.fish-hud-signal { margin: 0; padding: 4px 8px; border-radius: 8px; background: #fde8e3; color: var(--bad); font-size: 0.78rem; font-weight: 800; animation: fish-signal 0.6s ease-in-out infinite alternate; }
+.fish-hud-signal { margin: 0; text-align: left; border: 0; box-shadow: none; cursor: pointer; padding: 4px 8px; border-radius: 8px; background: #fde8e3; color: var(--bad); font-size: 0.78rem; font-weight: 800; animation: fish-signal 0.6s ease-in-out infinite alternate; }
 @keyframes fish-signal { from { opacity: 1; } to { opacity: 0.55; } }
 .fish-hud-conds { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 .fish-hud-drill { margin-left: auto; padding: 2px 8px; font-size: 0.66rem; border-radius: 999px; box-shadow: none; }
@@ -548,3 +547,14 @@ h2 { margin: 0 0 12px; color: var(--accent); font-size: 0.82rem; letter-spacing:
   .onboard { left: 12px; width: calc(100% - 24px); }
   .fish-hud { width: 210px; }
 }
+
+/* 钓况 HUD：情况 chip / 切线计数可点 → 助手直接给出该情况的解答 */
+.chip-ask { border: 0; box-shadow: none; cursor: pointer; font: inherit; }
+.chip-ask:hover { filter: brightness(0.95); }
+.fish-hud-ask { padding: 0; border: 0; background: none; box-shadow: none; font: inherit; color: inherit; cursor: pointer; text-decoration: underline dotted; }
+.fish-hud-stats .up b { font-size: 1.05rem; }
+/* 助手：判断者是第二意见，默认收起，主操作只有规则卡的「照做」 */
+.assist-judge > summary { cursor: pointer; font-size: 0.76rem; font-weight: 700; color: var(--ink-soft); }
+.assist-judge[open] > summary { margin-bottom: 4px; }
+.sandbox-tech { margin-top: 8px; }
+.sandbox-tech > summary { cursor: pointer; font-size: 0.72rem; color: var(--ink-soft); }
