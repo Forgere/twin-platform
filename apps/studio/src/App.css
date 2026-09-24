@@ -566,3 +566,16 @@ h2 { margin: 0 0 12px; color: var(--accent); font-size: 0.82rem; letter-spacing:
 .fish-hud-setup { font-size: 0.74rem; padding: 6px 10px; }
 .assist-fab-badge { display: inline-grid; place-items: center; min-width: 18px; height: 18px; margin-left: 6px; padding: 0 5px; border-radius: 999px; background: #d98a2b; color: #fff; font-size: 0.68rem; }
 .fish-hud-rate { font-style: normal; font-size: 0.66rem; color: var(--ink-soft); }
+/* 向导：找底时一键回到调法目标钓目 */
+.onboard-link { padding: 0 4px; border: 0; background: none; box-shadow: none; color: var(--accent); font: inherit; text-decoration: underline; cursor: pointer; }
+.onboard-next:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* HUD：钓目步进 + 灵钝区（开钓后最常调的一项） */
+.fish-hud-depth { display: flex; align-items: center; gap: 6px; font-size: 0.74rem; color: var(--ink-soft); }
+.fish-hud-depth button { width: 24px; height: 22px; padding: 0; display: grid; place-items: center; box-shadow: none; }
+.fish-hud-depth b { min-width: 2.2em; text-align: center; color: var(--ink); font-variant-numeric: tabular-nums; }
+.fish-hud-depth .zone-chip { margin-left: auto; }
+.fish-hud-issue { margin: 0; color: var(--bad); font-size: 0.68rem; }
+/* 钓组页：收起的次要区块 */
+.rig-more { margin-top: 12px; }
+.rig-more > summary { cursor: pointer; font-size: 0.78rem; color: var(--ink-soft); }

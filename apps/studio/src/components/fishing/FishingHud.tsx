@@ -1,7 +1,7 @@
 import { createSignal, For, Show } from 'solid-js';
 import { fishById, SIGNAL_LABEL, type FloatSignal, type SituationId } from '@twin-platform/plugins-fishing';
 import type { StudioSession } from '../../scene/studioSession';
-import { readRig, writeRig } from './fishingWorld';
+import { readRig, stepRigParam, writeRig } from './fishingWorld';
 
 /**
  * 钓况 HUD —— 浮在画布右上角，开钓后一眼看到"我现在钓得怎么样"。
@@ -21,6 +21,8 @@ const ZONE_LABEL: Readonly<Record<string, string>> = {
   sinker_on_bottom: '铅坠触底',
 };
 
+const fmt = (value: number): string => String(Math.round(value * 100) / 100);
+
 const ZONE_CLASS: Readonly<Record<string, string>> = {
   off_bottom: 'zone-chip-off',
   sensitive: 'zone-chip-sens',
@@ -36,6 +38,7 @@ export default function FishingHud(props: {
   onAsk: (situation: SituationId) => void;
 }) {
   const [drill, setDrill] = createSignal(false);
+  const [issue, setIssue] = createSignal<string>();
 
   const rig = () => {
     props.tick;
@@ -83,9 +86,6 @@ export default function FishingHud(props: {
             >
               {fishById(current().loadout.targetFish)?.emoji} {fishById(current().loadout.targetFish)?.label}
             </span>
-            <Show when={current().state}>
-              {(state) => <span class={'zone-chip ' + (ZONE_CLASS[state().rig.zone] ?? '')}>{ZONE_LABEL[state().rig.zone]}</span>}
-            </Show>
             <button type="button" class="fish-hud-btn" title="重新走一遍开钓向导（换鱼 / 换装备 / 重新调漂）" onClick={props.onReconfigure}>
               ⚙
             </button>
@@ -97,6 +97,24 @@ export default function FishingHud(props: {
               🧭 钓组还没配好，继续开钓向导
             </button>
           </Show>
+
+          {/* 钓目是开钓后最常调的一项：直接在 HUD 上推漂，灵钝区就在旁边。其余调目参数在右侧「钓组」页。 */}
+          <Show when={current().wizardDone && current().state}>
+            {(state) => (
+              <div class="fish-hud-depth">
+                <span>钓目</span>
+                <button type="button" aria-label="钓目下推半目（往灵）" title="下推半目（往灵）" onClick={() => setIssue(stepRigParam(props.session, 'd', -0.5))}>
+                  −
+                </button>
+                <b>{fmt(state().rig.d)}</b>
+                <button type="button" aria-label="钓目上推半目（往钝）" title="上推半目（往钝）" onClick={() => setIssue(stepRigParam(props.session, 'd', 0.5))}>
+                  +
+                </button>
+                <span class={'zone-chip ' + (ZONE_CLASS[state().rig.zone] ?? '')}>{ZONE_LABEL[state().rig.zone]}</span>
+              </div>
+            )}
+          </Show>
+          <Show when={issue()}>{(message) => <p class="fish-hud-issue">{message()}</p>}</Show>
 
           <div class="fish-hud-stats" hidden={!current().wizardDone}>
             <span>

@@ -1,5 +1,5 @@
 import { For, Show } from 'solid-js';
-import { fishingView, rigPosture, SIGNAL_LABEL, type FishingView, type RigPosture } from '@twin-platform/plugins-fishing';
+import { fishingView, rigPosture, type FishingView, type RigPosture } from '@twin-platform/plugins-fishing';
 import type { StudioSession } from '../scene/studioSession';
 
 /**
@@ -158,18 +158,10 @@ export default function FishingSandbox(props: { session: StudioSession; tick: nu
 
   return (
     <section aria-label="钓组剖面">
-      <h2>钓组剖面</h2>
       <Show when={view()} fallback={<p class="plugin-note">当前场景不是钓场（缺少 rig 实体）。</p>}>
         {(current) => (
           <>
             {crossSection()}
-
-            <Show when={current().signal !== 'none'}>
-              <p class="plugin-note" style="color:#c0392b">漂相：{SIGNAL_LABEL[current().signal]}</p>
-            </Show>
-            <Show when={current().drift}>
-              <p class="plugin-note" style="color:#b8860b">⚠ 走水：主线被拉斜、浮漂走位</p>
-            </Show>
 
             <h3 style="margin:10px 0 4px;font-size:12px;opacity:0.85">各部件状态</h3>
             <ul class="rig-posture">

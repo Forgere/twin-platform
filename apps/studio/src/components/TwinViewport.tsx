@@ -16,8 +16,6 @@ import DataSourcePanel from './DataSourcePanel';
 import EventLogPanel from './EventLogPanel';
 import TimelineBar from './TimelineBar';
 import PluginsPanel from './PluginsPanel';
-import DecisionPanel from './DecisionPanel';
-import FishingSandbox from './FishingSandbox';
 import FishingOnboarding from './fishing/FishingOnboarding';
 import FishingHud from './fishing/FishingHud';
 import FishingAssistant, { type FishingAssistantApi } from './fishing/FishingAssistant';
@@ -132,7 +130,7 @@ export default function TwinViewport() {
   const profileFor = (target: StudioSession): SceneProfile =>
     sceneProfileOf({ hasRig: hasRig(target), plugins: target.pluginIds });
   const profile = (): SceneProfile => profileFor(session());
-  const tabs = () => inspectorTabs(profile(), session().host.decisions.length > 0);
+  const tabs = () => inspectorTabs(profile());
   let controller: TwinSceneController | undefined;
   let hostEl: HTMLDivElement | undefined;
 
@@ -978,15 +976,7 @@ export default function TwinViewport() {
             </Show>
 
             <Show when={tab() === 'rig'}>
-              <RigInspector session={session()} tick={tick()} onReconfigure={openOnboarding} />
-            </Show>
-
-            <Show when={tab() === 'sandbox'}>
-              <FishingSandbox session={session()} tick={tick()} />
-            </Show>
-
-            <Show when={tab() === 'decision'}>
-              <DecisionPanel session={session()} />
+              <RigInspector session={session()} tick={tick()} />
             </Show>
 
             <Show when={tab() === 'plugins'}>

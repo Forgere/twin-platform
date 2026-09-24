@@ -1,4 +1,5 @@
 import {
+  calculateRigState,
   conditionsOf,
   loadoutFromAttrs,
   observeFishingWorld,
@@ -83,4 +84,19 @@ export function writeRig(session: StudioSession, values: Readonly<Record<string,
  */
 export function refreshWhilePaused(session: StudioSession): void {
   if (!session.controller.playing) session.controller.stepFrames(1);
+}
+
+/**
+ * 调钓参数步进（半目为单位）。先过 calculateRigState：不合法的组合不写进世界，
+ * 返回人话原因；成功返回 undefined。HUD 的钓目与「钓组」页的调目共用这一处。
+ */
+export function stepRigParam(session: StudioSession, key: 't0' | 't' | 'w' | 'd', delta: number): string | undefined {
+  const current = readRig(session)?.state?.rig;
+  if (!current) return '钓组参数还不完整。';
+  const input = { t0: current.t0, t: current.t, w: current.w, d: current.d };
+  const next = { ...input, [key]: Math.round((input[key] + delta) * 2) / 2 };
+  const result = calculateRigState(next);
+  if (!result.ok) return result.issues.map((item) => item.message).join(' ');
+  writeRig(session, { [key]: next[key] });
+  return undefined;
 }
