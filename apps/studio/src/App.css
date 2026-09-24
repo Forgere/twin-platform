@@ -560,3 +560,6 @@ h2 { margin: 0 0 12px; color: var(--accent); font-size: 0.82rem; letter-spacing:
 .sandbox-tech > summary { cursor: pointer; font-size: 0.72rem; color: var(--ink-soft); }
 .assist-done p { margin: 0; }
 .assist-since { margin-top: 3px !important; font-family: var(--mono); font-size: 0.7rem; color: var(--ink-soft); }
+/* 助手：当前钓况命中的情况 chip */
+.assist-chip-likely { border-color: #d98a2b; }
+.assist-likely { color: #b8621b; font-weight: 700; font-size: 0.66rem; }

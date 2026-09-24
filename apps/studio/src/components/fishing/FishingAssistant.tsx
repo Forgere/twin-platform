@@ -168,6 +168,21 @@ export default function FishingAssistant(props: { session: StudioSession; tick: 
     },
   });
 
+  /** 由当前钓况推断"眼下最可能要问的"情况，在 chip 上标出来，先点它。 */
+  const likely = (): ReadonlySet<SituationId> => {
+    props.tick;
+    const rig = readRig(props.session);
+    const out = new Set<SituationId>();
+    if (!rig) return out;
+    if (rig.conditions.drift && !rig.conditions.antiDrift) out.add('drift');
+    if (rig.conditions.smallFish) out.add('small_fish');
+    if (rig.conditions.waterTemperature < 12) out.add('cold');
+    if (rig.counts.breaks > 0) out.add('line_break');
+    if (rig.counts.casts >= 8 && rig.counts.bites === 0) out.add('no_bite');
+    if (rig.counts.bites >= 4 && rig.counts.catches * 3 < rig.counts.bites) out.add('bite_no_catch');
+    return out;
+  };
+
   const problems = SITUATIONS.filter((item) => item.kind === 'problem');
   const howtos = SITUATIONS.filter((item) => item.kind === 'howto');
 
@@ -194,11 +209,17 @@ export default function FishingAssistant(props: { session: StudioSession; tick: 
               {(item) => (
                 <button
                   type="button"
-                  class={situation() === item.id ? 'assist-chip assist-chip-on' : 'assist-chip'}
+                  class={
+                    (situation() === item.id ? 'assist-chip assist-chip-on' : 'assist-chip') + (likely().has(item.id) ? ' assist-chip-likely' : '')
+                  }
                   aria-pressed={situation() === item.id ? 'true' : 'false'}
+                  title={likely().has(item.id) ? '根据当前钓况，你可能正遇到这个' : undefined}
                   onClick={() => ask(item.id)}
                 >
                   {item.emoji} {item.label}
+                  <Show when={likely().has(item.id)}>
+                    <span class="assist-likely"> · 现状</span>
+                  </Show>
                 </button>
               )}
             </For>
