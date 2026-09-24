@@ -1,5 +1,7 @@
 import CameraControls from 'camera-controls';
-import { floatSignalPose, hookPullPose, SIGNAL_DURATION, type FloatSignalName } from './floatSignal';
+import { floatSignalPose, SIGNAL_DURATION, type FloatSignalName } from './floatSignal';
+import { rigVisualPose, type RigVisualPose } from './rigVisual';
+import { calculateRigState, rigPosture } from '@twin-platform/plugins-fishing';
 import type { ReplayController } from '@twin-platform/replay-core';
 import type { TwinScene, TwinVector3, FrameDelta } from '@twin-platform/world-kernel';
 import * as THREE from 'three';
@@ -80,6 +82,7 @@ const fishingFrom = new THREE.Vector3();
 const FISHING_RIG_ID = 'rig-01';
 const FISHING_FLOAT_ID = 'float-01';
 const FISHING_SWIVEL_ID = 'swivel-01';
+const FISHING_SINKER_ID = 'sinker-01';
 /**
  * 两根并联子线的渲染姿态：仿真里双钩同轴（x = z = 0），直接画会两根线叠成一根、
  * 两只钩朝同一边。这里把上钩摆到 −X、下钩摆到 +X（子线张成 V 字），钩尖各朝外。
@@ -92,6 +95,8 @@ const FISHING_HOOKS = [
 /** 子线张开的水平距离（米，示意比例）。 */
 const HOOK_SPLAY = 0.14;
 const fishingTo = new THREE.Vector3();
+const fishingSegA = new THREE.Vector3();
+const fishingSegB = new THREE.Vector3();
 
 /** 钓组零件的挂线点（世界坐标）：实体位置 + 模型声明的本地 `lineAnchor`（随零件旋转）。 */
 function lineAnchorOf(object: THREE.Object3D, out: THREE.Vector3): THREE.Vector3 {
@@ -666,32 +671,41 @@ export class TwinSceneController {
           // 线挂在零件的挂线点（漂座 / 钩眼），不是实体原点。
           const from = lineAnchorOf(fromObject, fishingFrom);
           const to = lineAnchorOf(toObject, fishingTo);
-          // 子线弯曲：钝区子线松弛，控制器在两端之间插一个下垂的中间点，
-          // 把该段拆成"前段 / 后段"两段折线（bendRole 决定本 mesh 取前半还是后半）。
           let ax = from.x;
           let ay = from.y;
           let az = from.z;
           let bx = to.x;
           let by = to.y;
           let bz = to.z;
-          if (line.bendAttr && line.rigId) {
-            const rigEntity = this.controller.world.getEntity(line.rigId);
-            const bendRaw = rigEntity?.attrs?.[line.bendAttr];
-            const bend = typeof bendRaw === 'number' ? bendRaw : 0;
-            if (bend > 0.001) {
-              const midX = (from.x + to.x) / 2;
-              const midY = (from.y + to.y) / 2 - bend * 0.07; // 向下松弛
-              const midZ = (from.z + to.z) / 2 + bend * 0.13; // 向 +Z 鼓出（离主视线侧）
-              if (line.bendRole === 'second') {
-                ax = midX;
-                ay = midY;
-                az = midZ;
-              } else {
-                bx = midX;
-                by = midY;
-                bz = midZ;
-              }
-            }
+          // 子线：沿二次贝塞尔曲线分段（segment 决定本 mesh 取哪一截）。弯曲量来自 rigVisualPose
+          // （调钓状态 + 这一口），控制点下垂并向外鼓；曲线贴到水底为止，躺底时就是"躺在底上"。
+          if (line.segment) {
+            const upper = line.bendAttr === 'bendUpper';
+            const bend = this.rigPose ? (upper ? this.rigPose.bend.upper : this.rigPose.bend.lower) : 0;
+            const side = upper ? -1 : 1;
+            const cx = (from.x + to.x) / 2 + side * bend * 0.24;
+            const cy = (from.y + to.y) / 2 - bend * 0.5;
+            const cz = (from.z + to.z) / 2;
+            const floorY = this.rigBottomY + 0.015;
+            const point = (k: number, out: THREE.Vector3): THREE.Vector3 => {
+              const u = 1 - k;
+              out.set(
+                u * u * from.x + 2 * u * k * cx + k * k * to.x,
+                u * u * from.y + 2 * u * k * cy + k * k * to.y,
+                u * u * from.z + 2 * u * k * cz + k * k * to.z,
+              );
+              out.y = Math.max(out.y, floorY);
+              return out;
+            };
+            const { index, count } = line.segment;
+            point(index / count, fishingSegA);
+            point((index + 1) / count, fishingSegB);
+            ax = fishingSegA.x;
+            ay = fishingSegA.y;
+            az = fishingSegA.z;
+            bx = fishingSegB.x;
+            by = fishingSegB.y;
+            bz = fishingSegB.z;
           }
           const length = Math.hypot(bx - ax, by - ay, bz - az);
           if (length < 1e-4) {
@@ -738,43 +752,99 @@ export class TwinSceneController {
     const pose = floatSignalPose(bite.signal, bite.t);
     pivot.position.set(pose.dx, pose.dy, 0);
     pivot.rotation.z = pose.tilt;
-    this.animateHooks(bite.signal, bite.t);
+    this.animateRig(bite.signal, bite.t);
   }
 
+  /** 本帧钓组水下姿态（线的弯曲也读它）；非钓场场景为 undefined。 */
+  private rigPose: RigVisualPose | undefined;
+  private rigBottomY = 0;
+
   /**
-   * 双钩的姿态：子线张成 V、钩柄顺着子线指向 8 字环；有口时被咬的钩连饵一起被鱼拖走，
-   * 带高频抖动（鱼甩头）。只写钩 / 饵的内层枢轴，线的挂线点跟着枢轴走。
+   * 浮漂以下整副钓组的姿态，全部来自 rigVisualPose：
+   * - 调钓状态（rigPosture）：灵 / 钝 / 走铅决定钩躺不躺、饵扁不扁、子线弯多少、铅坠倒不倒；
+   * - 这一口：主线带着铅坠与 8 字环一起顿 / 托，被咬的下钩连饵被拖走、子线拉直、饵被吸入。
+   * 子线张成 V、钩尖各朝外。只写各零件的内层枢轴，线的挂线点跟着枢轴走。
    */
-  private animateHooks(signal: FloatSignalName, t: number): void {
-    const swivel = this.entityMeshes.get(FISHING_SWIVEL_ID)?.position;
-    if (!swivel) return;
-    const pull = hookPullPose(signal, t);
+  private animateRig(signal: FloatSignalName, t: number): void {
+    const rig = this.controller.world.getEntity(FISHING_RIG_ID);
+    const swivelObject = this.entityMeshes.get(FISHING_SWIVEL_ID);
+    if (!rig || !swivelObject) {
+      this.rigPose = undefined;
+      return;
+    }
+    const attrs = rig.attrs ?? {};
+    const num = (value: unknown, fallback: number): number => (typeof value === 'number' ? value : fallback);
+    const result = calculateRigState({ t0: num(attrs.t0, 4), t: num(attrs.t, 2), w: num(attrs.w, 1), d: num(attrs.d, 2) });
+    if (!result.ok) {
+      this.rigPose = undefined;
+      return;
+    }
+    const pose = rigVisualPose(rigPosture(result.state), signal, t);
+    this.rigPose = pose;
+    const config = rig.config ?? {};
+    this.rigBottomY = num(config.surfaceY, 2) - num(config.depth, 2);
+
+    const setPivot = (id: string, apply: (pivot: THREE.Object3D) => void): void => {
+      const pivot = this.entityMeshes.get(id)?.userData.lineAnchorPivot as THREE.Object3D | undefined;
+      if (pivot) apply(pivot);
+    };
+    setPivot(FISHING_SINKER_ID, (pivot) => {
+      pivot.position.y = pose.mainDy;
+      pivot.rotation.z = (pose.sinkerLie * Math.PI) / 2;
+    });
+    setPivot(FISHING_SWIVEL_ID, (pivot) => {
+      pivot.position.y = pose.mainDy;
+    });
+
+    const swivelY = swivelObject.position.y + pose.mainDy;
+    const swivelX = swivelObject.position.x;
     for (const spec of FISHING_HOOKS) {
       const hook = this.entityMeshes.get(spec.hookId);
-      const hookPivot = hook?.userData.lineAnchorPivot as THREE.Object3D | undefined;
-      if (!hook || !hookPivot) continue;
-      let dx = spec.side * HOOK_SPLAY;
-      let dy = 0;
-      let dz = 0;
-      if (spec.bitten) {
-        const shake = pull.shake * Math.sin(t * 38);
-        dx += spec.side * pull.out;
-        dy += pull.dy;
-        dz += shake;
-      }
+      if (!hook) continue;
+      const visual = spec.bitten ? pose.hooks.lower : pose.hooks.upper;
+      const dx = spec.side * (HOOK_SPLAY + visual.out);
+      const dy = visual.dy;
+      const dz = visual.shake * Math.sin(t * 38);
       // 钩柄沿子线：本地 +Y 转向"钩→8 字环"。yaw 翻面后本地 X 与世界 X 反向，倾角符号随之翻。
-      const toSwivelX = swivel.x - (hook.position.x + dx);
-      const toSwivelY = Math.max(0.02, swivel.y - (hook.position.y + dy));
+      const toSwivelX = swivelX - (hook.position.x + dx);
+      const toSwivelY = Math.max(0.02, swivelY - (hook.position.y + dy));
       const lean = Math.atan2(toSwivelX, toSwivelY);
-      const tilt = spec.yaw === 0 ? -lean : lean;
+      const hang = spec.yaw === 0 ? -lean : lean;
+      // 躺底：从"顺子线悬垂"过渡到平躺（倒向 8 字环一侧）。
+      const flat = (Math.sign(hang) || 1) * (Math.PI / 2) * 0.92;
+      const tilt = hang + (flat - hang) * visual.lie;
+      const squash = spec.bitten ? pose.baits.lower : pose.baits.upper;
       for (const object of [hook, this.entityMeshes.get(spec.baitId)]) {
         const pivot = object?.userData.lineAnchorPivot as THREE.Object3D | undefined;
         if (!object || !pivot) continue;
         // 饵实体与钩实体同位（仿真同点），偏移相对各自原点即可重合。
         pivot.position.set(dx + hook.position.x - object.position.x, dy + hook.position.y - object.position.y, dz);
         pivot.rotation.set(0, spec.yaw, tilt);
+        // 饵：躺底压扁、被吸入变小（只缩饵团本身，不动它在钩尖上的位置）。
+        if (object !== hook) pivot.children[0]?.scale.set(1, squash, 1);
       }
+      if (spec.bitten) this.placeBiter(hook.position.x + dx, hook.position.y + dy, hook.position.z + dz, spec.side, pose.bite, t);
     }
+  }
+
+  /**
+   * 咬钩的鱼：嘴含着下钩的饵、身子朝外，随钩一起被拖；强度低时离得远且小（游近 / 游走）。
+   * 摆尾沿用 buildFish 自带的 sway，只是这条鱼不是独立实体，由这里代为驱动。
+   */
+  private placeBiter(x: number, y: number, z: number, side: number, bite: number, t: number): void {
+    const rigObject = this.entityMeshes.get(FISHING_RIG_ID);
+    const biter = (rigObject?.userData.anim as EntityAnim | undefined)?.biter;
+    if (!rigObject || !biter) return;
+    biter.visible = bite > 0.02;
+    if (!biter.visible) return;
+    // 模型嘴在本地 +X（半径 0.12 × 1.35）；转 180° 让嘴朝钩，身子伸向外侧。
+    const mouth = 0.16;
+    const away = mouth + (1 - bite) * 0.4;
+    biter.position.set(x + side * away - rigObject.position.x, y - rigObject.position.y, z - rigObject.position.z);
+    biter.rotation.y = side > 0 ? Math.PI : 0;
+    biter.scale.setScalar(0.6 + 0.4 * bite);
+    const sway = (biter.userData.anim as EntityAnim | undefined)?.sway ?? [];
+    for (const part of sway) part.mesh.rotation[part.axis] = part.base + part.amp * 1.6 * Math.sin(t * part.speed * 1.8 + part.phase);
   }
 
   private removeSelectionHelper(): void {

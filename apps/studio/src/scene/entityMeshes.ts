@@ -50,13 +50,15 @@ export interface EntityAnim {
     readonly mesh: THREE.Mesh;
     readonly fromId: string;
     readonly toId: string;
-    /** 子线弯曲：设置则该段属子线，控制器按 rigId 实体 attrs 里的 bend* 松弛成折线。 */
+    /** 子线弯曲：设置则该段属子线，控制器按 rigVisualPose 的 bend（调钓状态 + 这一口）松弛成折线。 */
     readonly bendAttr?: 'bendUpper' | 'bendLower';
-    /** 子线拆成两段折线，first=前段（from→mid），second=后段（mid→to）。 */
-    readonly bendRole?: 'first' | 'second';
+    /** 子线沿曲线分段：本 mesh 是第 index 截（共 count 截）。 */
+    readonly segment?: { readonly index: number; readonly count: number };
     /** 弯曲量来源的 rig 实体（钓场固定为 rig-01）。 */
     readonly rigId?: string;
   }[];
+  /** 咬钩的鱼（仅钓组）：只在一口鱼期间显示，嘴在模型本地 +X 端。 */
+  biter?: THREE.Group;
   /** 顶升链带的链轮（仅 cassette）：顶起后按出货方向自转。 */
   sprockets?: THREE.Mesh[];
   /** 水面涟漪（仅 water）：按渲染时钟从中心向外扩散、淡出，循环播放。 */
@@ -1344,7 +1346,11 @@ function buildFloat(color: string): THREE.Group {
 function buildSinker(color: string): THREE.Group {
   const group = new THREE.Group();
   group.userData.codePath = 'entityMeshes.ts:buildSinker';
-  group.add(cyl(SINKER_R, SINKER_H, color, 12, { roughness: 0.45, metalness: 0.55 }));
+  // 内层枢轴：随主线上下 / 走铅时平躺，只动枢轴，实体位置仍是内核给的值。
+  const pivot = new THREE.Group();
+  group.add(pivot);
+  pivot.add(cyl(SINKER_R, SINKER_H, color, 12, { roughness: 0.45, metalness: 0.55 }));
+  group.userData.lineAnchorPivot = pivot;
   return group;
 }
 
@@ -1600,6 +1606,9 @@ function buildReed(color: string): THREE.Group {
  * 由控制器每帧按两端位置拉伸与转向。端点 id 与 fishingTemplate 的实体 id 对齐
  * （钓场是固定模板）。
  */
+/** 每根子线的分段数：够多才读得出"弧"而不是折线，又不至于每帧摆太多段。 */
+const SUBLINE_SEGMENTS = 6;
+
 function buildRigMarker(): THREE.Group {
   const group = new THREE.Group();
   group.userData.codePath = 'entityMeshes.ts:buildRig';
@@ -1612,7 +1621,7 @@ function buildRigMarker(): THREE.Group {
     ['float-01', 'sinker-01'],
     ['sinker-01', 'swivel-01'],
   ];
-  // 子线两段共用同一对端点；bendAttr 让控制器在两端之间插入一个下垂的中间点。
+  // 子线各分 SUBLINE_SEGMENTS 截，共用同一对端点；控制器按弯曲量沿曲线摆每一截。
   const branchLines: { fromId: string; toId: string; bendAttr: 'bendUpper' | 'bendLower' }[] = [
     { fromId: 'swivel-01', toId: 'hook-upper-01', bendAttr: 'bendUpper' },
     { fromId: 'swivel-01', toId: 'hook-lower-01', bendAttr: 'bendLower' },
@@ -1624,7 +1633,7 @@ function buildRigMarker(): THREE.Group {
     fromId: string;
     toId: string;
     bendAttr?: 'bendUpper' | 'bendLower';
-    bendRole?: 'first' | 'second';
+    segment?: { index: number; count: number };
     rigId?: string;
   }[] = [];
 
@@ -1635,14 +1644,19 @@ function buildRigMarker(): THREE.Group {
     fishingLines.push({ mesh, fromId, toId });
   }
   for (const { fromId, toId, bendAttr } of branchLines) {
-    for (const bendRole of ['first', 'second'] as const) {
+    for (let index = 0; index < SUBLINE_SEGMENTS; index += 1) {
       const mesh = cyl(FISHING_LINE_R * 0.78, 1, '#cfd6dd', 8, { roughness: 0.5 });
       mesh.castShadow = false;
       group.add(mesh);
-      fishingLines.push({ mesh, fromId, toId, bendAttr, bendRole, rigId });
+      fishingLines.push({ mesh, fromId, toId, bendAttr, segment: { index, count: SUBLINE_SEGMENTS }, rigId });
     }
   }
-  group.userData.anim = { kind: 'fishing-rig', fishingLines } as EntityAnim;
+  // 咬钩的鱼：平时隐藏，有口时由控制器摆到下钩饵旁（嘴含饵、身子朝外），随拖拽一起走。
+  const biter = buildFish('#4f5d66', [0.3, 0.12, 0.08]);
+  biter.userData.codePath = 'entityMeshes.ts:buildRig:biter';
+  biter.visible = false;
+  group.add(biter);
+  group.userData.anim = { kind: 'fishing-rig', fishingLines, biter } as EntityAnim;
   return group;
 }
 
@@ -1652,7 +1666,11 @@ function buildSwivel(color: string): THREE.Group {
   group.userData.codePath = 'entityMeshes.ts:buildSwivel';
   const ring = new THREE.Mesh(new THREE.TorusGeometry(0.022, 0.007, 8, 16), material(color, { roughness: 0.35, metalness: 0.7 }));
   ring.castShadow = false;
-  group.add(ring);
+  // 内层枢轴：随主线上下；两根子线与主线都挂在它上面。
+  const pivot = new THREE.Group();
+  group.add(pivot);
+  pivot.add(ring);
+  group.userData.lineAnchorPivot = pivot;
   return group;
 }
 

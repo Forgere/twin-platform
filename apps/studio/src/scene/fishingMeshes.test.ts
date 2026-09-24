@@ -83,19 +83,30 @@ describe('台钓钓组模型', () => {
     expect(box.containsPoint(tip.clone().multiplyScalar(1.05))).toBe(false);
   });
 
-  test('逻辑钓组提供七段线（主线竿梢→漂→铅→8字环 + 两根子线各两段），端点与场景实体对齐', () => {
+  test('逻辑钓组的线：主线竿梢→漂→铅→8字环三段 + 两根子线各分 6 截（画成弧），端点与场景实体对齐', () => {
     const rig = buildEntityMesh(entity('rig', '#c9b79c', [0.1, 0.1, 0.1]));
-    expect(meshCount(rig)).toBe(7);
-    const anim = rig.userData.anim as { fishingLines?: { fromId: string; toId: string }[] } | undefined;
-    expect(anim?.fishingLines?.map((line) => line.fromId + '->' + line.toId)).toEqual([
+    const anim = rig.userData.anim as
+      | { fishingLines?: { fromId: string; toId: string; segment?: { index: number; count: number } }[]; biter?: THREE.Group }
+      | undefined;
+    const lines = anim?.fishingLines ?? [];
+    expect(lines.slice(0, 3).map((line) => line.fromId + '->' + line.toId)).toEqual([
       'rod-tip-01->float-01',
       'float-01->sinker-01',
       'sinker-01->swivel-01',
-      'swivel-01->hook-upper-01',
-      'swivel-01->hook-upper-01',
-      'swivel-01->hook-lower-01',
-      'swivel-01->hook-lower-01',
     ]);
+    for (const hookId of ['hook-upper-01', 'hook-lower-01']) {
+      const branch = lines.filter((line) => line.toId === hookId);
+      expect(branch.every((line) => line.fromId === 'swivel-01')).toBe(true);
+      expect(branch.map((line) => line.segment?.index)).toEqual([0, 1, 2, 3, 4, 5]);
+    }
+    expect(lines).toHaveLength(3 + 12);
+  });
+
+  test('咬钩的鱼挂在钓组上，平时隐藏', () => {
+    const rig = buildEntityMesh(entity('rig', '#c9b79c', [0.1, 0.1, 0.1]));
+    const biter = (rig.userData.anim as { biter?: THREE.Group }).biter;
+    expect(biter?.parent).toBe(rig);
+    expect(biter?.visible).toBe(false);
   });
 
   test('钓场装饰（岸坡 / 钓台 / 鱼竿 / 芦苇 / 水草 / 鱼影 / 水底）都有实体几何', () => {
