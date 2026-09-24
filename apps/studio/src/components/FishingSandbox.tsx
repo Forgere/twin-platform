@@ -181,16 +181,17 @@ export default function FishingSandbox(props: { session: StudioSession; tick: nu
               )}</For>
             </ul>
 
-            <div class="sandbox-ruler" style="margin:8px 0 4px">
+            {/* 刻度条：绿 = 灵区、橙 = 钝区，红针 = 当前钓目；刻度写明含义，不靠记 d1/d2/d3。 */}
+            <div class="sandbox-ruler" style="margin:8px 0 4px" aria-label={'钓目 ' + fmt(current().state.rig.d) + '，' + zoneLabel(current().state.rig.zone)}>
               <div style="position:relative;height:10px;border-radius:5px;overflow:hidden;background:#eee">
                 <div style={sensitiveStyle(current())} />
                 <div style={bluntStyle(current())} />
                 <div style={markerStyle(current())} />
               </div>
               <div style="display:flex;justify-content:space-between;font-size:11px;opacity:0.75">
-                <span>d1 {fmt(current().state.rig.criticalMarks.d1)}</span>
-                <span>d2 {fmt(current().state.rig.criticalMarks.d2)}</span>
-                <span>d3 {fmt(current().state.rig.criticalMarks.d3)}</span>
+                <span>离底 d1 {fmt(current().state.rig.criticalMarks.d1)}</span>
+                <span>不灵不钝 d2 {fmt(current().state.rig.criticalMarks.d2)}</span>
+                <span>到铅 d3 {fmt(current().state.rig.criticalMarks.d3)}</span>
               </div>
             </div>
 
