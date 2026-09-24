@@ -9,6 +9,7 @@ import {
   fishById,
   loadoutChecks,
   loadoutToAttrs,
+  presetById,
   rigPosture,
   wizardAdvance,
   wizardRigState,
@@ -196,6 +197,7 @@ export default function FishingOnboarding(props: { session: StudioSession; onClo
 
   const stepIndex = (): number => WIZARD_STEPS.indexOf(state().step);
   const preview = () => wizardRigState(state());
+  const preset = () => presetById(state().presetId ?? '');
   const checks = () => {
     const current = loadout();
     return current ? loadoutChecks(current) : [];
@@ -355,6 +357,20 @@ export default function FishingOnboarding(props: { session: StudioSession; onClo
                   钓 {fmt(rig().d)} 目 · <b>{ZONE_LABEL[rig().zone] ?? rig().zone}</b>
                 </p>
                 <p class="onboard-hint">{rigPosture(rig()).summary}</p>
+                <Show when={preset()}>
+                  {(chosen) => (
+                    <p class="onboard-hint">
+                      {chosen().label}的目标是钓 {fmt(chosen().d)} 目
+                      {Math.abs(rig().d - chosen().d) < 1e-9 ? ' ✓ 已在目标上' : '，你现在' + (rig().d > chosen().d ? '偏钝' : '偏灵') + ' ' + fmt(Math.abs(rig().d - chosen().d)) + ' 目'}
+                      <Show when={Math.abs(rig().d - chosen().d) >= 1e-9}>
+                        {' '}
+                        <button type="button" class="onboard-link" onClick={() => adjust(chosen().d - rig().d)}>
+                          回到 {fmt(chosen().d)} 目
+                        </button>
+                      </Show>
+                    </p>
+                  )}
+                </Show>
                 <div class="onboard-row">
                   <button type="button" onClick={() => adjust(-0.5)}>
                     ⬇ 下推半目（灵）
@@ -407,17 +423,17 @@ export default function FishingOnboarding(props: { session: StudioSession; onClo
           </button>
         </Show>
         <Show when={state().step === 'measure_t0'}>
-          <button type="button" class="onboard-next" onClick={() => commitMarks('t0')}>
+          <button type="button" class="onboard-next" disabled={marks() === undefined} title={marks() === undefined ? '先在漂上点一下露出的位置' : undefined} onClick={() => commitMarks('t0')}>
             下一步 →
           </button>
         </Show>
         <Show when={state().step === 'measure_t'}>
-          <button type="button" class="onboard-next" onClick={() => commitMarks('t')}>
+          <button type="button" class="onboard-next" disabled={marks() === undefined} title={marks() === undefined ? '先在漂上点一下露出的位置' : undefined} onClick={() => commitMarks('t')}>
             下一步 →
           </button>
         </Show>
         <Show when={state().step === 'measure_w'}>
-          <button type="button" class="onboard-next" onClick={() => commitMarks('w')}>
+          <button type="button" class="onboard-next" disabled={marks() === undefined} title={marks() === undefined ? '先在漂上点一下露出的位置' : undefined} onClick={() => commitMarks('w')}>
             下一步 →
           </button>
         </Show>
