@@ -69,6 +69,8 @@ export default function RigInspector(props: { session: StudioSession; tick: numb
   };
 
   const setGear = (patch: Partial<Loadout>): void => {
+    // 上一次调目被拒的原因针对的是旧参数，换装备后不再成立。
+    setIssue(undefined);
     writeRig(props.session, patch as Record<string, number | string>);
   };
 
