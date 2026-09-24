@@ -419,7 +419,7 @@ export default function FishingOnboarding(props: { session: StudioSession; onClo
         </button>
         <Show when={state().step === 'choose_gear'}>
           <button type="button" class={insist() ? 'onboard-next onboard-next-warn' : 'onboard-next'} onClick={confirmGear}>
-            {insist() ? '坚持使用' : '装备就这样 →'}
+            {insist() ? '⚠ 忽略 ' + checks().filter((check) => check.level === 'error').length + ' 个问题，仍然使用 →' : '装备就这样 →'}
           </button>
         </Show>
         <Show when={state().step === 'measure_t0'}>
