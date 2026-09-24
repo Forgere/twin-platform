@@ -10,6 +10,8 @@ import { readRig, writeRig } from './fishingWorld';
  * 唯一的写入是「情况演练」：给新手制造走水 / 闹窝 / 降温，练习应对。
  * 这些写进 attrs，和真实变化一样可回放、可被助手读到。
  *
+ * 情况 chip 可点：直接把助手打开到对应情况的解答，看到问题的地方就能拿到对策。
+ */
 
 const ZONE_LABEL: Readonly<Record<string, string>> = {
   off_bottom: '未到底',
@@ -27,8 +29,6 @@ const ZONE_CLASS: Readonly<Record<string, string>> = {
   sinker_on_bottom: 'zone-chip-lead',
 };
 
- * 情况 chip 可点：直接把助手打开到对应情况的解答，看到问题的地方就能拿到对策。
- */
 export default function FishingHud(props: {
   session: StudioSession;
   tick: number;
@@ -91,7 +91,14 @@ export default function FishingHud(props: {
             </button>
           </div>
 
-          <div class="fish-hud-stats">
+          {/* 向导没走完（被 ✕ 关掉）：计数全是 0 没有意义，主操作是回去把钓组配好。 */}
+          <Show when={!current().wizardDone}>
+            <button type="button" class="onboard-next fish-hud-setup" onClick={props.onReconfigure}>
+              🧭 钓组还没配好，继续开钓向导
+            </button>
+          </Show>
+
+          <div class="fish-hud-stats" hidden={!current().wizardDone}>
             <span>
               抛 <b>{current().counts.casts}</b>
             </span>

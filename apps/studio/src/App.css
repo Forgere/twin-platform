@@ -563,3 +563,4 @@ h2 { margin: 0 0 12px; color: var(--accent); font-size: 0.82rem; letter-spacing:
 /* 助手：当前钓况命中的情况 chip */
 .assist-chip-likely { border-color: #d98a2b; }
 .assist-likely { color: #b8621b; font-weight: 700; font-size: 0.66rem; }
+.fish-hud-setup { font-size: 0.74rem; padding: 6px 10px; }
