@@ -612,3 +612,71 @@ h2 { margin: 0 0 12px; color: var(--accent); font-size: 0.82rem; letter-spacing:
 .calib-more > summary { cursor: pointer; font-size: 0.7rem; color: var(--ink-soft); }
 .calib-buckets p { margin: 6px 0 2px; font-size: 0.7rem; color: var(--ink-soft); }
 .calib-clear { justify-self: start; padding: 2px 0; border: 0; background: none; box-shadow: none; font-size: 0.68rem; color: var(--ink-soft); text-decoration: underline; cursor: pointer; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * 面板风格（参考 sael.net/swarm-floor）：浅灰底 + 纯白面板、14px 圆角、柔和双层阴影；
+ * 小号大写灰色标签作分区标题，数字等宽；选中态用石墨色，强调色青、警示暖黄。
+ * 只改 token 与面板外观，不动布局——放在文件末尾统一覆盖旧的奶油色主题。
+ * ═══════════════════════════════════════════════════════════════════════════ */
+:root {
+  --cream: #e6e8ec;
+  --cream-card: #ffffff;
+  --cream-soft: #f4f5f7;
+  --frame: #e2e4e8;
+  --line: #e2e4e8;
+  --ink: #15171b;
+  --ink-soft: #7a808a;
+  --mint: #14b4d6;
+  --mint-tint: rgba(20, 180, 214, 0.1);
+  --mint-line: rgba(20, 180, 214, 0.4);
+  --sky-tint: #f4f5f7;
+  --accent: #0e9bb9;
+  --good: #2fb96a;
+  --bad: #e5484d;
+  --warm: #f2b705;
+  --graphite: #2b2e34;
+  --shadow: 0 6px 24px rgba(20, 23, 28, 0.08), 0 1px 3px rgba(20, 23, 28, 0.06);
+  --shadow-sm: 0 1px 2px rgba(20, 23, 28, 0.05);
+  --radius: 14px;
+  font-size: 13px;
+}
+body { background: #e6e8ec; -webkit-font-smoothing: antialiased; }
+
+/* 面板：白底、无描边、柔和阴影、不做毛玻璃 */
+.inspector, .fish-hud, .assist, .onboard, .vp-popover, .vp-clock {
+  border: 0;
+  border-radius: var(--radius);
+  background: #ffffff;
+  box-shadow: var(--shadow);
+  backdrop-filter: none;
+}
+
+/* 分区标题：小号大写灰字，数字等宽 */
+h2, .tab-panel h3 { color: var(--ink-soft); font-size: 0.8rem; font-weight: 600; letter-spacing: 0.09em; text-transform: uppercase; }
+.tab-panel h3 { margin: 14px 0 6px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 0.74rem; }
+b, .v, .fish-hud-stats b, .rig-field b { font-variant-numeric: tabular-nums; }
+
+/* 标签条：灰底分段，选中石墨色 */
+.tab-bar { gap: 4px; padding: 8px; background: #f4f5f7; border-bottom: 1px solid var(--line); }
+.tab { border-radius: 8px; color: var(--ink-soft); font-weight: 600; }
+.tab:hover { background: #ffffff; }
+.tab-active { background: var(--graphite); color: #ffffff; border-color: var(--graphite); box-shadow: none; }
+
+/* 按钮：细边白底，hover 浅灰；主按钮石墨色；分段按钮选中石墨 */
+button { border-color: var(--line); border-radius: 9px; background: #ffffff; box-shadow: none; }
+button:hover { border-color: #cfd3d9; background: #f4f5f7; }
+button:focus-visible { outline-color: var(--mint); }
+.onboard-next { background: var(--graphite); border-color: var(--graphite); color: #ffffff; font-weight: 700; }
+.onboard-next:hover { background: #3a3e46; border-color: #3a3e46; }
+.seg-active, .gear-opt-on, .assist-chip-on { background: var(--graphite) !important; border-color: var(--graphite) !important; color: #ffffff !important; box-shadow: none !important; }
+.assist-fab { background: var(--graphite); border-color: var(--graphite); }
+.assist-fab:hover { background: #3a3e46; border-color: #3a3e46; }
+.assist-fab-badge { background: var(--warm); color: #1a1200; }
+.assist-chip-likely { border-color: var(--warm); }
+.assist-likely { color: #a87f00; }
+.op-btn-alt { border-color: var(--line); color: var(--ink); background: #f4f5f7; }
+
+/* 面板内的次级块：浅灰底卡片代替描边 */
+.assist-card, .rig-posture li, .assist-input, .data-source textarea, .scene-panel textarea { background: #f4f5f7; border-color: transparent; }
+.assist-done { background: rgba(47, 185, 106, 0.08); color: #1f7a47; }
+.fish-hud-signal { background: #fdeeee; color: var(--bad); }
