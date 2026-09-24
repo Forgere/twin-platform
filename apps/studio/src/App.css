@@ -558,3 +558,5 @@ h2 { margin: 0 0 12px; color: var(--accent); font-size: 0.82rem; letter-spacing:
 .assist-judge[open] > summary { margin-bottom: 4px; }
 .sandbox-tech { margin-top: 8px; }
 .sandbox-tech > summary { cursor: pointer; font-size: 0.72rem; color: var(--ink-soft); }
+.assist-done p { margin: 0; }
+.assist-since { margin-top: 3px !important; font-family: var(--mono); font-size: 0.7rem; color: var(--ink-soft); }

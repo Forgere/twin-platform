@@ -63,7 +63,9 @@ export interface FishingAssistantApi {
   askAbout(situation: SituationId): void;
 }
 
-export default function FishingAssistant(props: { session: StudioSession; connect?: (api: FishingAssistantApi) => void }) {
+type Counts = NonNullable<ReturnType<typeof readRig>>['counts'];
+
+export default function FishingAssistant(props: { session: StudioSession; tick: number; connect?: (api: FishingAssistantApi) => void }) {
   const [open, setOpen] = createSignal(false);
   const [situation, setSituation] = createSignal<SituationId>();
   const [advice, setAdvice] = createSignal<Advice>();
@@ -75,6 +77,21 @@ export default function FishingAssistant(props: { session: StudioSession; connec
   const [judging, setJudging] = createSignal(false);
   const [done, setDone] = createSignal<string>();
   const [feedbackGiven, setFeedbackGiven] = createSignal<boolean>();
+  /** 照做那一刻的计数：之后与当前计数相减，回答"改了之后有没有用"。 */
+  const [baseline, setBaseline] = createSignal<Counts>();
+
+  const since = () => {
+    props.tick;
+    const base = baseline();
+    const now = readRig(props.session)?.counts;
+    if (!base || !now) return undefined;
+    return {
+      casts: now.casts - base.casts,
+      bites: now.bites - base.bites,
+      catches: now.catches - base.catches,
+      emptyHooks: now.emptyHooks - base.emptyHooks,
+    };
+  };
   let log: DecisionLog | undefined;
 
   const speech = createSpeech();
@@ -129,9 +146,10 @@ export default function FishingAssistant(props: { session: StudioSession; connec
       { action: action as FishingActionId, params },
       props.session.world.time,
     );
+    setBaseline(readRig(props.session)?.counts);
     refreshWhilePaused(props.session);
     props.session.controller.play();
-    setDone(note + '。先观察几竿，再回来问。');
+    setDone(note);
   };
 
   const feedback = (useful: boolean): void => {
@@ -310,7 +328,26 @@ export default function FishingAssistant(props: { session: StudioSession; connec
             </details>
           </Show>
 
-          <Show when={done()}>{(message) => <p class="assist-done">✅ {message()}</p>}</Show>
+          <Show when={done()}>
+            {(message) => (
+              <div class="assist-done">
+                <p>✅ {message()}</p>
+                <Show when={since()}>
+                  {(delta) => (
+                    <p class="assist-since">
+                      {delta().casts === 0
+                        ? '观察中，等下一竿…'
+                        : '改后 ' + delta().casts + ' 竿：口 ' + delta().bites + ' · 中 ' + delta().catches + ' · 空 ' + delta().emptyHooks}
+                      <Show when={delta().casts >= 5}>
+                        {' — '}
+                        {delta().catches > 0 ? '见效了，保持。' : delta().bites > 0 ? '有口没中，点「有口打不中」再调。' : '还没口，可以再问一次。'}
+                      </Show>
+                    </p>
+                  )}
+                </Show>
+              </div>
+            )}
+          </Show>
         </section>
       </Show>
     </>

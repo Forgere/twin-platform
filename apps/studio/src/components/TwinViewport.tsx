@@ -787,7 +787,7 @@ export default function TwinViewport() {
             {/* 钓场：钓况 HUD（右上）+ 钓鱼助手（右下）常驻；开钓向导浮在画布中央。 */}
             <Show when={profile() === 'fishing'}>
               <FishingHud session={session()} tick={tick()} onReconfigure={openOnboarding} onAsk={(id) => assistant?.askAbout(id)} />
-              <FishingAssistant session={session()} connect={(api) => (assistant = api)} />
+              <FishingAssistant session={session()} tick={tick()} connect={(api) => (assistant = api)} />
             </Show>
             {/* keyed：每个会话一个向导实例；会话一换，旧向导卸掉、新会话另起。 */}
             <Show when={onboardingFor() === session() ? onboardingFor() : undefined} keyed>
