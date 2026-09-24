@@ -207,7 +207,16 @@ export default function FishingAssistant(props: { session: StudioSession; tick: 
       </Show>
 
       <Show when={open()}>
-        <section class="assist" aria-label="钓鱼助手">
+        {/* Esc 收起：焦点在助手里任何位置都生效；在听写时先停听写，不直接收起。 */}
+        <section
+          class="assist"
+          aria-label="钓鱼助手"
+          onKeyDown={(event) => {
+            if (event.key !== 'Escape') return;
+            if (speech.listening()) speech.stop();
+            else setOpen(false);
+          }}
+        >
           <header class="assist-head">
             <strong>🎣 钓鱼助手</strong>
             <span class="assist-sub">遇到什么情况？</span>
