@@ -347,8 +347,8 @@ export default function FishingAssistant(props: { session: StudioSession; tick: 
                       <p class="assist-note assist-bad">已降级：{item().degradeReason}</p>
                     </Show>
                     <div class="onboard-row">
-                      <button type="button" class="seg" onClick={() => execute(item().decision.action, item().decision.params)}>
-                        改照它做
+                      <button type="button" class="seg" disabled={done() !== undefined} onClick={() => execute(item().decision.action, item().decision.params)}>
+                        {done() !== undefined ? '已执行过' : '改照它做'}
                       </button>
                       <button type="button" disabled={feedbackGiven() !== undefined} onClick={() => feedback(true)}>
                         👍
