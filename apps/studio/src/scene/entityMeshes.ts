@@ -41,7 +41,11 @@ export interface EntityAnim {
   statusLight?: THREE.MeshStandardMaterial;
   /** 缓存货架预置货位（仅 buffer），按 attrs.fill 显隐。 */
   bufferSlots?: THREE.Mesh[];
-  /** 台钓钓组的线（主线 / 子线）：每帧按两端实体的当前位置拉伸。 */
+  /**
+   * 台钓钓组的线（主线 / 子线）：每帧按两端实体的**挂线点**拉伸。
+   * 挂线点 = 实体位置 + 该实体模型 `userData.lineAnchor`（本地偏移，缺省为原点），
+   * 例如线穿漂脚而不是漂身中心、子线系在钩柄眼上而不是钩门中间。
+   */
   fishingLines?: {
     readonly mesh: THREE.Mesh;
     readonly fromId: string;
@@ -55,6 +59,10 @@ export interface EntityAnim {
   }[];
   /** 顶升链带的链轮（仅 cassette）：顶起后按出货方向自转。 */
   sprockets?: THREE.Mesh[];
+  /** 水面涟漪（仅 water）：按渲染时钟从中心向外扩散、淡出，循环播放。 */
+  ripples?: { readonly mesh: THREE.Mesh; readonly phase: number; readonly maxRadius: number; readonly period: number }[];
+  /** 摆动件（水草叶片 / 鱼尾）：绕 axis 在 base 附近做正弦摆动，纯表现，不写世界状态。 */
+  sway?: { readonly mesh: THREE.Object3D; readonly axis: 'y' | 'z'; readonly base: number; readonly amp: number; readonly speed: number; readonly phase: number }[];
   /** 顶升链带上的链齿（仅 cassette）：沿 local Z 循环平移，链条才像在跑。 */
   chainTeeth?: { mesh: THREE.Mesh; halfSpan: number }[];
   /** 出货方向：+1 沿 local +Z，-1 沿 local -Z。决定链轮转向与链齿走向。 */
@@ -1292,10 +1300,16 @@ const SINKER_R = 0.045;
 const SINKER_H = 0.11;
 const HOOK_R = 0.06;
 const HOOK_TUBE = 0.018;
+const HOOK_SHANK_H = HOOK_R * 2.2;
 const BAIT_R = 0.07;
-/** 仿真里钩和饵是同一个点（饵挂在钩上）；渲染时左右分开，否则饵把钩整个盖住。 */
-const HOOK_DX = 0.1;
-const BAIT_DX = -0.1;
+/**
+ * 仿真里钩和饵是同一个点（饵挂在钩上），实体位置 = 钩门底部。
+ * 钩柄在 +X 侧、钩尖在 −X 侧；饵穿在钩尖上并往外偏半个饵径，
+ * 这样既"挂在钩上"，又不会把钩柄和钩门整个盖住。
+ */
+const HOOK_SHANK_X = HOOK_R;
+const HOOK_POINT_X = -HOOK_R;
+const BAIT_DX = HOOK_POINT_X - BAIT_R * 0.55;
 /** 线的半径：按真实粗细缩下去就没了，这里给到缩放后仍看得出是一条线。 */
 const FISHING_LINE_R = 0.022;
 
@@ -1303,19 +1317,26 @@ const FISHING_LINE_R = 0.022;
 function buildFloat(color: string): THREE.Group {
   const group = new THREE.Group();
   group.userData.codePath = 'entityMeshes.ts:buildFloat';
+  // 零件都挂在内层枢轴上：漂相动作只动枢轴，实体位置仍是内核给的静止位。
+  const pivot = new THREE.Group();
+  group.add(pivot);
 
   const body = new THREE.Mesh(new THREE.SphereGeometry(FLOAT_BODY_R, 14, 12), material(color, { roughness: 0.32 }));
   body.scale.set(1, FLOAT_BODY_H / (FLOAT_BODY_R * 2), 1);
   body.castShadow = true;
-  group.add(body);
+  pivot.add(body);
 
   const tailBottom = FLOAT_BODY_H / 2;
   for (let index = 0; index < FLOAT_MARKS; index += 1) {
     const bandColor = index % 2 === 0 ? '#e63946' : '#1f2933';
-    group.add(at(cyl(FLOAT_TAIL_R, FLOAT_MARK_H, bandColor, 10, { roughness: 0.35 }), 0, tailBottom + FLOAT_MARK_H * (index + 0.5), 0));
+    pivot.add(at(cyl(FLOAT_TAIL_R, FLOAT_MARK_H, bandColor, 10, { roughness: 0.35 }), 0, tailBottom + FLOAT_MARK_H * (index + 0.5), 0));
   }
 
-  group.add(at(cyl(FLOAT_TAIL_R, FLOAT_STEM_H, '#5b6472', 8, { roughness: 0.4 }), 0, -FLOAT_BODY_H / 2 - FLOAT_STEM_H / 2, 0));
+  pivot.add(at(cyl(FLOAT_TAIL_R, FLOAT_STEM_H, '#5b6472', 8, { roughness: 0.4 }), 0, -FLOAT_BODY_H / 2 - FLOAT_STEM_H / 2, 0));
+  // 漂座在漂脚末端：主线从这里穿过，上接竿梢、下接铅皮座，不穿漂身。
+  group.userData.lineAnchor = [0, -FLOAT_BODY_H / 2 - FLOAT_STEM_H, 0];
+  group.userData.lineAnchorPivot = pivot;
+  group.userData.anim = { kind: 'float' } as EntityAnim;
   return group;
 }
 
@@ -1327,23 +1348,40 @@ function buildSinker(color: string): THREE.Group {
   return group;
 }
 
-/** 鱼钩：钩柄 + 半圆钩门（Torus 半圈），整体偏到一侧，别和饵叠在一起。 */
+/**
+ * 鱼钩：钩柄 + 半圆钩门（Torus 下半圈）+ 钩尖短刺。
+ * 钩柄立在钩门的 +X 端（不是钩门中间），柄顶是钩眼——子线系在这里。
+ */
 function buildHook(color: string): THREE.Group {
   const group = new THREE.Group();
   group.userData.codePath = 'entityMeshes.ts:buildHook';
-  group.add(at(cyl(HOOK_TUBE, HOOK_R * 1.6, color, 10, { roughness: 0.3, metalness: 0.65 }), HOOK_DX, HOOK_R * 0.8, 0));
-  const bend = new THREE.Mesh(new THREE.TorusGeometry(HOOK_R, HOOK_TUBE, 10, 20, Math.PI), material(color, { roughness: 0.3, metalness: 0.65 }));
+  // 零件挂在内层枢轴上：朝向 / 被鱼拖拽只动枢轴，实体位置仍是内核给的值。
+  const pivot = new THREE.Group();
+  group.add(pivot);
+  const metal = { roughness: 0.3, metalness: 0.65 };
+  // 钩门圆心抬高 HOOK_R，让实体位置落在钩门最低点（饵 / 钩触底时贴着底）。
+  const bendY = HOOK_R;
+  const bend = new THREE.Mesh(new THREE.TorusGeometry(HOOK_R, HOOK_TUBE, 10, 20, Math.PI), material(color, metal));
   bend.rotation.z = Math.PI;
   bend.castShadow = true;
-  group.add(at(bend, HOOK_DX, -HOOK_R * 0.05, 0));
+  pivot.add(at(bend, 0, bendY, 0));
+  pivot.add(at(cyl(HOOK_TUBE, HOOK_SHANK_H, color, 10, metal), HOOK_SHANK_X, bendY + HOOK_SHANK_H / 2, 0));
+  const point = new THREE.Mesh(new THREE.ConeGeometry(HOOK_TUBE * 1.3, HOOK_R * 0.7, 8), material(color, metal));
+  pivot.add(at(point, HOOK_POINT_X, bendY + HOOK_R * 0.35, 0));
+  group.userData.lineAnchor = [HOOK_SHANK_X, bendY + HOOK_SHANK_H, 0];
+  group.userData.lineAnchorPivot = pivot;
   return group;
 }
 
-/** 饵：一小团，搓饵 / 拉饵都这样示意。 */
+/** 饵：一小团，穿在钩尖上（搓饵 / 拉饵都这样示意）。 */
 function buildBait(color: string): THREE.Group {
   const group = new THREE.Group();
   group.userData.codePath = 'entityMeshes.ts:buildBait';
-  group.add(at(sphere(BAIT_R, color, { roughness: 0.75 }), BAIT_DX, 0, 0));
+  // 与钩同构的枢轴：控制器给钩和饵写同一个姿态，饵始终穿在钩尖上。
+  const pivot = new THREE.Group();
+  group.add(pivot);
+  pivot.add(at(sphere(BAIT_R, color, { roughness: 0.75 }), BAIT_DX, HOOK_R * 0.9, 0));
+  group.userData.lineAnchorPivot = pivot;
   return group;
 }
 
@@ -1364,23 +1402,24 @@ function buildWater(size: TwinVector3, color: string): THREE.Group {
   surface.castShadow = false;
   surface.receiveShadow = false;
   group.add(surface);
-  // 抛竿点的涟漪：三圈白环示意"漂落水"，静态但足够让水面有内容。
-  const ripples: [number, number][] = [
-    [0.28, 0.5],
-    [0.46, 0.34],
-    [0.64, 0.2],
-  ];
-  for (const [radius, opacity] of ripples) {
-    const ring = new THREE.Mesh(
-      new THREE.TorusGeometry(radius, 0.012, 8, 40),
-      material('#ffffff', { roughness: 0.25, opacity }),
-    );
+  // 水体下半层压一块更深的色：浅处透、深处暗，读得出"有深度"而不是一块均匀玻璃。
+  const deep = rbox(size[0] * 0.99, size[1] * 0.5, size[2] * 0.99, '#123f5c', { roughness: 0.3, opacity: 0.22 });
+  deep.position.y = -size[1] / 4;
+  deep.castShadow = false;
+  deep.receiveShadow = false;
+  group.add(deep);
+  // 漂落点的涟漪：三圈白环错相扩散、淡出（每圈独占材质，才能各自改透明度）。
+  const ripples: NonNullable<EntityAnim['ripples']> = [];
+  for (let index = 0; index < 3; index += 1) {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(1, 0.012, 8, 48), material('#ffffff', { roughness: 0.25, opacity: 0.5 }));
     ring.rotation.x = -Math.PI / 2;
     ring.position.y = size[1] / 2 + 0.008;
     ring.castShadow = false;
     ring.receiveShadow = false;
     group.add(ring);
+    ripples.push({ mesh: ring, phase: index / 3, maxRadius: 0.9, period: 3.6 });
   }
+  group.userData.anim = { kind: 'water', ripples } as EntityAnim;
   return group;
 }
 
@@ -1388,28 +1427,35 @@ function buildWater(size: TwinVector3, color: string): THREE.Group {
 const ROD_LENGTH = 2.6;
 
 /**
- * 鱼竿：锥形竿身 + 握把，整体烘焙一个斜指水面的倾角——装饰实体没有行为，
- * 朝向直接烘进模型，实体声明里只有中心位置。
+ * 鱼竿：锥形竿身 + 握把。竿身以实体位置为中心、沿 +Y 摆放，再整体转向竿梢。
+ *
+ * 模板声明 tipOffset（竿梢相对竿中心的偏移）时，竿长 = 2·|tipOffset|、朝向 = tipOffset，
+ * 竿尖恰好落在竿梢导线环上——主线从竿梢出发才连得上。未声明时退回固定长度与斜角。
  */
 function buildRod(color: string, config?: Record<string, unknown>): THREE.Group {
   const group = new THREE.Group();
   group.userData.codePath = 'entityMeshes.ts:buildRod';
-  const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.035, ROD_LENGTH, 10), material(color, { roughness: 0.55 }));
+  const offset = config?.tipOffset;
+  const dir =
+    Array.isArray(offset) && offset.length === 3
+      ? new THREE.Vector3(offset[0] as number, offset[1] as number, offset[2] as number)
+      : undefined;
+  const declared = dir !== undefined && dir.lengthSq() > 1e-9;
+  const length = declared ? dir.length() * 2 : ROD_LENGTH;
+
+  const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.035, length, 10), material(color, { roughness: 0.55 }));
   rod.castShadow = true;
   group.add(rod);
-  const grip = cyl(0.042, 0.45, '#3b2f2a', 10, { roughness: 0.85 });
-  grip.position.y = -ROD_LENGTH / 2 - 0.18;
+  // 握把套在竿根上（在竿身长度之内），不再伸出竿根之外。
+  const gripH = 0.45;
+  const grip = cyl(0.042, gripH, '#3b2f2a', 10, { roughness: 0.85 });
+  grip.position.y = -length / 2 + gripH / 2;
   grip.castShadow = true;
   group.add(grip);
-  // 竿尖沿 +Y；模板声明 tipOffset（竿尖相对竿中心的偏移），让尖对准竿梢导线环——
-  // 这样主线从竿梢出发在视觉上才连得对。未声明时退回固定斜角。
-  const offset = config?.tipOffset;
-  if (Array.isArray(offset) && offset.length === 3) {
-    const dir = new THREE.Vector3(offset[0] as number, offset[1] as number, offset[2] as number);
-    if (dir.lengthSq() > 1e-9) {
-      group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
-      return group;
-    }
+
+  if (declared) {
+    group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+    return group;
   }
   group.rotation.z = 0.62;
   group.rotation.y = -0.55;
@@ -1442,20 +1488,27 @@ function buildPondBottom(size: TwinVector3, color: string): THREE.Group {
 function buildWeed(color: string): THREE.Group {
   const group = new THREE.Group();
   group.userData.codePath = 'entityMeshes.ts:buildWeed';
+  const sway: NonNullable<EntityAnim['sway']> = [];
   for (let index = 0; index < 6; index += 1) {
     const height = 0.22 + ((index * 37) % 23) / 100;
     const blade = new THREE.Mesh(new THREE.ConeGeometry(0.03, height, 6), material(color, { roughness: 0.7 }));
     blade.position.set((index - 2.5) * 0.09, height / 2, ((index % 3) - 1) * 0.05);
     blade.rotation.z = index % 2 === 0 ? 0.12 : -0.09;
     blade.castShadow = false;
+    // 锥体绕自身中心转会"飘"，把几何下移让转轴落在根部，叶片才是从底上摆。
+    blade.geometry.translate(0, height / 2, 0);
+    blade.position.y = 0;
     group.add(blade);
+    sway.push({ mesh: blade, axis: 'z', base: blade.rotation.z, amp: 0.1, speed: 1.1 + index * 0.13, phase: index * 0.9 });
   }
+  group.userData.anim = { kind: 'weed', sway } as EntityAnim;
   return group;
 }
 
 /**
  * 鱼影：压扁的纺锤身 + 尾鳍 + 背鳍，深灰蓝剪影色。
- * 静态装饰（不做游动行为——装饰一动，确定性回放就得给鱼也上快照）。
+ * 位置固定（不做游动行为——装饰一动，确定性回放就得给鱼也上快照）；
+ * 摆尾只是渲染层按渲染时钟做的表现，不写世界状态。
  */
 function buildFish(color: string, size: TwinVector3): THREE.Group {
   const group = new THREE.Group();
@@ -1467,14 +1520,27 @@ function buildFish(color: string, size: TwinVector3): THREE.Group {
   group.add(body);
   const tail = new THREE.Mesh(new THREE.ConeGeometry(radius * 0.55, radius * 1.1, 8), material(color, { roughness: 0.5 }));
   tail.rotation.z = Math.PI / 2;
-  tail.position.x = -radius * 1.55;
+  tail.position.x = -radius * 0.55;
   tail.castShadow = false;
-  group.add(tail);
+  // 尾鳍挂在尾柄枢轴上：摆的是枢轴，尾鳍绕尾柄甩，而不是绕自身中心转。
+  const tailPivot = new THREE.Group();
+  tailPivot.position.x = -radius * 1.0;
+  tailPivot.add(tail);
+  group.add(tailPivot);
   const fin = new THREE.Mesh(new THREE.ConeGeometry(radius * 0.3, radius * 0.6, 6), material(color, { roughness: 0.5 }));
   fin.position.set(radius * 0.1, radius * 0.62, 0);
   fin.rotation.x = Math.PI / 4;
   fin.castShadow = false;
   group.add(fin);
+  // 只摆尾、身体轻晃：鱼停在固定位置（装饰没有行为），但看起来是活的。
+  const phase = size[0] * 17;
+  group.userData.anim = {
+    kind: 'fish',
+    sway: [
+      { mesh: tailPivot, axis: 'y', base: 0, amp: 0.45, speed: 5.5, phase },
+      { mesh: body, axis: 'y', base: 0, amp: 0.05, speed: 5.5, phase: phase + Math.PI },
+    ],
+  } as EntityAnim;
   return group;
 }
 

@@ -47,10 +47,40 @@ describe('台钓钓组模型', () => {
     expect(box.max.y - box.min.y).toBeGreaterThan(0.8);
   });
 
-  test('钩和饵分开画，不会饵把钩盖住', () => {
-    const hookBox = new THREE.Box3().setFromObject(buildEntityMesh(entity('hook', '#c9ccd1', [0.12, 0.2, 0.12])));
+  test('饵穿在钩尖上：与钩门相接，但不盖住钩柄和钩眼', () => {
+    const hook = buildEntityMesh(entity('hook', '#c9ccd1', [0.12, 0.2, 0.12]));
+    const hookBox = new THREE.Box3().setFromObject(hook);
     const baitBox = new THREE.Box3().setFromObject(buildEntityMesh(entity('bait', '#e07a5f', [0.14, 0.14, 0.14])));
-    expect(hookBox.min.x).toBeGreaterThan(baitBox.max.x);
+    expect(baitBox.intersectsBox(hookBox)).toBe(true);
+    const eye = hook.userData.lineAnchor as [number, number, number];
+    expect(baitBox.max.x).toBeLessThan(eye[0]);
+  });
+
+  test('挂线点：钩眼在钩柄顶端（钩的最右上角），漂座在漂脚末端（漂的最低点）', () => {
+    const hook = buildEntityMesh(entity('hook', '#c9ccd1', [0.12, 0.2, 0.12]));
+    const hookBox = new THREE.Box3().setFromObject(hook);
+    const eye = hook.userData.lineAnchor as [number, number, number];
+    expect(eye[1]).toBeCloseTo(hookBox.max.y, 1);
+    expect(eye[0]).toBeGreaterThan(0);
+    // 实体位置 = 钩门最低点。
+    expect(hookBox.min.y).toBeCloseTo(-0.018, 2);
+
+    const float = buildEntityMesh(entity('float', '#ff7a3c', [0.1, 0.9, 0.1]));
+    const seat = float.userData.lineAnchor as [number, number, number];
+    expect(seat[1]).toBeCloseTo(new THREE.Box3().setFromObject(float).min.y, 5);
+  });
+
+  test('鱼竿按 tipOffset 定长定向：竿尖正好落在竿梢导线环上', () => {
+    const tipOffset: [number, number, number] = [-0.825, 0.885, -0.625];
+    const rod = buildEntityMesh({ ...entity('rod', '#8a5a2b', [0.07, 2.7, 0.07]), config: { tipOffset } });
+    rod.updateMatrixWorld(true);
+    const tip = new THREE.Vector3();
+    const box = new THREE.Box3().setFromObject(rod);
+    // 竿尖 = 包围盒里离中心沿 tipOffset 方向最远的那端。
+    const dir = new THREE.Vector3(...tipOffset);
+    tip.copy(dir);
+    expect(box.containsPoint(tip.clone().multiplyScalar(0.99))).toBe(true);
+    expect(box.containsPoint(tip.clone().multiplyScalar(1.05))).toBe(false);
   });
 
   test('逻辑钓组提供七段线（主线竿梢→漂→铅→8字环 + 两根子线各两段），端点与场景实体对齐', () => {
@@ -90,5 +120,11 @@ describe('台钓钓组模型', () => {
       if ((child as THREE.Mesh).isMesh && (child as THREE.Mesh).castShadow) shadows += 1;
     });
     expect(shadows).toBe(0);
+  });
+  test('浮漂零件全挂在内层枢轴上：漂相动作只动枢轴，实体静止位不变', () => {
+    const float = buildEntityMesh(entity('float', '#ff7a3c', [0.1, 0.9, 0.1]));
+    const pivot = float.userData.lineAnchorPivot as THREE.Object3D;
+    expect(float.children).toEqual([pivot]);
+    expect(meshCount(pivot as THREE.Group)).toBe(7);
   });
 });

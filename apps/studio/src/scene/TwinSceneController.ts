@@ -1,4 +1,5 @@
 import CameraControls from 'camera-controls';
+import { floatSignalPose, hookPullPose, SIGNAL_DURATION, type FloatSignalName } from './floatSignal';
 import type { ReplayController } from '@twin-platform/replay-core';
 import type { TwinScene, TwinVector3, FrameDelta } from '@twin-platform/world-kernel';
 import * as THREE from 'three';
@@ -74,6 +75,33 @@ const CHAIN_RUN = 0.6;
 /** 钓组线每帧拉伸复用的临时量，避免每帧分配。 */
 const FISHING_UP = new THREE.Vector3(0, 1, 0);
 const fishingDirection = new THREE.Vector3();
+const fishingFrom = new THREE.Vector3();
+/** 钓场固定模板：漂相来自 rig-01 的 attrs.signal，一次抛竿（attrs.casts 递增）触发一次动作。 */
+const FISHING_RIG_ID = 'rig-01';
+const FISHING_FLOAT_ID = 'float-01';
+const FISHING_SWIVEL_ID = 'swivel-01';
+/**
+ * 两根并联子线的渲染姿态：仿真里双钩同轴（x = z = 0），直接画会两根线叠成一根、
+ * 两只钩朝同一边。这里把上钩摆到 −X、下钩摆到 +X（子线张成 V 字），钩尖各朝外。
+ * side = 外侧方向，yaw 让钩尖（模型 −X）朝向 side。被咬的是下钩（台钓里鱼多吃底钩）。
+ */
+const FISHING_HOOKS = [
+  { hookId: 'hook-upper-01', baitId: 'bait-upper-01', side: -1, yaw: 0, bitten: false },
+  { hookId: 'hook-lower-01', baitId: 'bait-lower-01', side: 1, yaw: Math.PI, bitten: true },
+] as const;
+/** 子线张开的水平距离（米，示意比例）。 */
+const HOOK_SPLAY = 0.14;
+const fishingTo = new THREE.Vector3();
+
+/** 钓组零件的挂线点（世界坐标）：实体位置 + 模型声明的本地 `lineAnchor`（随零件旋转）。 */
+function lineAnchorOf(object: THREE.Object3D, out: THREE.Vector3): THREE.Vector3 {
+  const anchor = object.userData.lineAnchor as readonly [number, number, number] | undefined;
+  const pivot = object.userData.lineAnchorPivot as THREE.Object3D | undefined;
+  out.set(anchor?.[0] ?? 0, anchor?.[1] ?? 0, anchor?.[2] ?? 0);
+  // 挂线点跟着内层枢轴走（浮漂的漂相动作），线才不会和漂脱开。
+  if (pivot) out.applyEuler(pivot.rotation).add(pivot.position);
+  return out.applyQuaternion(object.quaternion).add(object.position);
+}
 
 /** 物料类实体：走实例化池，不走逐实体 Group。 */
 function isCargoKind(kind: string): boolean {
@@ -581,10 +609,25 @@ export class TwinSceneController {
   private animateSubParts(realDelta: number): void {
     const playing = this.controller.playing;
     if (playing) this.beltTime += realDelta;
+    this.animateFloatSignal(playing ? realDelta : 0);
     for (const object of this.entityMeshes.values()) {
       const anim = object.userData.anim as EntityAnim | undefined;
       if (!anim) continue;
       if (anim.belt) anim.belt.uniforms.time.value = this.beltTime;
+      // 水 / 水草 / 鱼的纯表现动效：跟皮带箭头同一个时钟（暂停即停），不读写世界状态。
+      if (anim.ripples) {
+        for (const ripple of anim.ripples) {
+          const k = (this.beltTime / ripple.period + ripple.phase) % 1;
+          const radius = 0.15 + k * ripple.maxRadius;
+          ripple.mesh.scale.set(radius, radius, 1);
+          (ripple.mesh.material as THREE.MeshStandardMaterial).opacity = 0.55 * (1 - k);
+        }
+      }
+      if (anim.sway) {
+        for (const part of anim.sway) {
+          part.mesh.rotation[part.axis] = part.base + part.amp * Math.sin(this.beltTime * part.speed + part.phase);
+        }
+      }
       // 滚筒不再自转：输送线滚筒属装饰件，转动既无物理含义又增加每帧矩阵写入，
       // 静态可见即可（保留用户能看见"是一排滚筒"的语义）。
       // 顶升链带：只有真的被顶起来才转。顶升量 = 托举座相对初始高度的偏移，
@@ -614,12 +657,15 @@ export class TwinSceneController {
       // 调漂后即使暂停，线也要立刻跟着新的钩饵位置走。
       if (anim.fishingLines) {
         for (const line of anim.fishingLines) {
-          const from = this.entityMeshes.get(line.fromId)?.position;
-          const to = this.entityMeshes.get(line.toId)?.position;
-          if (!from || !to) {
+          const fromObject = this.entityMeshes.get(line.fromId);
+          const toObject = this.entityMeshes.get(line.toId);
+          if (!fromObject || !toObject) {
             line.mesh.visible = false;
             continue;
           }
+          // 线挂在零件的挂线点（漂座 / 钩眼），不是实体原点。
+          const from = lineAnchorOf(fromObject, fishingFrom);
+          const to = lineAnchorOf(toObject, fishingTo);
           // 子线弯曲：钝区子线松弛，控制器在两端之间插一个下垂的中间点，
           // 把该段拆成"前段 / 后段"两段折线（bendRole 决定本 mesh 取前半还是后半）。
           let ax = from.x;
@@ -662,6 +708,71 @@ export class TwinSceneController {
           fishingDirection.set(bx - ax, by - ay, bz - az).normalize();
           line.mesh.quaternion.setFromUnitVectors(FISHING_UP, fishingDirection);
         }
+      }
+    }
+  }
+
+  /** 当前这一口的漂相与已播放秒数；casts 变化且有口时重新起播。 */
+  private floatBite = { casts: -1, signal: 'none' as FloatSignalName, t: SIGNAL_DURATION };
+
+  /**
+   * 浮漂的漂相动作（顿口 / 送漂 / 黑漂 / 走漂）：只摆浮漂模型的内层枢轴，
+   * 按渲染时钟播放（暂停即停），不写世界状态。
+   */
+  private animateFloatSignal(delta: number): void {
+    const float = this.entityMeshes.get(FISHING_FLOAT_ID);
+    const pivot = float?.userData.lineAnchorPivot as THREE.Object3D | undefined;
+    if (!pivot) return;
+    const attrs = this.controller.world.getEntity(FISHING_RIG_ID)?.attrs;
+    const casts = typeof attrs?.casts === 'number' ? attrs.casts : 0;
+    const signal = (typeof attrs?.signal === 'string' ? attrs.signal : 'none') as FloatSignalName;
+    const bite = this.floatBite;
+    if (casts !== bite.casts) {
+      // 首次看到（切场景 / 回放跳转）只对齐计数，不补播已经过去的那一口。
+      const fresh = bite.casts >= 0 && casts > bite.casts;
+      bite.casts = casts;
+      bite.signal = signal;
+      bite.t = fresh && signal !== 'none' ? 0 : SIGNAL_DURATION;
+    }
+    bite.t += delta;
+    const pose = floatSignalPose(bite.signal, bite.t);
+    pivot.position.set(pose.dx, pose.dy, 0);
+    pivot.rotation.z = pose.tilt;
+    this.animateHooks(bite.signal, bite.t);
+  }
+
+  /**
+   * 双钩的姿态：子线张成 V、钩柄顺着子线指向 8 字环；有口时被咬的钩连饵一起被鱼拖走，
+   * 带高频抖动（鱼甩头）。只写钩 / 饵的内层枢轴，线的挂线点跟着枢轴走。
+   */
+  private animateHooks(signal: FloatSignalName, t: number): void {
+    const swivel = this.entityMeshes.get(FISHING_SWIVEL_ID)?.position;
+    if (!swivel) return;
+    const pull = hookPullPose(signal, t);
+    for (const spec of FISHING_HOOKS) {
+      const hook = this.entityMeshes.get(spec.hookId);
+      const hookPivot = hook?.userData.lineAnchorPivot as THREE.Object3D | undefined;
+      if (!hook || !hookPivot) continue;
+      let dx = spec.side * HOOK_SPLAY;
+      let dy = 0;
+      let dz = 0;
+      if (spec.bitten) {
+        const shake = pull.shake * Math.sin(t * 38);
+        dx += spec.side * pull.out;
+        dy += pull.dy;
+        dz += shake;
+      }
+      // 钩柄沿子线：本地 +Y 转向"钩→8 字环"。yaw 翻面后本地 X 与世界 X 反向，倾角符号随之翻。
+      const toSwivelX = swivel.x - (hook.position.x + dx);
+      const toSwivelY = Math.max(0.02, swivel.y - (hook.position.y + dy));
+      const lean = Math.atan2(toSwivelX, toSwivelY);
+      const tilt = spec.yaw === 0 ? -lean : lean;
+      for (const object of [hook, this.entityMeshes.get(spec.baitId)]) {
+        const pivot = object?.userData.lineAnchorPivot as THREE.Object3D | undefined;
+        if (!object || !pivot) continue;
+        // 饵实体与钩实体同位（仿真同点），偏移相对各自原点即可重合。
+        pivot.position.set(dx + hook.position.x - object.position.x, dy + hook.position.y - object.position.y, dz);
+        pivot.rotation.set(0, spec.yaw, tilt);
       }
     }
   }
