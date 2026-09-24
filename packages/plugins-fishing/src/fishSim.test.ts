@@ -60,6 +60,19 @@ describe('fish-sim 行为', () => {
     expect(world.getEventLog().some((event) => event.type === 'fish:cast')).toBe(true);
   });
 
+  test('有口才记咬的是哪只钩，上下钩都会被咬；无口记 none', () => {
+    const world = new TwinWorld(buildFishingScene({ castInterval: 1 }), {
+      seed: 11,
+      maxStepsPerAdvance: 600,
+      behaviors: [createFishSimBehavior()],
+    });
+    world.runSteps(60 * 400);
+    const casts = world.getEventLog().filter((event) => event.type === 'fish:cast');
+    const hooks = new Set(casts.filter((event) => event.payload?.bite === true).map((event) => event.payload?.bitHook));
+    expect(hooks).toEqual(new Set(['upper', 'lower']));
+    expect(casts.filter((event) => event.payload?.bite !== true).every((event) => event.payload?.bitHook === 'none')).toBe(true);
+  });
+
   test('布局实体跟着钓组动，不是静态装饰', () => {
     const world = new TwinWorld(buildFishingScene({ rig: { d: 0 } }), {
       seed: 1,
@@ -73,5 +86,52 @@ describe('fish-sim 行为', () => {
     const after = world.getEntity('hook-lower-01')?.transform.position[1];
     expect(typeof before).toBe('number');
     expect(after).not.toBe(before);
+  });
+});
+
+describe('钓组阶段（rigPhase）', () => {
+  const world = (rigPhase?: string, extra: Record<string, number> = {}) => {
+    const instance = new TwinWorld(buildFishingScene({ castInterval: 1 }), {
+      seed: 3,
+      maxStepsPerAdvance: 600,
+      behaviors: [createFishSimBehavior()],
+    });
+    if (rigPhase) instance.setAttr('rig-01', 'rigPhase', rigPhase);
+    for (const [key, value] of Object.entries(extra)) instance.setAttr('rig-01', key, value);
+    return instance;
+  };
+
+  test('向导没走完（setup）/ 找底中不抛竿', () => {
+    for (const phase of ['setup', 'find_bottom', 'measure_t0']) {
+      const target = world(phase);
+      target.runSteps(60 * 30);
+      expect(Number(target.getEntity('rig-01')?.attrs.casts ?? 0)).toBe(0);
+      expect(target.getEventLog().some((event) => event.type === 'fish:cast')).toBe(false);
+    }
+  });
+
+  test('缺省阶段即 fishing：旧场景照常抛竿', () => {
+    const target = world();
+    target.runSteps(60 * 30);
+    expect(Number(target.getEntity('rig-01')?.attrs.casts)).toBeGreaterThan(20);
+  });
+
+  test('测量阶段：铅坠吊在半水，漂尾按 setupMarks 露出，不挂钩时钩收在 8 字环', () => {
+    const target = world('measure_t0', { setupMarks: 6 });
+    target.runSteps(2);
+    const y = (id: string): number => target.getEntity(id)?.transform.position[1] ?? NaN;
+    const config = target.getEntity('rig-01')?.config as { surfaceY: number; depth: number };
+    expect(y('sinker-01')).toBeCloseTo(config.surfaceY - config.depth / 2, 5);
+    expect(y('hook-upper-01')).toBeCloseTo(y('swivel-01'), 5);
+
+    const higher = world('measure_t0', { setupMarks: 8 });
+    higher.runSteps(2);
+    expect(higher.getEntity('float-01')!.transform.position[1]).toBeGreaterThan(y('float-01'));
+
+    const hooked = world('measure_t', { setupMarks: 4 });
+    hooked.runSteps(2);
+    const hy = (id: string): number => hooked.getEntity(id)?.transform.position[1] ?? NaN;
+    expect(hy('hook-upper-01')).toBeLessThan(hy('swivel-01'));
+    expect(hy('hook-lower-01')).toBeLessThan(hy('hook-upper-01'));
   });
 });

@@ -16,6 +16,7 @@ import {
   wizardStart,
   wizardSuggestPreset,
   type Loadout,
+  type RigPhase,
   type WizardInput,
   type WizardState,
   type WizardStep,
@@ -72,6 +73,18 @@ const fmt = (value: number): string => String(Math.round(value * 100) / 100);
 /** 打开向导前的钓组参数：中途关闭时原样写回。 */
 const SNAPSHOT_KEYS = ['t0', 't', 'w', 'd'] as const;
 
+/** 向导步骤 → 线组此刻实际挂成的样子（见 plugins-fishing 的 RigPhase）。 */
+const STEP_PHASE: Readonly<Record<WizardStep, RigPhase>> = {
+  choose_fish: 'setup',
+  choose_gear: 'setup',
+  measure_t0: 'measure_t0',
+  measure_t: 'measure_t',
+  measure_w: 'measure_w',
+  choose_preset: 'setup',
+  find_bottom: 'find_bottom',
+  done: 'find_bottom',
+};
+
 export default function FishingOnboarding(props: { session: StudioSession; onClose: () => void }) {
   // 会话在创建时取一次：父组件按会话 keyed 重建本组件，这里不会被偷换。
   const session = props.session;
@@ -89,6 +102,8 @@ export default function FishingOnboarding(props: { session: StudioSession; onClo
   onSettled(() => {
     const attrs = session.world.getEntity(RIG_ID)?.attrs ?? {};
     for (const key of SNAPSHOT_KEYS) before[key] = attrs[key];
+    before.rigPhase = attrs.rigPhase;
+    syncRig(state(), undefined);
     // 调漂时鱼不该在咬钩：暂停仿真，找底预览靠手动推帧刷新。
     session.controller.pause();
   });
@@ -96,8 +111,10 @@ export default function FishingOnboarding(props: { session: StudioSession; onClo
   /** 用户点 ✕：没走完就把钓组还原，仿真恢复打开前的播放状态。 */
   const dismiss = (): void => {
     if (!finished) {
-      const restore: Record<string, number> = {};
+      const restore: Record<string, number | string> = {};
       for (const key of SNAPSHOT_KEYS) if (typeof before[key] === 'number') restore[key] = before[key] as number;
+      // 向导从没走完过 → 回到 setup（不抛竿）；重新配置被放弃 → 恢复原来的阶段。
+      restore.rigPhase = readRig(session)?.wizardDone ? (typeof before.rigPhase === 'string' ? before.rigPhase : 'fishing') : 'setup';
       writeRig(session, restore);
     }
     if (wasPlaying || finished) session.controller.play();
@@ -126,6 +143,7 @@ export default function FishingOnboarding(props: { session: StudioSession; onClo
     setInsist(false);
     setMarks(undefined);
     if (current.step === 'find_bottom') previewInWorld(current);
+    syncRig(current, undefined);
     return current;
   };
 
@@ -134,6 +152,27 @@ export default function FishingOnboarding(props: { session: StudioSession; onClo
     const rig = wizardRigState(current);
     if (!rig) return;
     writeRig(session, { t0: rig.t0, t: rig.t, w: rig.w, d: rig.d });
+  };
+
+  /**
+   * 让世界里的线组跟着向导走：写阶段（半水不挂钩 / 挂钩 / 挂饵 / 找底）与
+   * 漂尾露出目数（用户正在点选的那一目）。测量阶段 FishSim 不抛竿，只按这些摆线组。
+   */
+  const syncRig = (current: WizardState, picked: number | undefined): void => {
+    const phase = STEP_PHASE[current.step];
+    const attrs = session.world.getEntity(RIG_ID)?.attrs ?? {};
+    const known = (key: 't0' | 't' | 'w'): number => current[key] ?? (typeof attrs[key] === 'number' ? (attrs[key] as number) : 0);
+    const values: Record<string, number | string> = { rigPhase: phase };
+    if (phase === 'measure_t0') values.setupMarks = picked ?? known('t0');
+    if (phase === 'measure_t') values.setupMarks = picked ?? known('t');
+    // 这一步点的是"被压下去几目"，漂尾实际露出的是 t − w。
+    if (phase === 'measure_w') values.setupMarks = known('t') - (picked ?? known('w'));
+    writeRig(session, values);
+  };
+
+  const pickMarks = (value: number): void => {
+    setMarks(value);
+    syncRig(state(), value);
   };
 
   const adjust = (delta: number): void => {
@@ -187,6 +226,7 @@ export default function FishingOnboarding(props: { session: StudioSession; onClo
       w: rig.w,
       d: rig.d,
       wizardDone: true,
+      rigPhase: 'fishing',
     });
   };
 
@@ -306,7 +346,7 @@ export default function FishingOnboarding(props: { session: StudioSession; onClo
         <Show when={state().step === 'measure_t0'}>
           <p class="onboard-q">半水、不挂钩，漂尾露出几目？</p>
           <p class="onboard-hint">铅坠找底后把漂推到半水，剪到你想要的目数。点漂尾上水面所在的那一目。</p>
-          <FloatRuler value={marks()} onChange={setMarks} />
+          <FloatRuler value={marks()} onChange={pickMarks} />
           <button type="button" class="onboard-alt" onClick={simulateMeasure}>
             🎲 我手上没有漂——按装备模拟一组调目
           </button>
@@ -315,13 +355,13 @@ export default function FishingOnboarding(props: { session: StudioSession; onClo
         <Show when={state().step === 'measure_t'}>
           <p class="onboard-q">挂上双钩，漂尾露出几目？</p>
           <p class="onboard-hint">钩有重量，会比刚才的 {fmt(state().t0 ?? 0)} 目少。</p>
-          <FloatRuler value={marks()} max={state().t0} onChange={setMarks} />
+          <FloatRuler value={marks()} max={state().t0} onChange={pickMarks} />
         </Show>
 
         <Show when={state().step === 'measure_w'}>
           <p class="onboard-q">单钩挂一颗饵，漂尾被压下去几目？</p>
           <p class="onboard-hint">这就是"单饵压目"——点被压下去的目数。</p>
-          <FloatRuler value={marks()} max={4} onChange={setMarks} />
+          <FloatRuler value={marks()} max={4} onChange={pickMarks} />
         </Show>
 
         <Show when={state().step === 'choose_preset'}>

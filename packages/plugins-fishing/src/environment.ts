@@ -4,6 +4,7 @@ import type { TwinScene } from '@twin-platform/scene-schema';
 import type { FishingActionId } from './actionSpace';
 import { calculateRigState, type TaidiaoInput } from './fishingCore';
 import { createFishSimBehavior, fishingLayout, type FishingLayout } from './fishSim';
+import { isMeasurePhase, measureLayout, measureMarks, rigPartsOf, rigPhaseOf, type RigPhase } from './rigPhase';
 import { toFishingState, type FishingIntent, type FishingState } from './state';
 import { buildFishingScene, type FishingTemplateParams } from './template';
 import { num, str } from './values';
@@ -65,6 +66,8 @@ export function observeFishingWorld(world: WorldReader, rigId = RIG_ID): Fishing
 
 export interface FishingView {
   readonly state: FishingState;
+  /** 钓组阶段：测量阶段线组吊在半水，layout 已按它摆好。 */
+  readonly phase: RigPhase;
   readonly layout: FishingLayout;
   readonly depth: number;
   readonly surfaceY: number;
@@ -92,14 +95,14 @@ export function fishingView(world: WorldReader, rigId = RIG_ID): FishingView | u
   const depth = Math.max(0.5, num(config.depth, 2));
   const surfaceY = num(config.surfaceY, 0);
   const hookGap = Math.max(0.05, num(config.hookGap, 0.2));
-  const layout = fishingLayout(
-    { t0: state.rig.t0, t: state.rig.t, w: state.rig.w, d: state.rig.d },
-    state.rig,
-    { surfaceY, depth, hookGap },
-  );
+  // 与 FishSim 同一份布局：测量阶段吊在半水，其余按钓目摆放。
+  const phase = rigPhaseOf(entity.attrs);
+  const layout = isMeasurePhase(phase)
+    ? measureLayout(measureMarks(phase, entity.attrs ?? {}), rigPartsOf(phase), { surfaceY, depth, hookGap })
+    : fishingLayout({ t0: state.rig.t0, t: state.rig.t, w: state.rig.w, d: state.rig.d }, state.rig, { surfaceY, depth, hookGap });
   const signalRaw = str(entity.attrs?.signal, 'none');
   const signal: FloatSignal = signalRaw === 'nod' || signalRaw === 'lift' || signalRaw === 'sink' || signalRaw === 'run' ? signalRaw : 'none';
-  return { state, layout, depth, surfaceY, hookGap, castInterval: Math.max(0.5, num(config.castInterval, 3)), drift: state.drift, signal };
+  return { state, phase, layout, depth, surfaceY, hookGap, castInterval: Math.max(0.5, num(config.castInterval, 3)), drift: state.drift, signal };
 }
 
 export interface FishingEnvironmentOptions {

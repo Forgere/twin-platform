@@ -1,5 +1,5 @@
 import { For, Show } from 'solid-js';
-import { fishingView, rigPosture, type FishingView, type RigPosture } from '@twin-platform/plugins-fishing';
+import { fishingView, rigPartsOf, rigPosture, type FishingView, type RigPosture } from '@twin-platform/plugins-fishing';
 import type { StudioSession } from '../scene/studioSession';
 
 /**
@@ -83,6 +83,8 @@ export default function FishingSandbox(props: { session: StudioSession; tick: nu
     // 水面在 +depth，写死 0 会把整张图画到 viewBox 外面。
     const sy = (y: number): number => SURFACE_Y + (current.surfaceY - y) * SCALE;
     const layout = current.layout;
+    // 向导测量阶段线组上实际挂了什么（不挂钩 / 挂钩 / 单饵），没挂的不画。
+    const parts = rigPartsOf(current.phase);
 
     // 由状态算姿态：部件状态 + 子线弯曲，与 3D 场景共用 rigPosture 同一份真相。
     const posture = rigPosture(current.state.rig, { drift: current.drift, signal: current.signal });
@@ -118,24 +120,36 @@ export default function FishingSandbox(props: { session: StudioSession; tick: nu
         <line x1={cx} y1={floatY} x2={cx} y2={sinkerY} stroke="#8a8a8a" stroke-width={1.2} />
         <line x1={cx} y1={sinkerY} x2={cx} y2={swivelY} stroke="#8a8a8a" stroke-width={1.2} />
         {/* 子线：8 字环并联分出两根到上钩 / 下钩，弯曲时鼓成折线 */}
-        <polyline points={`${cx},${swivelY} ${upperMidX},${upperMidY} ${cx + upperDX},${upperHookY}`} fill="none" stroke="#aab2bb" stroke-width={1} />
-        <polyline points={`${cx},${swivelY} ${lowerMidX},${lowerMidY} ${cx + lowerDX},${lowerHookY}`} fill="none" stroke="#aab2bb" stroke-width={1} />
+        {parts.hooks && (
+          <>
+            <polyline points={`${cx},${swivelY} ${upperMidX},${upperMidY} ${cx + upperDX},${upperHookY}`} fill="none" stroke="#aab2bb" stroke-width={1} />
+            <polyline points={`${cx},${swivelY} ${lowerMidX},${lowerMidY} ${cx + lowerDX},${lowerHookY}`} fill="none" stroke="#aab2bb" stroke-width={1} />
+          </>
+        )}
 
         <circle cx={cx} cy={swivelY} r={3} fill="#b08d57" />
         <ellipse cx={cx} cy={floatY} rx={4} ry={11} fill={current.signal === 'sink' ? '#c0392b' : '#ff8c42'} />
         <rect x={cx - 3} y={sinkerY - 5} width={6} height={10} rx={1.5} fill="#4a4a4a" />
 
-        <circle cx={cx + upperDX} cy={upperHookY} r={3} fill="none" stroke="#333" stroke-width={1.2} />
-        <circle cx={cx + lowerDX} cy={lowerHookY} r={3} fill="none" stroke="#333" stroke-width={1.2} />
-        <circle cx={cx + upperDX - 9} cy={upperBaitY} r={3.5} fill="#e07a5f" />
-        <circle cx={cx + lowerDX - 9} cy={lowerBaitY} r={3.5} fill="#e07a5f" />
+        {parts.hooks && (
+          <>
+            <circle cx={cx + upperDX} cy={upperHookY} r={3} fill="none" stroke="#333" stroke-width={1.2} />
+            <circle cx={cx + lowerDX} cy={lowerHookY} r={3} fill="none" stroke="#333" stroke-width={1.2} />
+          </>
+        )}
+        {parts.upperBait && <circle cx={cx + upperDX - 9} cy={upperBaitY} r={3.5} fill="#e07a5f" />}
+        {parts.lowerBait && <circle cx={cx + lowerDX - 9} cy={lowerBaitY} r={3.5} fill="#e07a5f" />}
 
         <text x={tipX - 4} y={tipY - 4} font-size="9" fill="#333" text-anchor="end">竿梢</text>
         <text x={cx + 10} y={floatY + 3} font-size="9" fill="#333">漂</text>
         <text x={cx + 10} y={sinkerY + 3} font-size="9" fill="#333">铅</text>
         <text x={cx + 10} y={swivelY + 3} font-size="9" fill="#b08d57">8字环</text>
-        <text x={cx + upperDX + 8} y={upperHookY + 3} font-size="9" fill="#333">上钩</text>
-        <text x={cx + lowerDX + 8} y={lowerHookY + 3} font-size="9" fill="#333">下钩</text>
+        {parts.hooks && (
+          <>
+            <text x={cx + upperDX + 8} y={upperHookY + 3} font-size="9" fill="#333">上钩</text>
+            <text x={cx + lowerDX + 8} y={lowerHookY + 3} font-size="9" fill="#333">下钩</text>
+          </>
+        )}
         <text x={8} y={SURFACE_Y - 4} font-size="9" fill="#2E86AB">水面</text>
         <text x={8} y={bottomY - 4} font-size="9" fill="#8a6a3d">水底 {fmt(current.depth)}m</text>
       </svg>

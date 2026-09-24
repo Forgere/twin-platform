@@ -5,6 +5,7 @@ import { BITE_SIGNALS, subLineBend, type FloatSignal } from './rigPosture';
 import { conditionMultipliers, conditionsOf } from './conditions';
 import { loadoutEffects, loadoutFromAttrs } from './loadout';
 import { num, str } from './values';
+import { isMeasurePhase, measureLayout, measureMarks, rigPartsOf, rigPhaseOf } from './rigPhase';
 
 /**
  * FishSim —— 钓场的确定性鱼口模型。
@@ -129,14 +130,24 @@ export interface FishSimConfig {
   castInterval?: number;
 }
 
+/** 一口鱼咬的是哪只钩（无口为 none）。 */
+export type BitHook = 'upper' | 'lower' | 'none';
+
+/**
+ * 有口时咬上钩的概率。假设：台钓里下饵在底、上饵悬在底上方，鱼多在底上觅食，
+ * 所以下钩略多（上 4 : 下 6）。只影响"拖哪只钩"的表现与事件记录，不影响中鱼率。
+ */
+export const UPPER_BITE_SHARE = 0.4;
+
 const SLOTS = ['float', 'sinker', 'swivel', 'upperHook', 'lowerHook', 'upperBait', 'lowerBait'] as const;
 
-function writeLayout(ctx: BehaviorContext, rigId: string, input: TaidiaoInput, state: RigState, config: Record<string, unknown>): void {
-  const layout = fishingLayout(input, state, {
-    surfaceY: num(config.surfaceY, 0),
-    depth: num(config.depth, 2),
-    hookGap: num(config.hookGap, 0.2),
-  });
+const layoutOptions = (config: Record<string, unknown>) => ({
+  surfaceY: num(config.surfaceY, 0),
+  depth: num(config.depth, 2),
+  hookGap: num(config.hookGap, 0.2),
+});
+
+function writeLayout(ctx: BehaviorContext, rigId: string, layout: FishingLayout): void {
   for (const entity of ctx.entities) {
     const slot = str(entity.config?.slot, '');
     if (str(entity.config?.rigId, '') !== rigId) continue;
@@ -173,6 +184,13 @@ export function createFishSimBehavior(config: FishSimConfig = {}): WorldBehavior
         if (!entity.capabilities.includes('rig')) continue;
 
         const worldConfig = entity.config ?? {};
+        const phase = rigPhaseOf(entity.attrs);
+        // 向导测量中：线组吊在半水、按这一步实际挂的零件摆放；不结算鱼口。
+        if (isMeasurePhase(phase)) {
+          writeLayout(ctx, entity.id, measureLayout(measureMarks(phase, entity.attrs), rigPartsOf(phase), layoutOptions(worldConfig)));
+          if (str(entity.attrs.signal, 'none') !== 'none') ctx.setAttr(entity.id, 'signal', 'none');
+          continue;
+        }
         const input: TaidiaoInput = {
           t0: num(entity.attrs.t0, 4),
           t: num(entity.attrs.t, 2),
@@ -183,9 +201,15 @@ export function createFishSimBehavior(config: FishSimConfig = {}): WorldBehavior
         if (!result.ok) continue;
 
         // 位姿每步刷新（seek 到任意帧都画得对），与是否结算无关。
-        writeLayout(ctx, entity.id, input, result.state, worldConfig);
+        writeLayout(ctx, entity.id, fishingLayout(input, result.state, layoutOptions(worldConfig)));
         // 子线弯曲量给渲染用（3D 要把子线画成弯的）。只在变化时写，别把 ops 撑爆。
         writeBend(ctx, entity.id, result.state);
+
+        // 只有正在钓才抛竿：向导没走完（setup）或还在找底（find_bottom）时鱼不该咬钩。
+        if (phase !== 'fishing') {
+          if (str(entity.attrs.signal, 'none') !== 'none') ctx.setAttr(entity.id, 'signal', 'none');
+          continue;
+        }
 
         const conditions = conditionsOf(entity);
         const waterTemperature = conditions.waterTemperature;
@@ -208,6 +232,8 @@ export function createFishSimBehavior(config: FishSimConfig = {}): WorldBehavior
         const caught = hooked && !broken;
         // 有口就有漂相（顿口 / 送漂 / 黑漂）——这是用户唯一能直接看到的信号。
         const signal: FloatSignal = bit ? ctx.rng.pick(BITE_SIGNALS) : 'none';
+        // 咬的是哪只钩：只在有口时取随机（无口的抛竿不多耗 rng）。3D 据此决定鱼拖哪只钩。
+        const bitHook: BitHook = bit ? (ctx.rng.bool(UPPER_BITE_SHARE) ? 'upper' : 'lower') : 'none';
 
         ctx.setAttr(entity.id, 'casts', casts);
         ctx.setAttr(entity.id, 'bites', num(entity.attrs.bites, 0) + (bit ? 1 : 0));
@@ -218,9 +244,10 @@ export function createFishSimBehavior(config: FishSimConfig = {}): WorldBehavior
         ctx.setAttr(entity.id, 'bottomLoad', result.state.bottomLoad);
         ctx.setAttr(entity.id, 'nextAt', ctx.time + interval);
         ctx.setAttr(entity.id, 'signal', signal);
+        ctx.setAttr(entity.id, 'bitHook', bitHook);
         ctx.emit('fish:cast', {
           entityId: entity.id,
-          payload: { cast: casts, zone: result.state.zone, bite: bit, caught, broken, signal },
+          payload: { cast: casts, zone: result.state.zone, bite: bit, caught, broken, signal, bitHook },
         });
         if (broken) ctx.emit('fish:break', { entityId: entity.id, payload: { cast: casts } });
       }
