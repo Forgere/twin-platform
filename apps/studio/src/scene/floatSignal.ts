@@ -57,6 +57,27 @@ export function floatSignalPose(signal: FloatSignalName, t: number): FloatPose {
   }
 }
 
+/**
+ * 漂最多被拉下去多少（米）：漂有浮力，鱼拖不动整副钓组——拖到这个深度就拖不动了，
+ * 受力链据此缩短鱼的拖拽距离。顿口约 1 目多；黑漂整支没入（漂尾 + 漂身）；走漂以横移为主。
+ */
+export const MAX_FLOAT_DROP: Readonly<Record<FloatSignalName, number>> = {
+  none: 0,
+  nod: MARK * 1.2,
+  lift: 0,
+  sink: MARK * 7,
+  run: MARK * 0.6,
+};
+
+/** 漂最多被横向拽开多少（米）：顿口 / 黑漂几乎只沉不走，走漂才横移。 */
+export const MAX_FLOAT_SHIFT: Readonly<Record<FloatSignalName, number>> = {
+  none: 0,
+  nod: 0.02,
+  lift: 0,
+  sink: 0.05,
+  run: 0.3,
+};
+
 export interface HookPull {
   /** 向外（远离另一只钩）的拖拽距离（米）。 */
   readonly out: number;
@@ -69,7 +90,8 @@ export interface HookPull {
 const NO_PULL: HookPull = { out: 0, dy: 0, shake: 0 };
 
 /**
- * 同一口在水下的样子：被咬的那只钩（连饵）怎么被鱼拖。与 floatSignalPose 同一时间轴，
+ * 同一口在水下的样子：鱼把被咬的那只钩（连饵）往哪拖——这是受力链（rigChain）的唯一驱动，
+ * 漂的下顿 / 没入是被线拉出来的结果，不是自己动。与 floatSignalPose 同一时间轴，
  * 漂上的动作和钩上的动作一一对应：
  * - 顿口：鱼吸饵后往下 / 往外一拽 → 漂下顿；
  * - 送漂：鱼叼饵上浮，托起钩饵 → 子线松、漂上顶；
@@ -81,7 +103,7 @@ export function hookPullPose(signal: FloatSignalName, t: number): HookPull {
   switch (signal) {
     case 'nod': {
       const k = envelope(t, 0.08, 0.25, 0.9);
-      return { out: 0.1 * k, dy: -0.03 * k, shake: 0.012 * k };
+      return { out: 0.35 * k, dy: 0.02 * k, shake: 0.012 * k };
     }
     case 'lift': {
       const k = envelope(t, 0.5, 0.5, 0.5);
@@ -89,11 +111,11 @@ export function hookPullPose(signal: FloatSignalName, t: number): HookPull {
     }
     case 'sink': {
       const k = envelope(t, 0.2, 0.9, 0.45);
-      return { out: 0.45 * k, dy: 0.06 * k, shake: 0.02 * k };
+      return { out: 1.1 * k, dy: 0.06 * k, shake: 0.02 * k };
     }
     case 'run': {
       const k = envelope(t, 0.5, 0.6, 0.45);
-      return { out: 0.3 * k, dy: 0, shake: 0.01 * k };
+      return { out: 0.7 * k, dy: 0, shake: 0.01 * k };
     }
     default:
       return NO_PULL;

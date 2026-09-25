@@ -538,10 +538,16 @@ h2 { margin: 0 0 12px; color: var(--accent); font-size: 0.82rem; letter-spacing:
 .rig-gear { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .rig-gear label { display: grid; gap: 2px; color: var(--ink-soft); font-size: 0.7rem; }
 .rig-gear select { padding: 5px 6px; border: 1px solid var(--frame); border-radius: 8px; background: #fffdf7; color: var(--ink); font: inherit; font-size: 0.78rem; }
-.rig-posture { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
-.rig-posture li { display: flex; gap: 8px; padding: 5px 8px; border: 1px solid var(--frame); border-radius: 8px; background: #fffdf7; font-size: 0.74rem; }
-.rp-label { flex: none; width: 48px; color: var(--ink-soft); }
-.rp-text { color: var(--ink); }
+/* 剖面图：部件状态悬停显示（不再单列在图下） */
+.sandbox-figure { position: relative; }
+.sandbox-figure [data-part] { cursor: help; }
+.sandbox-figure [data-part]:hover { filter: drop-shadow(0 0 2px rgba(20, 24, 31, 0.45)); }
+.sandbox-hit { fill: transparent; }
+.sandbox-hit-line { fill: none; stroke: transparent; stroke-width: 8; stroke-linejoin: round; }
+.sandbox-tip { position: absolute; z-index: 2; max-width: 200px; padding: 5px 8px; border-radius: 8px; background: var(--graphite); color: #ffffff; font-size: 0.72rem; line-height: 1.45; pointer-events: none; transform: translate(12px, -50%); }
+.sandbox-tip-flip { transform: translate(calc(-100% - 12px), -50%); }
+.sandbox-tip b { margin-right: 4px; font-weight: 700; }
+.sandbox-hint { margin: 2px 0 0; font-size: 0.68rem; color: var(--ink-soft); }
 
 @media (max-width: 960px) {
   .onboard { left: 12px; width: calc(100% - 24px); }
@@ -677,6 +683,6 @@ button:focus-visible { outline-color: var(--mint); }
 .op-btn-alt { border-color: var(--line); color: var(--ink); background: #f4f5f7; }
 
 /* 面板内的次级块：浅灰底卡片代替描边 */
-.assist-card, .rig-posture li, .assist-input, .data-source textarea, .scene-panel textarea { background: #f4f5f7; border-color: transparent; }
+.assist-card, .assist-input, .data-source textarea, .scene-panel textarea { background: #f4f5f7; border-color: transparent; }
 .assist-done { background: rgba(47, 185, 106, 0.08); color: #1f7a47; }
 .fish-hud-signal { background: #fdeeee; color: var(--bad); }

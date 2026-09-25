@@ -2,6 +2,7 @@ import type { TwinVector3 } from '@twin-platform/world-kernel';
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { getActiveTheme, cargoColorFor, type DeviceTheme } from './theme';
+import { ROPE_SEGMENTS } from './rope';
 
 /**
  * 实体模型工厂：把一个 TwinEntity 的"声明"翻译成有造型的三维物件。
@@ -52,8 +53,10 @@ export interface EntityAnim {
     readonly toId: string;
     /** 子线弯曲：设置则该段属子线，控制器按 rigVisualPose 的 bend（调钓状态 + 这一口）松弛成折线。 */
     readonly bendAttr?: 'bendUpper' | 'bendLower';
-    /** 子线沿曲线分段：本 mesh 是第 index 截（共 count 截）。 */
-    readonly segment?: { readonly index: number; readonly count: number };
+    /** 主线 / 子线（控制器据此给软绳配线长与受力）。 */
+    readonly kind: 'main' | 'branch';
+    /** 软绳分段：本 mesh 是第 index 截（共 count 截）。 */
+    readonly segment: { readonly index: number; readonly count: number };
     /** 弯曲量来源的 rig 实体（钓场固定为 rig-01）。 */
     readonly rigId?: string;
   }[];
@@ -1300,19 +1303,21 @@ const FLOAT_BODY_H = 0.3;
 const FLOAT_STEM_H = 0.2;
 const SINKER_R = 0.045;
 const SINKER_H = 0.11;
-const HOOK_R = 0.06;
-const HOOK_TUBE = 0.018;
-const HOOK_SHANK_H = HOOK_R * 2.2;
-const BAIT_R = 0.07;
 /**
- * 仿真里钩和饵是同一个点（饵挂在钩上），实体位置 = 钩门底部。
- * 钩柄在 +X 侧、钩尖在 −X 侧；饵穿在钩尖上并往外偏半个饵径，
- * 这样既"挂在钩上"，又不会把钩柄和钩门整个盖住。
+ * 鱼钩（示意比例，但比例关系按真钩来）：**原点 = 钩眼**（子线系在这里，也就是内核里
+ * 钩的位置），钩身从钩眼往下垂：钩柄 → J 形钩弯 → 向上的钩尖（带倒刺）。
+ * 钩要比子线短得多——以前钩柄 0.19m 而短子线只有 0.2m，钩眼顶到 8 字环，子线就"没了"。
  */
-const HOOK_SHANK_X = HOOK_R;
-const HOOK_POINT_X = -HOOK_R;
-const BAIT_DX = HOOK_POINT_X - BAIT_R * 0.55;
-/** 线的半径：按真实粗细缩下去就没了，这里给到缩放后仍看得出是一条线。 */
+const HOOK_WIRE = 0.008;
+const HOOK_EYE_R = 0.012;
+const HOOK_SHANK = 0.1;
+const HOOK_BEND_R = 0.035;
+/** 钩尖所在的竖直段（钩弯另一侧）高度，与钩尖锥长。 */
+const HOOK_POINT_RISE = 0.035;
+const HOOK_POINT_LEN = 0.032;
+/** 饵裹在钩弯上，钩尖与倒刺露在外面（钩要"看得见尖"）。 */
+const BAIT_R = 0.042;
+const BAIT_CENTER: TwinVector3 = [-HOOK_BEND_R, -HOOK_SHANK - HOOK_BEND_R * 0.35, 0];
 const FISHING_LINE_R = 0.022;
 
 /** 浮漂：漂尾（红 / 黑目节）+ 漂身（纺锤）+ 漂脚。 */
@@ -1338,6 +1343,8 @@ function buildFloat(color: string): THREE.Group {
   // 漂座在漂脚末端：主线从这里穿过，上接竿梢、下接铅皮座，不穿漂身。
   group.userData.lineAnchor = [0, -FLOAT_BODY_H / 2 - FLOAT_STEM_H, 0];
   group.userData.lineAnchorPivot = pivot;
+  // 吃水参数：控制器按"露出 d 目"摆漂——漂尾底端以上每 markH 一目，共 marks 目。
+  group.userData.waterline = { tailBottom: FLOAT_BODY_H / 2, markH: FLOAT_MARK_H, marks: FLOAT_MARKS };
   group.userData.anim = { kind: 'float' } as EntityAnim;
   return group;
 }
@@ -1355,40 +1362,77 @@ function buildSinker(color: string): THREE.Group {
 }
 
 /**
- * 鱼钩：钩柄 + 半圆钩门（Torus 下半圈）+ 钩尖短刺。
- * 钩柄立在钩门的 +X 端（不是钩门中间），柄顶是钩眼——子线系在这里。
+ * 鱼钩：钩眼（小环）+ 钩柄 + J 形钩弯（一根连续的细管）+ 锥形钩尖 + 倒刺。
+ * 原点在钩眼顶端（挂线点），钩尖在本地 −X 侧、朝上略向钩柄内收。
  */
 function buildHook(color: string): THREE.Group {
   const group = new THREE.Group();
   group.userData.codePath = 'entityMeshes.ts:buildHook';
+  const metal = { roughness: 0.25, metalness: 0.75 };
   // 零件挂在内层枢轴上：朝向 / 被鱼拖拽只动枢轴，实体位置仍是内核给的值。
   const pivot = new THREE.Group();
   group.add(pivot);
-  const metal = { roughness: 0.3, metalness: 0.65 };
-  // 钩门圆心抬高 HOOK_R，让实体位置落在钩门最低点（饵 / 钩触底时贴着底）。
-  const bendY = HOOK_R;
-  const bend = new THREE.Mesh(new THREE.TorusGeometry(HOOK_R, HOOK_TUBE, 10, 20, Math.PI), material(color, metal));
-  bend.rotation.z = Math.PI;
-  bend.castShadow = true;
-  pivot.add(at(bend, 0, bendY, 0));
-  pivot.add(at(cyl(HOOK_TUBE, HOOK_SHANK_H, color, 10, metal), HOOK_SHANK_X, bendY + HOOK_SHANK_H / 2, 0));
-  const point = new THREE.Mesh(new THREE.ConeGeometry(HOOK_TUBE * 1.3, HOOK_R * 0.7, 8), material(color, metal));
-  pivot.add(at(point, HOOK_POINT_X, bendY + HOOK_R * 0.35, 0));
-  group.userData.lineAnchor = [HOOK_SHANK_X, bendY + HOOK_SHANK_H, 0];
+
+  const eye = new THREE.Mesh(new THREE.TorusGeometry(HOOK_EYE_R, HOOK_WIRE * 0.55, 8, 20), material(color, metal));
+  eye.position.y = -HOOK_EYE_R;
+  eye.name = 'hook-eye';
+  pivot.add(eye);
+
+  // 钩柄 → 钩弯 → 钩尖竖直段：一条连续曲线扫成细管，拐弯处不会断开。
+  const top = -HOOK_EYE_R * 2;
+  const points: THREE.Vector3[] = [new THREE.Vector3(0, top, 0), new THREE.Vector3(0, -HOOK_SHANK, 0)];
+  for (let index = 1; index <= 12; index += 1) {
+    const angle = (index / 12) * Math.PI; // 从钩柄底（右）绕到钩尖侧（左），经过最低点
+    points.push(new THREE.Vector3(-HOOK_BEND_R + HOOK_BEND_R * Math.cos(angle), -HOOK_SHANK - HOOK_BEND_R * Math.sin(angle), 0));
+  }
+  points.push(new THREE.Vector3(-2 * HOOK_BEND_R, -HOOK_SHANK + HOOK_POINT_RISE, 0));
+  const body = new THREE.Mesh(
+    new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points, false, 'centripetal'), 64, HOOK_WIRE, 8, false),
+    material(color, metal),
+  );
+  body.castShadow = true;
+  body.name = 'hook-body';
+  pivot.add(body);
+
+  // 钩尖：从管径收到 0 的锐锥，略向钩柄内收（真钩的尖是往里勾的）。
+  const pointBase = new THREE.Vector3(-2 * HOOK_BEND_R, -HOOK_SHANK + HOOK_POINT_RISE, 0);
+  const point = new THREE.Mesh(new THREE.ConeGeometry(HOOK_WIRE, HOOK_POINT_LEN, 10), material(color, metal));
+  point.geometry.translate(0, HOOK_POINT_LEN / 2, 0);
+  point.position.copy(pointBase);
+  point.rotation.z = -0.28;
+  point.name = 'hook-point';
+  pivot.add(point);
+  // 倒刺：钩尖下方外侧一根朝下斜出的小刺。
+  const barb = new THREE.Mesh(new THREE.ConeGeometry(HOOK_WIRE * 0.6, HOOK_POINT_LEN * 0.45, 8), material(color, metal));
+  barb.geometry.translate(0, (HOOK_POINT_LEN * 0.45) / 2, 0);
+  barb.position.set(pointBase.x - HOOK_WIRE * 0.2, pointBase.y + HOOK_POINT_LEN * 0.55, 0);
+  barb.rotation.z = Math.PI - 0.55;
+  barb.name = 'hook-barb';
+  pivot.add(barb);
+
+  group.userData.lineAnchor = [0, 0, 0];
   group.userData.lineAnchorPivot = pivot;
   return group;
 }
 
-/** 饵：一小团，穿在钩尖上（搓饵 / 拉饵都这样示意）。 */
+/** 饵：一小团，裹在钩弯上（搓饵 / 拉饵都这样示意），钩尖和倒刺露在外面。 */
 function buildBait(color: string): THREE.Group {
   const group = new THREE.Group();
   group.userData.codePath = 'entityMeshes.ts:buildBait';
   // 与钩同构的枢轴：控制器给钩和饵写同一个姿态，饵始终穿在钩尖上。
   const pivot = new THREE.Group();
   group.add(pivot);
-  pivot.add(at(sphere(BAIT_R, color, { roughness: 0.75 }), BAIT_DX, HOOK_R * 0.9, 0));
+  pivot.add(at(sphere(BAIT_R, color, { roughness: 0.75 }), BAIT_CENTER[0], BAIT_CENTER[1], BAIT_CENTER[2]));
   group.userData.lineAnchorPivot = pivot;
   return group;
+}
+
+/** 半透明水体不写深度：画在它后面的钓线（renderOrder 更大）不会被水面"挡掉"。 */
+function noDepthWrite(object: THREE.Object3D): void {
+  object.traverse((child) => {
+    const mesh = child as THREE.Mesh;
+    if (mesh.isMesh) (mesh.material as THREE.Material).depthWrite = false;
+  });
 }
 
 /**
@@ -1400,16 +1444,19 @@ function buildWater(size: TwinVector3, color: string): THREE.Group {
   const group = new THREE.Group();
   group.userData.codePath = 'entityMeshes.ts:buildWater';
   const body = rbox(size[0], size[1], size[2], color, { roughness: 0.12, metalness: 0.05, opacity: 0.26 });
+  noDepthWrite(body);
   body.castShadow = false;
   body.receiveShadow = false;
   group.add(body);
   const surface = rbox(size[0] * 0.995, 0.04, size[2] * 0.995, '#9fd3e8', { roughness: 0.18, opacity: 0.5 });
+  noDepthWrite(surface);
   surface.position.y = size[1] / 2 - 0.02;
   surface.castShadow = false;
   surface.receiveShadow = false;
   group.add(surface);
   // 水体下半层压一块更深的色：浅处透、深处暗，读得出"有深度"而不是一块均匀玻璃。
   const deep = rbox(size[0] * 0.99, size[1] * 0.5, size[2] * 0.99, '#123f5c', { roughness: 0.3, opacity: 0.22 });
+  noDepthWrite(deep);
   deep.position.y = -size[1] / 4;
   deep.castShadow = false;
   deep.receiveShadow = false;
@@ -1418,6 +1465,7 @@ function buildWater(size: TwinVector3, color: string): THREE.Group {
   const ripples: NonNullable<EntityAnim['ripples']> = [];
   for (let index = 0; index < 3; index += 1) {
     const ring = new THREE.Mesh(new THREE.TorusGeometry(1, 0.012, 8, 48), material('#ffffff', { roughness: 0.25, opacity: 0.5 }));
+    noDepthWrite(ring);
     ring.rotation.x = -Math.PI / 2;
     ring.position.y = size[1] / 2 + 0.008;
     ring.castShadow = false;
@@ -1606,49 +1654,38 @@ function buildReed(color: string): THREE.Group {
  * 由控制器每帧按两端位置拉伸与转向。端点 id 与 fishingTemplate 的实体 id 对齐
  * （钓场是固定模板）。
  */
-/** 每根子线的分段数：够多才读得出"弧"而不是折线，又不至于每帧摆太多段。 */
-const SUBLINE_SEGMENTS = 6;
-
 function buildRigMarker(): THREE.Group {
   const group = new THREE.Group();
   group.userData.codePath = 'entityMeshes.ts:buildRig';
 
   // 拓扑与 rigPosture.RIG_LINKS 一致（钓场是固定模板，实体 id 直接写死）：
-  //   主线：竿梢 → 浮漂 → 铅坠 → 8 字环（直线段）
-  //   子线：8 字环 → 上钩 / 下钩（两根**并联**，钝了子线松开 → 各拆成 2 段折线）
-  const mainLines: [string, string][] = [
-    ['rod-tip-01', 'float-01'],
-    ['float-01', 'sinker-01'],
-    ['sinker-01', 'swivel-01'],
-  ];
-  // 子线各分 SUBLINE_SEGMENTS 截，共用同一对端点；控制器按弯曲量沿曲线摆每一截。
-  const branchLines: { fromId: string; toId: string; bendAttr: 'bendUpper' | 'bendLower' }[] = [
-    { fromId: 'swivel-01', toId: 'hook-upper-01', bendAttr: 'bendUpper' },
-    { fromId: 'swivel-01', toId: 'hook-lower-01', bendAttr: 'bendLower' },
+  //   主线：竿梢 → 浮漂 → 铅坠 → 8 字环
+  //   子线：8 字环 → 上钩 / 下钩（两根**并联**）
+  // 每根线都是一串 ROPE_SEGMENTS 截的软绳（rope.ts），控制器每帧按软绳节点摆每一截——
+  // 有余量就下垂、贴底，拉满就绷直，被拖时带惯性甩动。
+  const lines: { fromId: string; toId: string; kind: 'main' | 'branch'; bendAttr?: 'bendUpper' | 'bendLower' }[] = [
+    { fromId: 'rod-tip-01', toId: 'float-01', kind: 'main' },
+    { fromId: 'float-01', toId: 'sinker-01', kind: 'main' },
+    { fromId: 'sinker-01', toId: 'swivel-01', kind: 'main' },
+    { fromId: 'swivel-01', toId: 'hook-upper-01', kind: 'branch', bendAttr: 'bendUpper' },
+    { fromId: 'swivel-01', toId: 'hook-lower-01', kind: 'branch', bendAttr: 'bendLower' },
   ];
   const rigId = 'rig-01';
 
-  const fishingLines: {
-    mesh: THREE.Mesh;
-    fromId: string;
-    toId: string;
-    bendAttr?: 'bendUpper' | 'bendLower';
-    segment?: { index: number; count: number };
-    rigId?: string;
-  }[] = [];
-
-  for (const [fromId, toId] of mainLines) {
-    const mesh = cyl(FISHING_LINE_R, 1, '#f8f9fa', 8, { roughness: 0.5 });
-    mesh.castShadow = false;
-    group.add(mesh);
-    fishingLines.push({ mesh, fromId, toId });
-  }
-  for (const { fromId, toId, bendAttr } of branchLines) {
-    for (let index = 0; index < SUBLINE_SEGMENTS; index += 1) {
-      const mesh = cyl(FISHING_LINE_R * 0.78, 1, '#cfd6dd', 8, { roughness: 0.5 });
+  const fishingLines: NonNullable<EntityAnim['fishingLines']>[number][] = [];
+  for (const { fromId, toId, kind, bendAttr } of lines) {
+    // 线不吃光照（MeshBasic）、画在水之后（renderOrder）：半透明水体不再把细线染暗吞掉。
+    // 主线白、子线亮黄——子线在水下，要和水色、泥底都拉开对比。
+    const lineMaterial = new THREE.MeshBasicMaterial({ color: kind === 'main' ? '#ffffff' : '#ffc933', transparent: true });
+    const geometry = new THREE.CylinderGeometry(1, 1, 1, 8);
+    const radius = kind === 'main' ? FISHING_LINE_R * 0.8 : FISHING_LINE_R * 0.65;
+    for (let index = 0; index < ROPE_SEGMENTS; index += 1) {
+      const mesh = new THREE.Mesh(geometry, lineMaterial);
+      mesh.userData.radius = radius;
+      mesh.renderOrder = 5;
       mesh.castShadow = false;
       group.add(mesh);
-      fishingLines.push({ mesh, fromId, toId, bendAttr, segment: { index, count: SUBLINE_SEGMENTS }, rigId });
+      fishingLines.push({ mesh, fromId, toId, kind, bendAttr, segment: { index, count: ROPE_SEGMENTS }, rigId });
     }
   }
   // 咬钩的鱼：平时隐藏，有口时由控制器摆到下钩饵旁（嘴含饵、身子朝外），随拖拽一起走。

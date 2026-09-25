@@ -47,24 +47,28 @@ describe('台钓钓组模型', () => {
     expect(box.max.y - box.min.y).toBeGreaterThan(0.8);
   });
 
-  test('饵穿在钩尖上：与钩门相接，但不盖住钩柄和钩眼', () => {
+  test('鱼钩：原点就是钩眼（最高点），钩身垂在下面；比短子线（0.2m）短得多', () => {
     const hook = buildEntityMesh(entity('hook', '#c9ccd1', [0.12, 0.2, 0.12]));
-    const hookBox = new THREE.Box3().setFromObject(hook);
-    const baitBox = new THREE.Box3().setFromObject(buildEntityMesh(entity('bait', '#e07a5f', [0.14, 0.14, 0.14])));
-    expect(baitBox.intersectsBox(hookBox)).toBe(true);
-    const eye = hook.userData.lineAnchor as [number, number, number];
-    expect(baitBox.max.x).toBeLessThan(eye[0]);
+    const box = new THREE.Box3().setFromObject(hook);
+    expect(hook.userData.lineAnchor).toEqual([0, 0, 0]);
+    expect(box.max.y).toBeCloseTo(0, 2);
+    expect(box.max.y - box.min.y).toBeLessThan(0.16);
   });
 
-  test('挂线点：钩眼在钩柄顶端（钩的最右上角），漂座在漂脚末端（漂的最低点）', () => {
+  test('钩尖和倒刺露在饵外：饵裹在钩弯上，不盖住尖', () => {
     const hook = buildEntityMesh(entity('hook', '#c9ccd1', [0.12, 0.2, 0.12]));
-    const hookBox = new THREE.Box3().setFromObject(hook);
-    const eye = hook.userData.lineAnchor as [number, number, number];
-    expect(eye[1]).toBeCloseTo(hookBox.max.y, 1);
-    expect(eye[0]).toBeGreaterThan(0);
-    // 实体位置 = 钩门最低点。
-    expect(hookBox.min.y).toBeCloseTo(-0.018, 2);
+    const bait = buildEntityMesh(entity('bait', '#e07a5f', [0.14, 0.14, 0.14]));
+    const part = (name: string) => new THREE.Box3().setFromObject(hook.getObjectByName(name) as THREE.Object3D);
+    const baitBox = new THREE.Box3().setFromObject(bait);
+    expect(baitBox.intersectsBox(part('hook-body'))).toBe(true);
+    expect(part('hook-point').max.y).toBeGreaterThan(baitBox.max.y + 0.02);
+    expect(part('hook-barb').max.y).toBeGreaterThan(baitBox.max.y);
+    // 尖是尖的：钩尖锥顶端半径为 0。
+    const cone = (hook.getObjectByName('hook-point') as THREE.Mesh).geometry as THREE.ConeGeometry;
+    expect(cone.parameters.radius).toBeLessThan(0.01);
+  });
 
+  test('漂座在漂脚末端（漂的最低点）', () => {
     const float = buildEntityMesh(entity('float', '#ff7a3c', [0.1, 0.9, 0.1]));
     const seat = float.userData.lineAnchor as [number, number, number];
     expect(seat[1]).toBeCloseTo(new THREE.Box3().setFromObject(float).min.y, 5);
@@ -83,23 +87,35 @@ describe('台钓钓组模型', () => {
     expect(box.containsPoint(tip.clone().multiplyScalar(1.05))).toBe(false);
   });
 
-  test('逻辑钓组的线：主线竿梢→漂→铅→8字环三段 + 两根子线各分 6 截（画成弧），端点与场景实体对齐', () => {
+  test('逻辑钓组的线：主线 3 段 + 子线 2 根，每根都是 12 截的软绳，端点与场景实体对齐', () => {
     const rig = buildEntityMesh(entity('rig', '#c9b79c', [0.1, 0.1, 0.1]));
-    const anim = rig.userData.anim as
-      | { fishingLines?: { fromId: string; toId: string; segment?: { index: number; count: number } }[]; biter?: THREE.Group }
-      | undefined;
-    const lines = anim?.fishingLines ?? [];
-    expect(lines.slice(0, 3).map((line) => line.fromId + '->' + line.toId)).toEqual([
+    const lines = (rig.userData.anim as { fishingLines?: { fromId: string; toId: string; segment: { index: number } }[] }).fishingLines ?? [];
+    const pairs = [...new Set(lines.map((line) => line.fromId + '->' + line.toId))];
+    expect(pairs).toEqual([
       'rod-tip-01->float-01',
       'float-01->sinker-01',
       'sinker-01->swivel-01',
+      'swivel-01->hook-upper-01',
+      'swivel-01->hook-lower-01',
     ]);
-    for (const hookId of ['hook-upper-01', 'hook-lower-01']) {
-      const branch = lines.filter((line) => line.toId === hookId);
-      expect(branch.every((line) => line.fromId === 'swivel-01')).toBe(true);
-      expect(branch.map((line) => line.segment?.index)).toEqual([0, 1, 2, 3, 4, 5]);
+    for (const pair of pairs) {
+      const segments = lines.filter((line) => line.fromId + '->' + line.toId === pair);
+      expect(segments.map((line) => line.segment.index)).toEqual(Array.from({ length: 12 }, (_, index) => index));
     }
-    expect(lines).toHaveLength(3 + 12);
+  });
+
+  test('钓线看得见：不吃光照、画在半透明水体之后，水体不写深度', () => {
+    const rig = buildEntityMesh(entity('rig', '#c9b79c', [0.1, 0.1, 0.1]));
+    const lines = (rig.userData.anim as { fishingLines?: { mesh: THREE.Mesh }[] }).fishingLines ?? [];
+    for (const { mesh } of lines) {
+      expect((mesh.material as THREE.Material).type).toBe('MeshBasicMaterial');
+      expect(mesh.renderOrder).toBeGreaterThan(0);
+    }
+    const water = buildEntityMesh(entity('water', '#2E86AB', [8, 2, 5]));
+    water.traverse((child) => {
+      const mesh = child as THREE.Mesh;
+      if (mesh.isMesh && (mesh.material as THREE.Material).transparent) expect((mesh.material as THREE.Material).depthWrite).toBe(false);
+    });
   });
 
   test('咬钩的鱼挂在钓组上，平时隐藏', () => {

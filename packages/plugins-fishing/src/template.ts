@@ -139,13 +139,14 @@ export const fishingTemplate: SceneTemplateDescriptor<FishingTemplateParams> = {
       // 竿梢导线环：主线（RIG_LINKS 第一段）的起点，位置就是上面那个端点。
       decorEntity('rod-tip-01', 'rodTip', rodTip, '#c9ccd1', [0.06, 0.06, 0.06]),
       // 岸边芦苇两丛、水里水草两丛、鱼影三条：位置固定（装饰不做行为，避免破坏确定性回放）。
+      // 鱼影避开钓组所在的中间一列（x∈[−1, 1.5]）：钩被拖向 +X、V 字向两侧张，别让装饰挡住钩。
       decorEntity('reed-01', 'reed', [-3.6, 0, 2.4], '#8a6a45', [0.5, 1.0, 0.2]),
       decorEntity('reed-02', 'reed', [3.8, 0, -2.2], '#8a6a45', [0.45, 0.9, 0.2]),
       decorEntity('weed-01', 'weed', [-1.5, 0.18, 0.9], '#4c7a3f', [0.5, 0.36, 0.3]),
       decorEntity('weed-02', 'weed', [1.9, 0.16, -0.7], '#5d8a4a', [0.4, 0.32, 0.28]),
-      decorEntity('fish-01', 'fish', [-1.1, 0.55, 0.3], '#5c6b73', [0.42, 0.16, 0.1]),
-      decorEntity('fish-02', 'fish', [0.9, 0.4, -0.7], '#6b7a83', [0.34, 0.13, 0.09]),
-      decorEntity('fish-03', 'fish', [0.2, 0.75, 1.3], '#57666f', [0.28, 0.11, 0.08]),
+      decorEntity('fish-01', 'fish', [-1.9, 0.55, -0.6], '#5c6b73', [0.42, 0.16, 0.1]),
+      decorEntity('fish-02', 'fish', [2.4, 0.45, -1.2], '#6b7a83', [0.34, 0.13, 0.09]),
+      decorEntity('fish-03', 'fish', [-2.6, 0.75, 1.2], '#57666f', [0.28, 0.11, 0.08]),
       {
         id: RIG_ID,
         kind: 'rig',
