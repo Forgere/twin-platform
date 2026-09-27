@@ -1,9 +1,13 @@
 import {
   calculateRigState,
   conditionsOf,
+  fishingModeOf,
   loadoutFromAttrs,
+  manualLiftOf,
   observeFishingWorld,
+  type FishingMode,
   type FishingState,
+  type LiftResult,
   type Loadout,
   type PondConditions,
 } from '@twin-platform/plugins-fishing';
@@ -32,11 +36,22 @@ export interface RigSnapshot {
     readonly catches: number;
     readonly emptyHooks: number;
     readonly breaks: number;
+    /** 手动提杆时错过的口（漂动完了没提）。 */
+    readonly missed: number;
   };
   /** 当前这一竿的漂相（有口那一瞬）。 */
   readonly signal: string;
   readonly wizardDone: boolean;
+  readonly mode: FishingMode;
+  /** 模拟模式下有口要用户提杆才结算。 */
+  readonly manualLift: boolean;
+  /** 有口、正等着提杆。 */
+  readonly pendingBite: boolean;
+  /** 最近一次提杆（或错过）的结果。 */
+  readonly lastLift?: LiftResult;
 }
+
+const LIFT_RESULTS: readonly LiftResult[] = ['caught', 'empty', 'broken', 'missed', 'blank'];
 
 const count = (value: unknown): number => (typeof value === 'number' && Number.isFinite(value) ? value : 0);
 
@@ -66,9 +81,14 @@ export function readRig(session: StudioSession): RigSnapshot | undefined {
       catches: count(attrs.catches),
       emptyHooks: count(attrs.emptyHooks),
       breaks: count(attrs.breaks),
+      missed: count(attrs.missedBites),
     },
     signal: typeof attrs.signal === 'string' ? attrs.signal : 'none',
     wizardDone: attrs.wizardDone === true,
+    mode: fishingModeOf(attrs),
+    manualLift: manualLiftOf(attrs),
+    pendingBite: attrs.pendingBite === true,
+    lastLift: LIFT_RESULTS.includes(attrs.lastLift as LiftResult) ? (attrs.lastLift as LiftResult) : undefined,
   };
 }
 
@@ -99,4 +119,41 @@ export function stepRigParam(session: StudioSession, key: 't0' | 't' | 'w' | 'd'
   if (!result.ok) return result.issues.map((item) => item.message).join(' ');
   writeRig(session, { [key]: next[key] });
   return undefined;
+}
+
+/** 换钓场模式：计数从 0 记起——模拟出来的鱼口不能混进真实钓点的记录，反之亦然。 */
+export function setFishingMode(session: StudioSession, mode: FishingMode): void {
+  writeRig(session, {
+    fishingMode: mode,
+    casts: 0,
+    bites: 0,
+    catches: 0,
+    emptyHooks: 0,
+    breaks: 0,
+    missedBites: 0,
+    pendingBite: false,
+    lastLift: '',
+    signal: 'none',
+  });
+}
+
+/** 模拟模式下提杆：写一个意图，fish-sim 下一步消费并结算。 */
+export function liftRod(session: StudioSession): void {
+  writeRig(session, { lift: true });
+}
+
+/** 实际做钓的一竿结果（用户手动记）。 */
+export type CastRecord = 'none' | 'caught' | 'empty' | 'broken';
+
+export function recordCast(session: StudioSession, outcome: CastRecord): void {
+  const counts = readRig(session)?.counts;
+  if (!counts) return;
+  const bit = outcome !== 'none';
+  writeRig(session, {
+    casts: counts.casts + 1,
+    bites: counts.bites + (bit ? 1 : 0),
+    catches: counts.catches + (outcome === 'caught' ? 1 : 0),
+    emptyHooks: counts.emptyHooks + (outcome === 'empty' ? 1 : 0),
+    breaks: counts.breaks + (outcome === 'broken' ? 1 : 0),
+  });
 }

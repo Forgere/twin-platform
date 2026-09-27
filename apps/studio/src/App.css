@@ -397,20 +397,11 @@ h2 { margin: 0 0 12px; color: var(--accent); font-size: 0.82rem; letter-spacing:
    ───────────────────────────────────────────────────────────────────────── */
 
 /* 开钓向导：画布左侧居中的大卡片，右边留出 3D 让人看见自己决定的后果 */
+/* 开钓向导住在助手里：助手在向导期间拉高到整列，向导自己的头 / 步骤 / 可滚动主体 / 底栏照旧分行。 */
 .onboard {
-  position: absolute;
-  left: 52px;
-  top: 12px;
-  bottom: 12px;
-  z-index: 6;
-  width: min(440px, calc(100% - 64px));
+  min-height: 0;
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
-  border: 1px solid var(--frame);
-  border-radius: 16px;
-  background: rgba(255, 253, 247, 0.96);
-  box-shadow: 0 18px 40px rgba(58, 74, 79, 0.2);
-  backdrop-filter: blur(8px);
   overflow: hidden;
 }
 .onboard-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px 6px; }
@@ -487,11 +478,11 @@ h2 { margin: 0 0 12px; color: var(--accent); font-size: 0.82rem; letter-spacing:
 /* 钓况 HUD（右上角） */
 .fish-hud { position: absolute; right: 12px; top: 12px; z-index: 4; width: 250px; display: grid; gap: 6px; padding: 9px 11px; border: 1px solid var(--frame); border-radius: 14px; background: var(--cream-card); box-shadow: var(--shadow); backdrop-filter: blur(6px); }
 .fish-hud-row { display: flex; align-items: center; gap: 6px; }
-.fish-hud-fish { font-weight: 800; font-size: 0.85rem; }
-.fish-hud-btn { margin-left: auto; width: 24px; height: 24px; padding: 0; display: grid; place-items: center; font-size: 0.75rem; }
+.fish-hud-fish { margin-right: auto; font-weight: 800; font-size: 0.85rem; white-space: nowrap; }
+.fish-hud-btn { width: 24px; height: 24px; padding: 0; display: grid; place-items: center; font-size: 0.75rem; }
 .fish-hud-stats { display: flex; gap: 10px; font-size: 0.72rem; color: var(--ink-soft); }
 .fish-hud-stats b { color: var(--ink); font-size: 0.9rem; font-variant-numeric: tabular-nums; }
-.fish-hud-signal { margin: 0; text-align: left; border: 0; box-shadow: none; cursor: pointer; padding: 4px 8px; border-radius: 8px; background: #fde8e3; color: var(--bad); font-size: 0.78rem; font-weight: 800; animation: fish-signal 0.6s ease-in-out infinite alternate; }
+.fish-hud-signal { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; border: 0; box-shadow: none; cursor: pointer; padding: 2px 8px; border-radius: 8px; background: #fde8e3; color: var(--bad); font-size: 0.78rem; font-weight: 800; animation: fish-signal 0.6s ease-in-out infinite alternate; }
 @keyframes fish-signal { from { opacity: 1; } to { opacity: 0.55; } }
 .fish-hud-conds { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 .fish-hud-drill { margin-left: auto; padding: 2px 8px; font-size: 0.66rem; border-radius: 999px; box-shadow: none; }
@@ -502,6 +493,13 @@ h2 { margin: 0 0 12px; color: var(--accent); font-size: 0.82rem; letter-spacing:
 .assist-fab:hover { background: #17695e; border-color: #17695e; }
 .assist { position: absolute; right: 12px; bottom: 12px; z-index: 5; width: min(340px, calc(100% - 24px)); max-height: calc(100% - 200px); min-height: 180px; overflow-y: auto; display: grid; align-content: start; gap: 8px; padding: 10px 12px; border: 1px solid var(--frame); border-radius: 16px; background: rgba(255, 253, 247, 0.97); box-shadow: 0 18px 40px rgba(58, 74, 79, 0.2); backdrop-filter: blur(8px); }
 .assist-head { display: flex; align-items: center; gap: 8px; }
+.assist-head .onboard-close { margin-left: 0; }
+.assist-head .assist-mode { margin-left: auto; }
+.assist-setup-btn { width: 26px; height: 26px; padding: 0; display: grid; place-items: center; font-size: 0.75rem; }
+.assist-head strong + .assist-setup-btn { margin-left: auto; }
+/* 向导期间：助手占满画布右侧整列（盖住 HUD——配钓组时 HUD 没有意义），内边距交给向导。 */
+.assist-setup { top: 12px; width: min(440px, calc(100% - 24px)); max-height: none; padding: 0; overflow: hidden; grid-template-rows: minmax(0, 1fr); z-index: 6; }
+.assist-drills { display: grid; gap: 4px; padding-bottom: 6px; border-bottom: 1px dashed var(--frame); }
 .assist-head strong { font-size: 0.88rem; }
 .assist-sub { color: var(--ink-soft); font-size: 0.7rem; }
 .assist-chips { display: flex; flex-wrap: wrap; gap: 5px; }
@@ -550,7 +548,6 @@ h2 { margin: 0 0 12px; color: var(--accent); font-size: 0.82rem; letter-spacing:
 .sandbox-hint { margin: 2px 0 0; font-size: 0.68rem; color: var(--ink-soft); }
 
 @media (max-width: 960px) {
-  .onboard { left: 12px; width: calc(100% - 24px); }
   .fish-hud { width: 210px; }
 }
 
@@ -578,10 +575,17 @@ h2 { margin: 0 0 12px; color: var(--accent); font-size: 0.82rem; letter-spacing:
 
 /* HUD：钓目步进 + 灵钝区（开钓后最常调的一项） */
 .fish-hud-depth { display: flex; align-items: center; gap: 6px; font-size: 0.74rem; color: var(--ink-soft); }
-.fish-hud-depth button { width: 24px; height: 22px; padding: 0; display: grid; place-items: center; box-shadow: none; }
+.fish-hud-depth input[type='range'] { flex: 1; min-width: 0; margin: 0; accent-color: var(--accent); }
 .fish-hud-depth b { min-width: 2.2em; text-align: center; color: var(--ink); font-variant-numeric: tabular-nums; }
-.fish-hud-depth .zone-chip { margin-left: auto; }
+.fish-hud-depth .zone-chip { flex: none; }
 .fish-hud-issue { margin: 0; color: var(--bad); font-size: 0.68rem; }
+/* 提杆：常驻同一位置、同一高度；有口时亮起并写出漂相，结果行固定一行，HUD 不跳。 */
+.fish-hud-lift { width: 100%; padding: 8px 10px; border-radius: 10px; font-size: 0.86rem; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fish-hud-lift-on { border-color: var(--bad); background: var(--bad); color: #fff; animation: fish-signal 0.6s ease-in-out infinite alternate; }
+.fish-hud-result { margin: 0; min-height: 1.3em; font-size: 0.7rem; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fish-hud-record-toggle { justify-self: start; margin-left: 0; }
+.fish-hud-records { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.fish-hud-records .gear-opt { padding: 6px 2px; }
 /* 钓组页：收起的次要区块 */
 .rig-more { margin-top: 12px; }
 .rig-more > summary { cursor: pointer; font-size: 0.78rem; color: var(--ink-soft); }
@@ -649,7 +653,7 @@ h2 { margin: 0 0 12px; color: var(--accent); font-size: 0.82rem; letter-spacing:
 body { background: #e6e8ec; -webkit-font-smoothing: antialiased; }
 
 /* 面板：白底、无描边、柔和阴影、不做毛玻璃 */
-.inspector, .fish-hud, .assist, .onboard, .vp-popover, .vp-clock {
+.inspector, .fish-hud, .assist, .vp-popover, .vp-clock {
   border: 0;
   border-radius: var(--radius);
   background: #ffffff;

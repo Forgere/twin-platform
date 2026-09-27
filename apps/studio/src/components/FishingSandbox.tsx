@@ -287,7 +287,7 @@ export default function FishingSandbox(props: { session: StudioSession; tick: nu
               t0 {fmt(current().state.rig.t0)} · 带钩调目 t {fmt(current().state.rig.t)} · 单饵压目 w {fmt(current().state.rig.w)} · 钓目 d {fmt(current().state.rig.d)}
             </p>
             <p class="plugin-contrib">
-              底承重 B {fmt(current().state.rig.bottomLoad)} · {zoneLabel(current().state.rig.zone)} · 钩 {current().state.rig.hookState} · 饵 {current().state.rig.baitState}
+              底承重 B {fmt(current().state.rig.bottomLoad)} · {zoneLabel(current().state.rig.zone)}
             </p>
 
             <p class="plugin-note">

@@ -15,7 +15,6 @@ import DataSourcePanel from './DataSourcePanel';
 import EventLogPanel from './EventLogPanel';
 import TimelineBar from './TimelineBar';
 import PluginsPanel from './PluginsPanel';
-import FishingOnboarding from './fishing/FishingOnboarding';
 import FishingHud from './fishing/FishingHud';
 import FishingAssistant, { type FishingAssistantApi } from './fishing/FishingAssistant';
 import RigInspector from './fishing/RigInspector';
@@ -137,7 +136,7 @@ export default function TwinViewport() {
   const [entities, setEntities] = createSignal<TwinEntityView[]>([]);
   const [tab, setTab] = createSignal<InspectorTab>(untrack(() => defaultTab(profile())));
   /**
-   * 开钓向导浮层：进钓场且钓组还没配过就自动打开——"从一开始就有人带着"，
+   * 开钓向导（在助手里）：进钓场且钓组还没配过就自动打开——"从一开始就有人带着"，
    * 不让新手自己猜从哪儿开始。配过之后随时可从 HUD 的 ⚙ / 钓组页重新打开。
    *
    * 存的是"给哪个会话开的向导"而不是布尔：换会话时旧向导必须卸掉、新会话另起一个
@@ -709,14 +708,17 @@ export default function TwinViewport() {
               </div>
             </Show>
 
-            {/* 钓场：钓况 HUD（右上）+ 钓鱼助手（右下）常驻；开钓向导浮在画布中央。 */}
+            {/* 钓场：钓况 HUD（右上）+ 钓鱼助手（右下）常驻；开钓向导在助手里。 */}
             <Show when={profile() === 'fishing'}>
               <FishingHud session={session()} tick={tick()} onReconfigure={openOnboarding} onAsk={(id) => assistant?.askAbout(id)} />
-              <FishingAssistant session={session()} tick={tick()} connect={(api) => (assistant = api)} />
-            </Show>
-            {/* keyed：每个会话一个向导实例；会话一换，旧向导卸掉、新会话另起。 */}
-            <Show when={onboardingFor() === session() ? onboardingFor() : undefined} keyed>
-              {(target: StudioSession) => <FishingOnboarding session={target} onClose={() => setOnboardingFor(undefined)} />}
+              <FishingAssistant
+                session={session()}
+                tick={tick()}
+                connect={(api) => (assistant = api)}
+                setup={onboardingFor()}
+                onSetup={openOnboarding}
+                onSetupClose={() => setOnboardingFor(undefined)}
+              />
             </Show>
 
             {/* 控制条收起时，左下角只留一枚时间胶囊；点它（或工具条 ⏱）才展开完整控制条。 */}

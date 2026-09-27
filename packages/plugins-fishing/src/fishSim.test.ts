@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { TwinWorld, type WorldEvent } from '@twin-platform/world-kernel';
 import { calculateRigState } from './fishingCore';
-import { biteProbability, createFishSimBehavior, fishingLayout, hookProbability, temperatureFactor } from './fishSim';
+import { biteProbability, createFishSimBehavior, fishingLayout, hookProbability, LIFT_WINDOW, temperatureFactor } from './fishSim';
 import { buildFishingScene } from './template';
 
 describe('鱼口模型', () => {
@@ -133,5 +133,83 @@ describe('钓组阶段（rigPhase）', () => {
     const hy = (id: string): number => hooked.getEntity(id)?.transform.position[1] ?? NaN;
     expect(hy('hook-upper-01')).toBeLessThan(hy('swivel-01'));
     expect(hy('hook-lower-01')).toBeLessThan(hy('hook-upper-01'));
+  });
+});
+
+describe('钓场模式（fishingMode）', () => {
+  const world = (attrs: Record<string, unknown>) => {
+    const instance = new TwinWorld(buildFishingScene({ castInterval: 1 }), {
+      seed: 5,
+      maxStepsPerAdvance: 600,
+      behaviors: [createFishSimBehavior()],
+    });
+    for (const [key, value] of Object.entries(attrs)) instance.setAttr('rig-01', key, value as never);
+    return instance;
+  };
+  const rig = (target: TwinWorld) => target.getEntity('rig-01')?.attrs ?? {};
+  /** 推到下一口出现（最多 120 秒）。 */
+  const untilBite = (target: TwinWorld): void => {
+    for (let i = 0; i < 60 * 120 && rig(target).pendingBite !== true; i++) target.step(1 / 60);
+  };
+
+  test('实际做钓不模拟鱼口', () => {
+    const target = world({ fishingMode: 'real' });
+    target.runSteps(60 * 30);
+    expect(Number(rig(target).casts ?? 0)).toBe(0);
+    expect(target.getEventLog().some((event) => event.type === 'fish:cast')).toBe(false);
+  });
+
+  test('手动提杆：有口后漂一直动着等提杆，不自动结算', () => {
+    const target = world({ fishingMode: 'sim' });
+    untilBite(target);
+    expect(rig(target).pendingBite).toBe(true);
+    expect(rig(target).signal).not.toBe('none');
+    const casts = Number(rig(target).casts);
+    target.runSteps(30); // 半秒，仍在窗口内
+    expect(rig(target).pendingBite).toBe(true);
+    expect(Number(rig(target).casts)).toBe(casts);
+  });
+
+  test('窗口内提杆才结算中 / 空 / 切，结果写进 lastLift', () => {
+    const target = world({ fishingMode: 'sim' });
+    untilBite(target);
+    target.setAttr('rig-01', 'lift', true);
+    target.step(1 / 60);
+    const attrs = rig(target);
+    expect(['caught', 'empty', 'broken']).toContain(attrs.lastLift);
+    expect(attrs.pendingBite).toBe(false);
+    expect(attrs.lift).toBe(false);
+    expect(Number(attrs.catches ?? 0) + Number(attrs.emptyHooks ?? 0) + Number(attrs.breaks ?? 0)).toBe(1);
+  });
+
+  test('过了窗口没提算错过；没口时提杆算空提', () => {
+    const target = world({ fishingMode: 'sim' });
+    untilBite(target);
+    target.runSteps(Math.ceil(LIFT_WINDOW * 60) + 2);
+    expect(rig(target).lastLift).toBe('missed');
+    expect(Number(rig(target).missedBites)).toBe(1);
+
+    target.setAttr('rig-01', 'lift', true);
+    target.step(1 / 60);
+    expect(rig(target).lastLift).toBe('blank');
+  });
+
+  test('同种子 + 同一串提杆时刻，逐位一致', () => {
+    const run = (): string => {
+      const target = world({ fishingMode: 'sim' });
+      for (let i = 0; i < 60 * 90; i++) {
+        if (rig(target).pendingBite === true && i % 7 === 0) target.setAttr('rig-01', 'lift', true);
+        target.step(1 / 60);
+      }
+      return fingerprint(target.getEventLog(), { ...rig(target) });
+    };
+    expect(run()).toBe(run());
+  });
+
+  test('自动提杆（autoLift）退回原来的即时结算', () => {
+    const target = world({ fishingMode: 'sim', autoLift: true });
+    target.runSteps(60 * 30);
+    expect(Number(rig(target).casts)).toBeGreaterThan(20);
+    expect(rig(target).pendingBite).toBeUndefined();
   });
 });

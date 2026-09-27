@@ -13,17 +13,22 @@ import {
   situationById,
   stateForSituation,
   type Advice,
+  type FishingMode,
   type FishingActionId,
   type SituationId,
   type SituationMatch,
 } from '@twin-platform/plugins-fishing';
 import type { StudioSession } from '../../scene/studioSession';
-import { readRig, refreshWhilePaused } from './fishingWorld';
+import { readRig, refreshWhilePaused, setFishingMode, writeRig } from './fishingWorld';
+import FishingOnboarding from './FishingOnboarding';
 import { fetchJevStatus, judgeDomain, loadDecisionLog, saveDecisionLog, type JevStatus, type JudgeMode } from './judging';
 import { createSpeech } from './speech';
 
 /**
- * 钓鱼助手 —— 垂钓过程中随时可问（向导不是一次性的）。
+ * 钓鱼助手 —— 从配钓组到钓完都在这里：
+ * - 钓组没配好 / 点了 ⚙：助手里就是开钓向导，走完选「模拟开钓」或「实际做钓」；
+ * - 模拟：可以制造走水 / 闹窝 / 降温 / 打窝来练应对（提杆在 HUD 上）；
+ * - 实际做钓：主要用来点遇到的情况、按建议做决策。
  *
  * 问法：点情况按钮（首选，零负担）；说不清就按 🎤 说一句，或者打字。
  * 答法两路并列：
@@ -111,7 +116,15 @@ export interface FishingAssistantApi {
 
 type Counts = NonNullable<ReturnType<typeof readRig>>['counts'];
 
-export default function FishingAssistant(props: { session: StudioSession; tick: number; connect?: (api: FishingAssistantApi) => void }) {
+export default function FishingAssistant(props: {
+  session: StudioSession;
+  tick: number;
+  connect?: (api: FishingAssistantApi) => void;
+  /** 正在为哪个会话走开钓向导（没有就是平常的助手）。 */
+  setup?: StudioSession;
+  onSetup: () => void;
+  onSetupClose: () => void;
+}) {
   const [open, setOpen] = createSignal(false);
   const [situation, setSituation] = createSignal<SituationId>();
   const [advice, setAdvice] = createSignal<Advice>();
@@ -136,6 +149,7 @@ export default function FishingAssistant(props: { session: StudioSession; tick: 
       bites: now.bites - base.bites,
       catches: now.catches - base.catches,
       emptyHooks: now.emptyHooks - base.emptyHooks,
+      breaks: now.breaks - base.breaks,
     };
   };
   let log: DecisionLog | undefined;
@@ -195,6 +209,11 @@ export default function FishingAssistant(props: { session: StudioSession; tick: 
     refreshWhilePaused(props.session);
     props.session.controller.play();
     setDone({ ...preview, fromJudge });
+    // 旧建议是按改动前的钓组算的，照做后已经过时：清掉，让「现状」按改后的数据重新判断。
+    // record 留着——👍👎 反馈要挂在它上面。
+    setSituation(undefined);
+    setAdvice(undefined);
+    setHeard(undefined);
   };
 
   const switchJudge = (judge: JudgeMode): void => {
@@ -251,13 +270,52 @@ export default function FishingAssistant(props: { session: StudioSession; tick: 
     const rig = readRig(props.session);
     const out = new Set<SituationId>();
     if (!rig) return out;
+    // 照做过之后，计数类信号只看改后的数据；否则旧的"空竿多"会一直把同一个建议顶回来。
+    const counts = since() ?? rig.counts;
     if (rig.conditions.drift && !rig.conditions.antiDrift) out.add('drift');
     if (rig.conditions.smallFish) out.add('small_fish');
     if (rig.conditions.waterTemperature < 12) out.add('cold');
-    if (rig.counts.breaks > 0) out.add('line_break');
-    if (rig.counts.casts >= 8 && rig.counts.bites === 0) out.add('no_bite');
-    if (rig.counts.bites >= 4 && rig.counts.catches * 3 < rig.counts.bites) out.add('bite_no_catch');
+    if (counts.breaks > 0) out.add('line_break');
+    if (counts.casts >= 8 && counts.bites === 0) out.add('no_bite');
+    if (counts.bites >= 4 && counts.catches * 3 < counts.bites) out.add('bite_no_catch');
     return out;
+  };
+
+  const rigNow = () => {
+    props.tick;
+    return readRig(props.session);
+  };
+
+  /** 换模式会清零计数（模拟的鱼口不能混进实钓记录），改动前的建议与跟踪一并作废。 */
+  const switchMode = (next: FishingMode): void => {
+    if (rigNow()?.mode === next) return;
+    setFishingMode(props.session, next);
+    setBaseline(undefined);
+    setDone(undefined);
+    setSituation(undefined);
+    setAdvice(undefined);
+    setHeard(undefined);
+  };
+
+  /** 模拟模式下"制造情况"：写进 attrs，和真实变化一样可回放、可被助手读到。 */
+  const drills = () => {
+    const rig = rigNow();
+    if (!rig) return [];
+    const { conditions } = rig;
+    const time = props.session.world.time;
+    const nest = time < conditions.nestUntil;
+    return [
+      { id: 'drift', label: '🌊 走水', on: conditions.drift, apply: () => writeRig(props.session, { drift: !conditions.drift, antiDrift: false }) },
+      { id: 'small', label: '🐟 小鱼闹窝', on: conditions.smallFish, apply: () => writeRig(props.session, { smallFish: !conditions.smallFish }) },
+      {
+        id: 'cold',
+        label: '🥶 降温 8℃',
+        on: conditions.waterTemperature < 12,
+        apply: () => writeRig(props.session, { waterTemperature: conditions.waterTemperature < 12 ? 20 : 8 }),
+      },
+      { id: 'nest', label: '🪣 打窝', on: nest, apply: () => writeRig(props.session, { nestUntil: nest ? 0 : time + 120 }) },
+      { id: 'auto', label: '🤖 自动提杆', on: !rig.manualLift, apply: () => writeRig(props.session, { autoLift: rig.manualLift }) },
+    ];
   };
 
   const problems = SITUATIONS.filter((item) => item.kind === 'problem');
@@ -265,7 +323,16 @@ export default function FishingAssistant(props: { session: StudioSession; tick: 
 
   return (
     <>
-      <Show when={!open()}>
+      {/* 开钓向导住在助手里：keyed，每个会话一个向导实例，会话一换旧向导卸掉。 */}
+      <Show when={props.setup === props.session ? props.setup : undefined} keyed>
+        {(target: StudioSession) => (
+          <section class="assist assist-setup" aria-label="钓鱼助手 · 开钓向导">
+            <FishingOnboarding session={target} onClose={props.onSetupClose} />
+          </section>
+        )}
+      </Show>
+
+      <Show when={!open() && props.setup !== props.session}>
         <button type="button" class="assist-fab" onClick={() => setOpen(true)} title="遇到情况随时问：点选或直接说">
           🎣 助手
           {/* 收起时也要让人知道"现在有情况值得问"：命中的现状数挂在按钮上。 */}
@@ -277,7 +344,7 @@ export default function FishingAssistant(props: { session: StudioSession; tick: 
         </button>
       </Show>
 
-      <Show when={open()}>
+      <Show when={open() && props.setup !== props.session}>
         {/* Esc 收起：焦点在助手里任何位置都生效；在听写时先停听写，不直接收起。 */}
         <section
           class="assist"
@@ -290,12 +357,58 @@ export default function FishingAssistant(props: { session: StudioSession; tick: 
         >
           <header class="assist-head">
             <strong>🎣 钓鱼助手</strong>
-            <span class="assist-sub">遇到什么情况？</span>
+            <Show when={rigNow()?.wizardDone}>
+              <div class="assist-mode" role="group" aria-label="钓场模式">
+                <button
+                  type="button"
+                  class={rigNow()?.mode === 'sim' ? 'seg seg-active' : 'seg'}
+                  aria-pressed={rigNow()?.mode === 'sim' ? 'true' : 'false'}
+                  title="模拟开钓：数字钓场出鱼口（切换会清零计数）"
+                  onClick={() => switchMode('sim')}
+                >
+                  🎲 模拟
+                </button>
+                <button
+                  type="button"
+                  class={rigNow()?.mode === 'real' ? 'seg seg-active' : 'seg'}
+                  aria-pressed={rigNow()?.mode === 'real' ? 'true' : 'false'}
+                  title="实际做钓：不模拟鱼口，只做决策与记录（切换会清零计数）"
+                  onClick={() => switchMode('real')}
+                >
+                  🎣 实钓
+                </button>
+              </div>
+            </Show>
+            <button type="button" class="assist-setup-btn" title="开钓向导：换鱼 / 换装备 / 重新调漂" aria-label="开钓向导" onClick={props.onSetup}>
+              ⚙
+            </button>
             <button type="button" class="onboard-close" aria-label="收起助手" onClick={() => setOpen(false)}>
               ▾
             </button>
           </header>
 
+          <Show when={rigNow()?.wizardDone === false}>
+            <button type="button" class="onboard-next" onClick={props.onSetup}>
+              🧭 钓组还没配好，走开钓向导
+            </button>
+          </Show>
+
+          <Show when={rigNow()?.wizardDone && rigNow()?.mode === 'sim'}>
+            <div class="assist-drills">
+              <span class="assist-op-kicker">制造情况（练应对）</span>
+              <div class="assist-chips" role="group" aria-label="制造情况">
+                <For each={drills()}>
+                  {(item) => (
+                    <button type="button" class={item.on ? 'gear-opt gear-opt-on' : 'gear-opt'} aria-pressed={item.on ? 'true' : 'false'} onClick={item.apply}>
+                      {item.label}
+                    </button>
+                  )}
+                </For>
+              </div>
+            </div>
+          </Show>
+
+          <span class="assist-op-kicker">{rigNow()?.mode === 'real' ? '遇到什么情况？点一下拿对策' : '遇到什么情况？'}</span>
           <div class="assist-chips" role="group" aria-label="钓况">
             <For each={problems}>
               {(item) => (
@@ -370,7 +483,7 @@ export default function FishingAssistant(props: { session: StudioSession; tick: 
           </Show>
 
           <Show when={situation() && !advice()}>
-            <p class="assist-note assist-bad">钓组参数还不完整，先走一遍开钓向导（HUD 上的 ⚙）。</p>
+            <p class="assist-note assist-bad">钓组参数还不完整，先走一遍开钓向导（上面的 ⚙）。</p>
           </Show>
 
           <Show when={advice()}>

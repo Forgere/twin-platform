@@ -139,6 +139,37 @@ export type BitHook = 'upper' | 'lower' | 'none';
  */
 export const UPPER_BITE_SHARE = 0.4;
 
+/**
+ * 钓场模式（rig attrs.fishingMode）——向导走完后二选一：
+ * - `sim`：数字钓场里模拟鱼口；有口后要用户**提杆**才结算（`autoLift: true` 时退回自动结算）；
+ * - `real`：用户在真实钓点，这里不模拟鱼口，只摆钓组；计数来自用户手动记录。
+ * 缺省（老场景、评测、方案对比）＝ 模拟 + 自动结算，行为与随机数消耗保持原样。
+ */
+export type FishingMode = 'sim' | 'real';
+
+export function fishingModeOf(attrs: Readonly<Record<string, unknown>> | undefined): FishingMode {
+  return attrs?.fishingMode === 'real' ? 'real' : 'sim';
+}
+
+/** 需要用户提杆才结算：只在显式选了模拟模式、且没开自动提杆时。 */
+export function manualLiftOf(attrs: Readonly<Record<string, unknown>> | undefined): boolean {
+  return attrs?.fishingMode === 'sim' && attrs.autoLift !== true;
+}
+
+/** 有口后留给提杆的时间（仿真秒），与漂相动画一样长：漂动完了还没提就算错过。 */
+export const LIFT_WINDOW = 1.6;
+
+/** 一次提杆（或错过）的结果：中鱼 / 空钩 / 切线 / 错过这口 / 没口空提。 */
+export type LiftResult = 'caught' | 'empty' | 'broken' | 'missed' | 'blank';
+
+export const LIFT_RESULT_LABEL: Readonly<Record<LiftResult, string>> = {
+  caught: '🐟 中鱼！',
+  empty: '空钩——提早了或鱼没吃实',
+  broken: '💥 切线跑鱼',
+  missed: '错过了这口——漂动时没提',
+  blank: '没口空提——看漂动了再提',
+};
+
 const SLOTS = ['float', 'sinker', 'swivel', 'upperHook', 'lowerHook', 'upperBait', 'lowerBait'] as const;
 
 const layoutOptions = (config: Record<string, unknown>) => ({
@@ -211,11 +242,15 @@ export function createFishSimBehavior(config: FishSimConfig = {}): WorldBehavior
           continue;
         }
 
+        // 实际做钓：鱼口在真实钓点，这里不模拟，计数只来自用户记录。
+        if (fishingModeOf(entity.attrs) === 'real') {
+          if (str(entity.attrs.signal, 'none') !== 'none') ctx.setAttr(entity.id, 'signal', 'none');
+          continue;
+        }
+
         const conditions = conditionsOf(entity);
         const waterTemperature = conditions.waterTemperature;
         const interval = Math.max(0.5, num(worldConfig.castInterval, defaultInterval));
-        const nextAt = num(entity.attrs.nextAt, 0);
-        if (ctx.time + 1e-9 < nextAt) continue;
 
         // 装备（目标鱼 / 钩 / 线 / 饵）与情况（走水 / 闹窝 / 窝料）只给倍率，随机仍全部取自 ctx.rng。
         const gear = loadoutEffects(loadoutFromAttrs(entity.attrs));
@@ -223,6 +258,14 @@ export function createFishSimBehavior(config: FishSimConfig = {}): WorldBehavior
         const zone = result.state.zone;
         const biteChance = clamp01(biteProbability(zone, waterTemperature) * gear.biteMul * gear.zoneBite[zone] * situation.bite);
         const hookChance = clamp01(hookProbability(zone, waterTemperature) * gear.hookMul * situation.hook);
+
+        if (manualLiftOf(entity.attrs)) {
+          stepManualLift(ctx, entity.id, entity.attrs, { biteChance, hookChance, breakChance: gear.breakChance, interval, state: result.state });
+          continue;
+        }
+
+        const nextAt = num(entity.attrs.nextAt, 0);
+        if (ctx.time + 1e-9 < nextAt) continue;
 
         const casts = num(entity.attrs.casts, 0) + 1;
         const bit = ctx.rng.bool(biteChance);
@@ -253,4 +296,76 @@ export function createFishSimBehavior(config: FishSimConfig = {}): WorldBehavior
       }
     },
   };
+}
+
+interface LiftOdds {
+  readonly biteChance: number;
+  readonly hookChance: number;
+  readonly breakChance: number;
+  readonly interval: number;
+  readonly state: RigState;
+}
+
+/**
+ * 手动提杆：抛竿只结算"有没有口"；有口后漂动 LIFT_WINDOW 秒，期间用户提杆
+ * （UI 写 attrs.lift = true）才结算中不中，过了窗口算错过。没口就提 = 空提，重新抛竿。
+ *
+ * 提杆意图走 attrs（可回放的世界变更），在 step 里消费；中不中仍只取 ctx.rng，
+ * 所以同一串提杆时刻重放得到同一结果。
+ */
+function stepManualLift(ctx: BehaviorContext, rigId: string, attrs: Readonly<Record<string, unknown>>, odds: LiftOdds): void {
+  const pending = attrs.pendingBite === true;
+  const cast = num(attrs.casts, 0);
+
+  const settle = (outcome: LiftResult): void => {
+    ctx.setAttr(rigId, 'lastLift', outcome);
+    ctx.setAttr(rigId, 'pendingBite', false);
+    ctx.setAttr(rigId, 'signal', 'none');
+    ctx.setAttr(rigId, 'nextAt', ctx.time + odds.interval);
+    ctx.emit('fish:lift', { entityId: rigId, payload: { cast, result: outcome } });
+  };
+
+  if (attrs.lift === true) {
+    ctx.setAttr(rigId, 'lift', false);
+    if (!pending) {
+      settle('blank');
+      return;
+    }
+    const hooked = ctx.rng.bool(odds.hookChance);
+    const broken = hooked && odds.breakChance > 0 && ctx.rng.bool(odds.breakChance);
+    if (broken) ctx.setAttr(rigId, 'breaks', num(attrs.breaks, 0) + 1);
+    else if (hooked) ctx.setAttr(rigId, 'catches', num(attrs.catches, 0) + 1);
+    else ctx.setAttr(rigId, 'emptyHooks', num(attrs.emptyHooks, 0) + 1);
+    settle(broken ? 'broken' : hooked ? 'caught' : 'empty');
+    if (broken) ctx.emit('fish:break', { entityId: rigId, payload: { cast } });
+    return;
+  }
+
+  if (pending) {
+    if (ctx.time + 1e-9 < num(attrs.biteUntil, 0)) return;
+    ctx.setAttr(rigId, 'missedBites', num(attrs.missedBites, 0) + 1);
+    settle('missed');
+    return;
+  }
+
+  if (ctx.time + 1e-9 < num(attrs.nextAt, 0)) return;
+  const bit = ctx.rng.bool(odds.biteChance);
+  const signal: FloatSignal = bit ? ctx.rng.pick(BITE_SIGNALS) : 'none';
+  const bitHook: BitHook = bit ? (ctx.rng.bool(UPPER_BITE_SHARE) ? 'upper' : 'lower') : 'none';
+  ctx.setAttr(rigId, 'casts', cast + 1);
+  if (bit) {
+    ctx.setAttr(rigId, 'bites', num(attrs.bites, 0) + 1);
+    ctx.setAttr(rigId, 'pendingBite', true);
+    ctx.setAttr(rigId, 'biteUntil', ctx.time + LIFT_WINDOW);
+  } else {
+    ctx.setAttr(rigId, 'nextAt', ctx.time + odds.interval);
+  }
+  ctx.setAttr(rigId, 'zone', odds.state.zone);
+  ctx.setAttr(rigId, 'bottomLoad', odds.state.bottomLoad);
+  ctx.setAttr(rigId, 'signal', signal);
+  ctx.setAttr(rigId, 'bitHook', bitHook);
+  ctx.emit('fish:cast', {
+    entityId: rigId,
+    payload: { cast: cast + 1, zone: odds.state.zone, bite: bit, signal, bitHook, awaitingLift: bit },
+  });
 }

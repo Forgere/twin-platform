@@ -16,7 +16,7 @@ import DecisionPanel from '../DecisionPanel';
  *
  * 分工：HUD 管"正在钓"（漂相、计数、钓目 d、情况）；向导管"从 0 配到开钓"；
  * 这一页管"这副钓组长什么样、测得的参数与装备"：
- *   剖面图（悬停看逐部件状态）→ 调目 t0 / t / w（测量值）→ 装备 → 收起的判断者记录与校准。
+ *   剖面图（悬停看逐部件状态）→ 装备（常用）→ 收起的调目 t0 / t / w（测量值，少动）→ 收起的判断者记录与校准。
  * 钓目 d 只在 HUD 上调，这里不重复。
  * 每次改动都先过 calculateRigState：不合法的组合根本写不进去，原因直接显示。
  */
@@ -66,25 +66,6 @@ export default function RigInspector(props: { session: StudioSession; tick: numb
             <FishingSandbox session={props.session} tick={props.tick} />
 
             <Show when={current().error}>{(message) => <p class="plugin-errors">{message()}</p>}</Show>
-
-            <h3>调目（测量值）</h3>
-            <div class="rig-fields">
-              <For each={RIG_FIELDS}>
-                {(field) => (
-                  <div class="rig-field" title={field.hint}>
-                    <span>{field.label}</span>
-                    <button type="button" aria-label={field.label + ' 减半目'} onClick={() => step(field.key, -0.5)}>
-                      −
-                    </button>
-                    <b>{fmt(current().state?.rig[field.key] ?? 0)}</b>
-                    <button type="button" aria-label={field.label + ' 加半目'} onClick={() => step(field.key, 0.5)}>
-                      +
-                    </button>
-                  </div>
-                )}
-              </For>
-            </div>
-            <Show when={issue()}>{(message) => <p class="plugin-errors">{message()}</p>}</Show>
 
             <h3>目标鱼与装备</h3>
             <div class="rig-gear">
@@ -140,6 +121,27 @@ export default function RigInspector(props: { session: StudioSession; tick: numb
               </For>
             </ul>
 
+            {/* 调目是开钓前测一次的量，平时很少动：默认收起，把位置让给常用的装备调整。 */}
+            <details class="rig-more">
+              <summary>调目（测量值）</summary>
+            <div class="rig-fields">
+              <For each={RIG_FIELDS}>
+                {(field) => (
+                  <div class="rig-field" title={field.hint}>
+                    <span>{field.label}</span>
+                    <button type="button" aria-label={field.label + ' 减半目'} onClick={() => step(field.key, -0.5)}>
+                      −
+                    </button>
+                    <b>{fmt(current().state?.rig[field.key] ?? 0)}</b>
+                    <button type="button" aria-label={field.label + ' 加半目'} onClick={() => step(field.key, 0.5)}>
+                      +
+                    </button>
+                  </div>
+                )}
+              </For>
+            </div>
+            <Show when={issue()}>{(message) => <p class="plugin-errors">{message()}</p>}</Show>
+            </details>
 
             {/* 判断者的执行与 👍👎 在钓鱼助手里；这里只留跨会话的记录与校准，默认收起。 */}
             <details class="rig-more">

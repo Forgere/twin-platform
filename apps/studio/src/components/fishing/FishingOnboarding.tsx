@@ -15,6 +15,7 @@ import {
   wizardRigState,
   wizardStart,
   wizardSuggestPreset,
+  type FishingMode,
   type Loadout,
   type RigPhase,
   type WizardInput,
@@ -22,10 +23,10 @@ import {
   type WizardStep,
 } from '@twin-platform/plugins-fishing';
 import type { StudioSession } from '../../scene/studioSession';
-import { readRig, RIG_ID, writeRig } from './fishingWorld';
+import { readRig, RIG_ID, setFishingMode, writeRig } from './fishingWorld';
 
 /**
- * 开钓向导（浮层）—— 应用的起点，浮在画布上，不占右侧编辑器。
+ * 开钓向导 —— 应用的起点，住在钓鱼助手里（助手先带你配钓组，再陪你钓），不占右侧编辑器。
  *
  * 收集信息**全部用选择**：鱼是卡片、装备是分段按钮、调目是"点漂尾露出的那一目"、
  * 调法是卡片、找底是上推 / 下推。没有一个必须手打的输入框。
@@ -33,6 +34,7 @@ import { readRig, RIG_ID, writeRig } from './fishingWorld';
  * 每一步的合法性都问 plugins-fishing 的 `wizardAdvance()`（与引擎共用校验）。
  * 找底这一步把钓目**实时写进世界**并推一帧：3D 里的漂、铅、钩跟着动，
  * 用户看到的就是自己这个决定的后果。用户点 ✕ 半途关闭会把钓组还原成打开前的样子。
+ * 最后一步二选一：模拟开钓（数字钓场出鱼口、自己提杆）或实际做钓（真实钓点，助手陪着做决策）。
  *
  * 一个实例只服务一个会话（父组件用 keyed Show 按会话重建），所以会话在创建时取一次；
  * 还原 / 恢复播放只在用户明确关闭时做，不放进 onCleanup——换会话时旧世界已被丢弃，
@@ -230,7 +232,8 @@ export default function FishingOnboarding(props: { session: StudioSession; onClo
     });
   };
 
-  const startFishing = (): void => {
+  const startFishing = (mode: FishingMode): void => {
+    setFishingMode(session, mode);
     session.controller.play();
     props.onClose();
   };
@@ -440,7 +443,23 @@ export default function FishingOnboarding(props: { session: StudioSession; onClo
                   调 {fmt(state().t ?? 0)} 钓 {fmt(state().d ?? 0)}（无钩 {fmt(state().t0 ?? 0)} · 单饵压 {fmt(state().w ?? 0)}）
                 </li>
               </ul>
-              <p class="onboard-hint">开钓后遇到情况，随时点右下角的「🎣 助手」问——点选或直接说。</p>
+              <p class="onboard-q">怎么钓？</p>
+              <div class="onboard-cards onboard-cards-2">
+                <button type="button" class="onboard-card" onClick={() => startFishing('sim')}>
+                  <span class="onboard-emoji" aria-hidden="true">
+                    🎲
+                  </span>
+                  <strong>模拟开钓</strong>
+                  <span>在数字钓场里抛竿出鱼口：看漂动了自己点「提杆」。可以随时制造走水、闹窝、降温，练应对。</span>
+                </button>
+                <button type="button" class="onboard-card" onClick={() => startFishing('real')}>
+                  <span class="onboard-emoji" aria-hidden="true">
+                    🎣
+                  </span>
+                  <strong>实际做钓</strong>
+                  <span>你在真实钓点：这里不模拟鱼口。遇到情况问助手要对策；想统计就在 HUD 上逐竿记一笔（可选）。</span>
+                </button>
+              </div>
             </>
           )}
         </Show>
@@ -480,11 +499,6 @@ export default function FishingOnboarding(props: { session: StudioSession; onClo
         <Show when={state().step === 'find_bottom'}>
           <button type="button" class="onboard-next" onClick={finish}>
             就钓这里 →
-          </button>
-        </Show>
-        <Show when={state().step === 'done'}>
-          <button type="button" class="onboard-next" onClick={startFishing}>
-            🎣 开钓！
           </button>
         </Show>
       </footer>
