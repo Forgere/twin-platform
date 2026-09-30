@@ -1,7 +1,6 @@
 import { DecisionLog, type DecisionDomain, type DecisionState, type SerializedDecisionLog } from '@twin-platform/decision-core';
 import { createJevJudge, createProxyJevClient } from '@twin-platform/plugins-fishing';
-import { resolveServerUrl } from '../../scene/serverUrl';
-import type { StudioSession } from '../../scene/studioSession';
+import type { StudioSessionPort } from '@twin-platform/studio-sdk';
 
 /**
  * 判断者装配（规则 / Jev）与决策日志存取——决策面板与钓鱼助手共用。
@@ -19,12 +18,8 @@ export interface JevStatus {
 
 const STORAGE_KEY = 'twin.decision-log.v1';
 
-// 与 TwinViewport 同一套服务端解析：dev 走 vite 的 /api 代理；
-// 生产同源时就是 origin，token 由 Worker 注入，前端不需要。
-const apiUrl = resolveServerUrl();
-const apiToken = import.meta.env.VITE_TWIN_API_TOKEN || undefined;
-
-export const authHeaders = (): Record<string, string> => (apiToken ? { authorization: 'Bearer ' + apiToken } : {});
+// 插件只声明同源路径，地址与鉴权由宿主的请求端口负责。
+const requestFor = (session: StudioSessionPort) => session.request ?? ((path: string, init?: RequestInit) => fetch(path, init));
 
 export function loadDecisionLog(): DecisionLog {
   if (typeof localStorage === 'undefined') return new DecisionLog('ui');
@@ -47,9 +42,9 @@ export function saveDecisionLog(log: DecisionLog): void {
 }
 
 /** 问一次服务端 Jev 是否配置；离线 / 纯静态部署一律当"未配置"。 */
-export async function fetchJevStatus(): Promise<JevStatus> {
+export async function fetchJevStatus(session: StudioSessionPort): Promise<JevStatus> {
   try {
-    const response = await fetch(apiUrl + '/api/jev/status', { headers: authHeaders() });
+    const response = await requestFor(session)('/api/jev/status');
     return (await response.json()) as JevStatus;
   } catch {
     return { configured: false };
@@ -57,9 +52,9 @@ export async function fetchJevStatus(): Promise<JevStatus> {
 }
 
 /** 按模式装配决策域：规则用插件自带的，Jev 只换 judge，其余（Policy / 降级）不变。 */
-export function judgeDomain(session: StudioSession, mode: JudgeMode): DecisionDomain<DecisionState> | undefined {
+export function judgeDomain(session: StudioSessionPort, mode: JudgeMode): DecisionDomain<DecisionState> | undefined {
   const base = session.host.decisions[0];
   if (!base) return undefined;
   if (mode === 'rule') return base;
-  return { ...base, judge: createJevJudge(createProxyJevClient({ basePath: apiUrl + '/api/jev/decide', headers: authHeaders() })) };
+  return { ...base, judge: createJevJudge(createProxyJevClient({ fetchImpl: requestFor(session) })) };
 }

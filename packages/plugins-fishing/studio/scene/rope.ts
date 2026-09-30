@@ -44,7 +44,7 @@ type V = [number, number, number];
 /** 曲线：控制点 = 弦中点 + 2·bulge（曲线中点正好偏离弦中点 bulge）。 */
 function curvePoint(from: Vec3, to: Vec3, bulge: Vec3, k: number, out: V): V {
   const u = 1 - k;
-  for (let axis = 0; axis < 3; axis += 1) {
+  for (const axis of [0, 1, 2] as const) {
     const control = (from[axis] + to[axis]) / 2 + 2 * bulge[axis];
     out[axis] = u * u * from[axis] + 2 * u * k * control + k * k * to[axis];
   }
@@ -75,7 +75,7 @@ export class Rope {
 
   point(index: number): Vec3 {
     const o = index * 3;
-    return [this.nodes[o], this.nodes[o + 1], this.nodes[o + 2]];
+    return [this.nodes[o]!, this.nodes[o + 1]!, this.nodes[o + 2]!];
   }
 
   /** 按当前挂点直接采样平衡曲线：回放 / 暂停用，不依赖此前渲染过多少帧。 */
@@ -98,7 +98,7 @@ export class Rope {
       const substeps = Math.max(1, Math.ceil(span / (1 / 240)));
       const h = span / substeps;
       for (let step = 0; step < substeps; step += 1) {
-        for (let axis = 0; axis < 3; axis += 1) {
+        for (const axis of [0, 1, 2] as const) {
           const accel = omega * omega * (target[axis] - this.bulge[axis]) - 2 * zeta * omega * this.velocity[axis];
           this.velocity[axis] += accel * h;
           this.bulge[axis] += this.velocity[axis] * h;
@@ -129,7 +129,7 @@ export class Rope {
 export function targetBulge(from: Vec3, to: Vec3, length: number, forces: RopeForces): V {
   const chord = Math.hypot(to[0] - from[0], to[1] - from[1], to[2] - from[2]);
   if (chord >= length * 0.999 || chord < 1e-9) return [0, 0, 0];
-  const c = [(to[0] - from[0]) / chord, (to[1] - from[1]) / chord, (to[2] - from[2]) / chord];
+  const c: V = [(to[0] - from[0]) / chord, (to[1] - from[1]) / chord, (to[2] - from[2]) / chord];
   const underwater = (from[1] + to[1]) / 2 < forces.surfaceY;
   const spread = forces.spread ?? [0, 0, 0];
   const pull: V = [

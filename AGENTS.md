@@ -38,6 +38,8 @@ Bun workspaces: `apps/*`、`packages/*`、`plugins/*`。
 - `packages/scene-schema` — 版本化场景契约 + 校验 + 迁移。
 - `packages/world-kernel` — 世界内核，零 UI / Three / DOM 依赖。
 - `packages/plugin-sdk` — 插件 manifest、能力、生命周期与故障隔离（`SafeBehavior`）。
+- `packages/studio-sdk` — 浏览器展示接口（会话端口、UI 插槽、三维 Adapter）；`/three`、`/theme` 提供共享展示工具，不进纯内核依赖图。
+- `packages/plugins-fishing` — 台钓领域插件；根入口仅含确定性领域逻辑，`/studio` 入口拥有钓场全部 UI、三维模型、表现算法和样式。
 - `packages/analytics-core` — 窗口聚合、规则与产线指标（纯函数，确定性）。
 - `packages/plugins-logistics` — 输送线领域插件（设备工厂 / 行为 / 模板 / 指标）。领域插件统一放在 `packages/plugins-<domain>/`，由 `plugin-sdk` 暴露能力，不修改 `world-kernel`。
 - `packages/scenario-compare` — 从历史快照分叉两条仿真路径并比对结构化结果。
@@ -69,7 +71,16 @@ bun run dev:worker   # apps/worker 的 wrangler dev（默认 :8787，上游读 a
 
 包的测试用 `bun:test`（`import { test, expect } from "bun:test"`），
 放在 `src/*.test.ts`，被各包 tsconfig 的 `exclude` 排除在类型检查之外
-（仓库还没装 `bun-types`）。`apps/studio` 的组件测试仍然走 vitest。
+（仓库还没装 `bun-types`）。`apps/studio` 与 `packages/plugins-*/studio/` 的浏览器测试走 Vitest：
+`bun run --cwd apps/studio test --run`。根 `bun run test` 排除 `**/studio/**`，避免 Bun 误跑需要 Solid 编译的测试。
+
+## Browser plugin seam
+
+- 纯插件只登记在 `apps/studio/src/plugins/catalog.ts`；浏览器展示单独登记在 `plugins/presentations.ts`，不要让 `StudioSession → catalog` 间接加载 TSX/CSS/Three。
+- 领域展示实现位于所属 `packages/plugins-<domain>/studio/`，通过 `StudioPresentation` 提供场景匹配、检视页、UI 插槽及三维 Adapter。宿主不识别领域实体 ID，也不 import 领域 UI。
+- 插件 UI 消费 `StudioSessionPort`；地址/鉴权通过宿主 `request` 端口注入，不反向引用 `apps/studio`。
+- 三维 Adapter 在世界位姿应用后更新，暂停帧也更新；只读状态与仿真时间，不推进世界。宿主拥有实体网格，Adapter 只释放自己的附加对象；主题重建前清缓存，切会话先卸载旧 UI。
+- `packages/studio-sdk/src/architecture.test.ts` 守卫核心依赖图、浏览器/纯入口分离和领域实现归属。
 
 ## Determinism rules (world-kernel)
 

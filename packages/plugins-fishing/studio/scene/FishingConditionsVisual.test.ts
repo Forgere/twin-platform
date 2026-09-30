@@ -2,15 +2,15 @@ import { describe, expect, test, vi } from 'vitest';
 import * as THREE from 'three';
 import { TwinWorld } from '@twin-platform/world-kernel';
 import { buildFishingScene, createFishSimBehavior } from '@twin-platform/plugins-fishing';
-import { buildEntityMesh } from './entityMeshes';
+import { buildFishingEntityMesh } from './fishingMeshes';
 import { FishingConditionsVisual } from './FishingConditionsVisual';
-import { TwinSceneController } from './TwinSceneController';
+import { createFishingViewFixture } from './sceneFixture';
 
 const setup = () => {
   const world = new TwinWorld(buildFishingScene(), { seed: 7, behaviors: [createFishSimBehavior()] });
   world.runSteps(1);
   const pond = world.getEntity('pond-01')!;
-  const water = buildEntityMesh({ id: pond.id, kind: pond.kind, visual: pond.visual, transform: pond.transform });
+  const water = buildFishingEntityMesh({ id: pond.id, kind: pond.kind, visual: pond.visual, transform: pond.transform })!;
   const meshes = new Map<string, THREE.Object3D>([['pond-01', water]]);
   const visual = new FishingConditionsVisual();
   const update = () => visual.update(world, meshes);
@@ -29,28 +29,19 @@ const matrices = (object: THREE.Object3D): number[][] => {
 const waterColor = (water: THREE.Object3D): number => ((water.children[0] as THREE.Mesh).material as THREE.MeshStandardMaterial).color.getHex();
 
 describe('钓场条件 → 3D 的真实状态接线', () => {
-  test('控制器每帧的真实更新路径在暂停时仍消费条件，不只是独立模块会画', () => {
-    const { world, visual, water, group } = setup();
-    // 只跳过 WebGL 构造；运行控制器真实 animateSubParts → 条件表现层路径。
-    const controller = Object.assign(Object.create(TwinSceneController.prototype), {
-      controller: { world, playing: false },
-      entityMeshes: new Map([['pond-01', water]]),
-      fishingConditions: visual,
-      beltTime: 0,
-      rigFlowTan: 0,
-      floatBite: { casts: -1, signal: 'none', hook: 'lower', t: 10 },
-    }) as { animateSubParts: (delta: number) => void };
+  test('展示 Adapter 在暂停时仍消费条件，不推进世界', () => {
+    const run = createFishingViewFixture();
+    const water = run.meshes.get('pond-01')!;
     const warm = waterColor(water);
-    world.setAttr('rig-01', 'drift', true);
-    world.setAttr('rig-01', 'smallFish', true);
-    world.setAttr('rig-01', 'waterTemperature', 8);
-    world.setAttr('rig-01', 'nestUntil', world.time + 10);
-    controller.animateSubParts(0);
-    expect(group('fishing-current')?.visible).toBe(true);
-    expect(group('fishing-small-fish')?.visible).toBe(true);
-    expect(group('fishing-nest')?.visible).toBe(true);
+    run.attrs({ drift: true, smallFish: true, waterTemperature: 8, nestUntil: run.world.time + 10 });
+    const before = run.world.snapshot();
+    run.frame();
+    for (const name of ['fishing-current', 'fishing-small-fish', 'fishing-nest']) {
+      expect(run.scene.getObjectByName(name)?.visible).toBe(true);
+    }
     expect(waterColor(water)).not.toBe(warm);
-    visual.dispose();
+    expect(run.world.snapshot()).toEqual(before);
+    run.dispose();
   });
 
   test('走水显示流向，小鱼闹窝显示鱼群，打窝显示窝料；关闭各自立即消失', () => {

@@ -137,8 +137,13 @@ export class FishingConditionsVisual {
     }
   }
 
-  dispose(): void {
+  reset(): void {
     this.tintWater(undefined, 0);
+    this.group.visible = this.current.visible = this.fish.visible = this.nest.visible = false;
+  }
+
+  dispose(): void {
+    this.reset();
     const geometries = new Set<THREE.BufferGeometry>();
     const materials = new Set<THREE.Material>();
     this.group.traverse((object) => {

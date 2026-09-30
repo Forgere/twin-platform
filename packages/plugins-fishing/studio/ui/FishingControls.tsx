@@ -1,7 +1,7 @@
 import { createEffect, createMemo, createSignal, For, onCleanup, Show } from 'solid-js';
 import { BAITS, fishById, LIFT_RESULT_LABEL, SIGNAL_LABEL, type FishProfile, type FloatSignal } from '@twin-platform/plugins-fishing';
 import type { WorldEvent } from '@twin-platform/world-kernel';
-import type { StudioSession } from '../../scene/studioSession';
+import type { StudioSessionPort } from '@twin-platform/studio-sdk';
 import { castRod, liftRod, readRig, recordCast, RIG_ID, switchBait, type CastRecord } from './fishingWorld';
 import { createBiteAudio } from './biteAudio';
 
@@ -11,7 +11,7 @@ const RECORDS: readonly { id: CastRecord; label: string }[] = [
 const BAIT_LABEL = { worm: '蚯蚓', grain: '谷物', commercial: '商品饵', corn: '玉米' } as const;
 
 /** 画布下方中央的单一操作位；反馈不拦截指针，也不接管键盘焦点。 */
-export default function FishingControls(props: { session: StudioSession; tick: number }) {
+export default function FishingControls(props: { session: StudioSessionPort; tick: number }) {
   const rig = createMemo(() => {
     props.tick;
     return readRig(props.session);
@@ -21,7 +21,7 @@ export default function FishingControls(props: { session: StudioSession; tick: n
   const [caught, setCaught] = createSignal<FishProfile | undefined>(undefined, { name: 'fishing.catch' });
   const audio = createBiteAudio();
   let timer: ReturnType<typeof setTimeout> | undefined;
-  let previous: { session: StudioSession; time: number; event?: WorldEvent; casts: number; active: boolean } | undefined;
+  let previous: { session: StudioSessionPort; time: number; event?: WorldEvent; casts: number; active: boolean } | undefined;
 
   const clearCatch = (): void => {
     clearTimeout(timer);

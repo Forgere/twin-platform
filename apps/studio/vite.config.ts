@@ -37,7 +37,11 @@ export default defineConfig({
       },
     },
   },
+  resolve: {
+    dedupe: ['solid-js', '@solidjs/web', '@solidjs/signals', 'three'],
+  },
   test: {
+    include: ['src/**/*.test.{ts,tsx}', '../../packages/plugins-fishing/studio/**/*.test.{ts,tsx}'],
     environment: 'jsdom',
     globals: false,
     setupFiles: ['./vitest-setup.ts'],

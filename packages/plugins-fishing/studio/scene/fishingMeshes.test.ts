@@ -1,6 +1,18 @@
 import { describe, expect, test } from 'vitest';
 import * as THREE from 'three';
-import { buildEntityMesh } from './entityMeshes';
+import { buildFishingEntityMesh } from './fishingMeshes';
+import type { EntityMeshInput } from '@twin-platform/studio-sdk';
+import { disposeObject } from '@twin-platform/studio-sdk/three';
+import { afterEach } from 'vitest';
+
+const allocated: THREE.Group[] = [];
+const buildEntityMesh = (entity: EntityMeshInput): THREE.Group => {
+  const mesh = buildFishingEntityMesh(entity);
+  if (!mesh) throw new Error('Unclaimed test entity: ' + entity.kind);
+  allocated.push(mesh);
+  return mesh;
+};
+afterEach(() => { for (const mesh of allocated.splice(0)) disposeObject(mesh); });
 
 /**
  * 台钓钓组的模型回归测试。

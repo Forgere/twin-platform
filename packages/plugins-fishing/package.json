@@ -3,12 +3,34 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "exports": { ".": "./src/index.ts" },
-  "scripts": { "typecheck": "tsc --noEmit -p tsconfig.json" },
+  "exports": { ".": "./src/index.ts", "./studio": "./studio/index.ts" },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p studio/tsconfig.json"
+  },
   "dependencies": {
     "@twin-platform/decision-core": "workspace:*",
     "@twin-platform/plugin-sdk": "workspace:*",
     "@twin-platform/scene-schema": "workspace:*",
     "@twin-platform/world-kernel": "workspace:*"
+  },
+  "peerDependencies": {
+    "@twin-platform/studio-sdk": "workspace:*",
+    "solid-js": "^2.0.0-rc.6",
+    "@solidjs/web": "^2.0.0-rc.6",
+    "three": "^0.185.1"
+  },
+  "peerDependenciesMeta": {
+    "@twin-platform/studio-sdk": { "optional": true },
+    "solid-js": { "optional": true },
+    "@solidjs/web": { "optional": true },
+    "three": { "optional": true }
+  },
+  "devDependencies": {
+    "@types/three": "^0.185.4",
+    "@twin-platform/replay-core": "workspace:*",
+    "@twin-platform/storage-memory": "workspace:*",
+    "@solidjs/diagnostics": "^2.0.0-rc.6",
+    "@solidjs/testing-library": "^1.0.0-beta.3",
+    "vitest": "^4.0.0"
   }
 }

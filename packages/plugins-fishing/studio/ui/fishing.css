@@ -1,0 +1,379 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   钓场：应用浮层（开钓向导 / 钓况 HUD / 钓鱼助手）+ 钓组检视页
+   浮层都挂在 .viewport-frame 里（position: relative），不占右侧编辑器。
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* 开钓向导：画布左侧居中的大卡片，右边留出 3D 让人看见自己决定的后果 */
+/* 开钓向导住在助手里：助手在向导期间拉高到整列，向导自己的头 / 步骤 / 可滚动主体 / 底栏照旧分行。 */
+.onboard {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  overflow: hidden;
+}
+.onboard-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px 6px; }
+.onboard-head strong { font-size: 0.9rem; }
+.onboard-sub { color: var(--ink-soft); font-size: 0.7rem; }
+.onboard-close { margin-left: auto; width: 26px; height: 26px; padding: 0; display: grid; place-items: center; font-size: 0.75rem; }
+.onboard-steps { display: flex; gap: 4px; margin: 0; padding: 0 12px 8px; list-style: none; border-bottom: 1px solid var(--frame); }
+.onboard-steps li { flex: 1; padding: 3px 0; border-radius: 999px; text-align: center; font-size: 0.64rem; color: var(--ink-soft); background: #f1ede4; }
+.onboard-steps li.done { background: var(--mint-tint); color: var(--accent); }
+.onboard-steps li.current { background: var(--accent); color: #fff; font-weight: 700; }
+.onboard-body { min-height: 0; overflow-y: auto; padding: 12px; display: grid; align-content: start; gap: 8px; }
+.onboard-q { margin: 0; font-size: 0.95rem; font-weight: 800; color: var(--ink); }
+.onboard-hint { margin: 0; font-size: 0.74rem; line-height: 1.55; color: var(--ink-soft); }
+.onboard-issue { margin: 0; padding: 7px 9px; border-radius: 9px; background: rgba(192, 69, 47, 0.08); color: var(--bad); font-size: 0.74rem; line-height: 1.5; }
+.onboard-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.onboard-card { display: grid; gap: 3px; align-content: start; padding: 10px; text-align: left; }
+.onboard-card strong { font-size: 0.85rem; }
+.onboard-card em { font-style: normal; color: var(--accent); font-size: 0.7rem; font-weight: 700; }
+.onboard-card span { color: var(--ink-soft); font-size: 0.7rem; line-height: 1.45; }
+.onboard-card-rec { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; background: #f0faf7; }
+.onboard-emoji { font-size: 1.5rem; line-height: 1; }
+.onboard-alt { justify-self: start; font-size: 0.74rem; padding: 6px 10px; background: var(--sky-tint); }
+.onboard-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.onboard-row button { flex: 1 1 auto; font-size: 0.78rem; padding: 7px 10px; }
+.onboard-zone { margin: 0; font-size: 0.85rem; }
+.onboard-summary { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 0.8rem; }
+.onboard-foot { display: flex; justify-content: space-between; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--frame); background: var(--cream-soft); }
+.onboard-back { font-size: 0.78rem; padding: 7px 10px; }
+.onboard-back:disabled { opacity: 0.4; cursor: default; }
+.onboard-next { font-size: 0.82rem; padding: 8px 14px; border-color: var(--accent); background: var(--accent); color: #fff; font-weight: 700; }
+.onboard-next:hover { background: #17695e; border-color: #17695e; }
+.onboard-next-warn { background: var(--bad); border-color: var(--bad); }
+.onboard-next-warn:hover { background: #a3391f; border-color: #a3391f; }
+
+/* 装备：一行一项，选项是小胶囊按钮 */
+.gear-row { display: grid; grid-template-columns: 42px minmax(0, 1fr); align-items: center; gap: 6px; }
+.gear-label { color: var(--ink-soft); font-size: 0.72rem; }
+.gear-options { display: flex; flex-wrap: wrap; gap: 4px; }
+.gear-opt { padding: 4px 8px; border-radius: 999px; font-size: 0.72rem; box-shadow: none; }
+.gear-opt-on { border-color: var(--accent); background: #e6f5f1; color: var(--accent); font-weight: 700; box-shadow: 0 0 0 1px var(--accent) inset; }
+.gear-checks { margin: 4px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+.gear-check { padding: 5px 8px; border-radius: 8px; font-size: 0.72rem; line-height: 1.45; }
+.gear-check-ok { background: rgba(30, 138, 79, 0.08); color: #1c6b40; }
+.gear-check-warn { background: var(--peach-tint); color: #95521f; }
+.gear-check-error { background: rgba(192, 69, 47, 0.1); color: var(--bad); }
+
+/* 漂尾刻度：点哪一目就是水面在哪 */
+.ruler { display: flex; align-items: center; gap: 14px; }
+.ruler svg { flex: none; }
+.ruler-seg { cursor: pointer; }
+.ruler-seg:hover rect { opacity: 0.75; }
+.ruler-seg-off { cursor: default; opacity: 0.25; }
+.ruler-side { display: grid; gap: 6px; }
+.ruler-value { font-size: 1.2rem; font-weight: 800; color: var(--accent); font-variant-numeric: tabular-nums; }
+.ruler-side button { padding: 5px 12px; font-size: 0.8rem; }
+
+/* 灵钝刻度条 */
+.zone-meter { position: relative; height: 34px; margin: 4px 0 2px; }
+.zone-band { position: absolute; top: 0; height: 14px; }
+.zone-off { background: #d9e3e6; border-radius: 7px 0 0 7px; }
+.zone-sens { background: #9fd8f0; }
+.zone-blunt { background: #f4c38f; }
+.zone-lead { background: #c9a38a; border-radius: 0 7px 7px 0; }
+.zone-pin { position: absolute; top: -3px; width: 4px; height: 20px; margin-left: -2px; border-radius: 2px; background: var(--ink); box-shadow: 0 0 0 2px #fff; transition: left 200ms ease; }
+.zone-legend { position: absolute; top: 18px; left: 0; right: 0; display: flex; justify-content: space-between; color: var(--ink-soft); font-size: 0.62rem; }
+
+.zone-chip { padding: 1px 8px; border-radius: 999px; font-size: 0.68rem; font-weight: 700; }
+.zone-chip-off { background: #e3e9eb; color: #56666b; }
+.zone-chip-sens { background: #d6effa; color: #2f6f8a; }
+.zone-chip-neutral { background: #d9f2e6; color: #1c6b40; }
+.zone-chip-blunt { background: #fbe3c8; color: #95521f; }
+.zone-chip-lead { background: #ecd9cc; color: #7a4a2e; }
+
+/* 钓况 HUD（右上角） */
+.fish-hud { position: absolute; right: 12px; top: 12px; z-index: 4; width: 250px; display: grid; gap: 6px; padding: 9px 11px; border: 1px solid var(--frame); border-radius: 14px; background: var(--cream-card); box-shadow: var(--shadow); backdrop-filter: blur(6px); }
+.fish-hud-row { display: flex; align-items: center; gap: 6px; }
+.fish-hud-fish { margin-right: auto; font-weight: 800; font-size: 0.85rem; white-space: nowrap; }
+.fish-hud-btn { width: 24px; height: 24px; padding: 0; display: grid; place-items: center; font-size: 0.75rem; }
+.fish-hud-stats { display: flex; gap: 10px; font-size: 0.72rem; color: var(--ink-soft); }
+.fish-hud-stats b { color: var(--ink); font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+.fish-hud-signal { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; border: 0; box-shadow: none; cursor: pointer; padding: 2px 8px; border-radius: 8px; background: #fde8e3; color: var(--bad); font-size: 0.78rem; font-weight: 800; animation: fish-signal 0.6s ease-in-out infinite alternate; }
+@keyframes fish-signal { from { opacity: 1; } to { opacity: 0.55; } }
+.fish-hud-conds { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.fish-hud-gear { margin: 0; color: var(--ink-soft); font-size: 0.7rem; }
+.fish-hud-stats { flex-wrap: wrap; }
+.fish-hud-signal { cursor: default; }
+
+/* 操作集中在下方中央；底部留给时间胶囊与助手，透明空隙仍能转动相机。 */
+.fish-controls { position: absolute; z-index: 4; left: 50%; bottom: max(64px, env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(390px, calc(100% - 32px)); display: grid; justify-items: center; gap: 8px; pointer-events: none; }
+.fish-controls button { pointer-events: auto; touch-action: manipulation; min-height: 44px; }
+.fish-controls button:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.fish-controls button:disabled { cursor: not-allowed; opacity: 0.55; }
+.fish-controls-hint { max-width: 100%; margin: 0; padding: 4px 10px; border-radius: 8px; background: var(--cream-card); color: var(--ink-soft); font-size: 0.74rem; text-align: center; line-height: 1.5; }
+.fish-primary { width: 168px; min-height: 58px !important; padding: 12px 24px; border: 1px solid var(--accent); border-radius: 18px; background: var(--accent); color: #fff; font-size: 1.18rem; font-weight: 800; box-shadow: var(--shadow); }
+.fish-primary:hover:not(:disabled) { background: var(--accent); border-color: var(--accent); filter: brightness(1.08); }
+.fish-primary-bite, .fish-primary-bite:hover:not(:disabled) { background: var(--bad); border-color: var(--bad); animation: fish-signal 0.6s ease-in-out infinite alternate; }
+.fish-controls-baits { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; padding: 4px; border: 1px solid var(--frame); border-radius: 14px; background: var(--cream-card); box-shadow: var(--shadow); }
+.fish-bait, .fish-sound { padding: 6px 10px; border-radius: 10px; border-color: transparent; background: transparent; box-shadow: none; font-size: 0.74rem; }
+.fish-bait[aria-pressed='true'] { border-color: var(--accent); background: var(--sky-tint); color: var(--accent); font-weight: 800; }
+.fish-sound { min-width: 44px; }
+.fish-control-icon { display: inline-block; width: 1.2em; height: 1.2em; vertical-align: -0.2em; margin-right: 0.25em; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.fish-sound .fish-control-icon { margin: 0; width: 20px; height: 20px; }
+.fish-controls-real { display: grid; justify-items: center; gap: 6px; padding: 6px; border-radius: 14px; background: var(--cream-card); }
+.fish-controls-records { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; }
+.fish-controls-records button { padding: 6px 10px; font-size: 0.78rem; }
+.fish-catch { position: absolute; bottom: calc(100% + 16px); left: 0; right: 0; display: grid; justify-items: center; pointer-events: none; }
+.fish-catch-card { display: flex; align-items: center; gap: 14px; padding: 18px 30px; border: 1px solid var(--accent); border-radius: 20px; background: var(--cream-card); box-shadow: var(--shadow); animation: fish-caught 200ms ease-out; }
+.fish-catch-icon { width: 80px; height: 52px; flex: none; color: var(--accent); }
+.fish-catch-kicker { display: block; color: var(--accent); font-size: 0.78rem; }
+.fish-catch-card strong { display: block; color: var(--ink); font-size: 1.5rem; }
+.rig-depth { display: grid; gap: 6px; margin: 12px 0; font-size: 0.78rem; color: var(--ink-soft); }
+.rig-depth input { width: 100%; accent-color: var(--accent); }
+@keyframes fish-caught { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) {
+  .fish-primary-bite, .fish-catch-card, .fish-hud-signal { animation: none; }
+}
+
+.fish-hud-drill { margin-left: auto; padding: 2px 8px; font-size: 0.66rem; border-radius: 999px; box-shadow: none; }
+.fish-hud-drills { display: flex; flex-wrap: wrap; gap: 4px; }
+
+/* 钓鱼助手（右下角）：收起是一枚按钮，展开是一张卡 */
+.assist-fab { position: absolute; right: 12px; bottom: 12px; z-index: 4; padding: 9px 14px; border-radius: 999px; font-weight: 800; font-size: 0.82rem; border-color: var(--accent); background: var(--accent); color: #fff; box-shadow: var(--shadow); }
+.assist-fab:hover { background: #17695e; border-color: #17695e; }
+.assist { position: absolute; right: 12px; bottom: 12px; z-index: 5; width: min(340px, calc(100% - 24px)); max-height: calc(100% - 200px); min-height: 180px; overflow-y: auto; display: grid; align-content: start; gap: 8px; padding: 10px 12px; border: 1px solid var(--frame); border-radius: 16px; background: rgba(255, 253, 247, 0.97); box-shadow: 0 18px 40px rgba(58, 74, 79, 0.2); backdrop-filter: blur(8px); }
+.assist-head { display: flex; align-items: center; gap: 8px; }
+.assist-head .onboard-close { margin-left: 0; }
+.assist-head .assist-mode { margin-left: auto; }
+.assist-setup-btn { width: 26px; height: 26px; padding: 0; display: grid; place-items: center; font-size: 0.75rem; }
+.assist-head strong + .assist-setup-btn { margin-left: auto; }
+/* 向导期间：助手占满画布右侧整列（盖住 HUD——配钓组时 HUD 没有意义），内边距交给向导。 */
+.assist-setup { top: 12px; width: min(440px, calc(100% - 24px)); max-height: none; padding: 0; overflow: hidden; grid-template-rows: minmax(0, 1fr); z-index: 6; }
+.assist-drills { display: grid; gap: 4px; padding-bottom: 6px; border-bottom: 1px dashed var(--frame); }
+.assist-head strong { font-size: 0.88rem; }
+.assist-sub { color: var(--ink-soft); font-size: 0.7rem; }
+.assist-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.assist-chips-howto .assist-chip { background: var(--sky-tint); }
+.assist-chip { padding: 5px 9px; border-radius: 999px; font-size: 0.74rem; box-shadow: none; }
+.assist-chip-on { border-color: var(--accent); background: #e6f5f1 !important; color: var(--accent); font-weight: 700; box-shadow: 0 0 0 1px var(--accent) inset; }
+.assist-voice { display: flex; gap: 6px; }
+.assist-mic { flex: none; width: 36px; height: 34px; padding: 0; display: grid; place-items: center; font-size: 1rem; border-radius: 999px; }
+.assist-mic-on { border-color: var(--bad); background: #fde8e3; animation: fish-signal 0.8s ease-in-out infinite alternate; }
+.assist-input { flex: 1; min-width: 0; padding: 7px 10px; border: 1px solid var(--frame); border-radius: 999px; background: #fffdf7; color: var(--ink); font: inherit; font-size: 0.76rem; }
+.assist-input:focus { outline: none; border-color: var(--accent); }
+.assist-note { margin: 0; color: var(--ink-soft); font-size: 0.72rem; line-height: 1.5; }
+.assist-bad { color: var(--bad); }
+.assist-card { display: grid; gap: 6px; padding: 9px 10px; border: 1px solid var(--frame); border-radius: 12px; background: #fffdf7; }
+.assist-card h4 { margin: 0; font-size: 0.82rem; color: var(--ink); }
+.assist-card ul { margin: 0; padding-left: 16px; display: grid; gap: 2px; font-size: 0.72rem; color: var(--ink-soft); }
+.assist-rule { margin: 0; font-size: 0.76rem; line-height: 1.6; color: var(--ink); }
+.assist-card .onboard-next { justify-self: start; font-size: 0.76rem; padding: 6px 12px; }
+.assist-judge header { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.assist-mode { display: flex; gap: 4px; }
+.assist-mode .seg { padding: 3px 8px; font-size: 0.68rem; }
+.assist-verdict { margin: 0; font-size: 0.8rem; font-weight: 700; }
+.assist-conf { color: var(--ink-soft); font-weight: 400; font-size: 0.7rem; }
+.assist-done { margin: 0; padding: 6px 9px; border-radius: 9px; background: rgba(30, 138, 79, 0.08); color: #1c6b40; font-size: 0.74rem; }
+
+/* 钓组检视页（右侧编辑器） */
+.rig-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.rig-head h2 { margin: 0; }
+.rig-summary { margin: 8px 0 0; padding: 7px 9px; border-radius: 9px; background: var(--mint-tint); font-size: 0.76rem; line-height: 1.5; }
+.rig-fields { display: grid; gap: 5px; }
+.rig-field { display: grid; grid-template-columns: minmax(0, 1fr) 28px 44px 28px; align-items: center; gap: 4px; font-size: 0.76rem; }
+.rig-field button { width: 28px; height: 26px; padding: 0; display: grid; place-items: center; }
+.rig-field b { text-align: center; font-variant-numeric: tabular-nums; }
+.rig-gear { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.rig-gear label { display: grid; gap: 2px; color: var(--ink-soft); font-size: 0.7rem; }
+.rig-gear select { padding: 5px 6px; border: 1px solid var(--frame); border-radius: 8px; background: #fffdf7; color: var(--ink); font: inherit; font-size: 0.78rem; }
+/* 剖面图：部件状态悬停显示（不再单列在图下） */
+.sandbox-figure { position: relative; }
+.sandbox-figure [data-part] { cursor: help; }
+.sandbox-figure [data-part]:hover { filter: drop-shadow(0 0 2px rgba(20, 24, 31, 0.45)); }
+.sandbox-hit { fill: transparent; }
+.sandbox-hit-line { fill: none; stroke: transparent; stroke-width: 8; stroke-linejoin: round; }
+.sandbox-tip { position: absolute; z-index: 2; max-width: 200px; padding: 5px 8px; border-radius: 8px; background: var(--graphite); color: #ffffff; font-size: 0.72rem; line-height: 1.45; pointer-events: none; transform: translate(12px, -50%); }
+.sandbox-tip-flip { transform: translate(calc(-100% - 12px), -50%); }
+.sandbox-tip b { margin-right: 4px; font-weight: 700; }
+.sandbox-hint { margin: 2px 0 0; font-size: 0.68rem; color: var(--ink-soft); }
+
+@media (max-width: 960px) {
+  .fish-hud { width: 210px; }
+}
+
+/* 钓况 HUD：情况 chip / 切线计数可点 → 助手直接给出该情况的解答 */
+.chip-ask { border: 0; box-shadow: none; cursor: pointer; font: inherit; }
+.chip-ask:hover { filter: brightness(0.95); }
+.fish-hud-ask { padding: 0; border: 0; background: none; box-shadow: none; font: inherit; color: inherit; cursor: pointer; text-decoration: underline dotted; }
+.fish-hud-stats .up b { font-size: 1.05rem; }
+/* 助手：判断者是第二意见，默认收起，主操作只有规则卡的「照做」 */
+.assist-judge > summary { cursor: pointer; font-size: 0.76rem; font-weight: 700; color: var(--ink-soft); }
+.assist-judge[open] > summary { margin-bottom: 4px; }
+.sandbox-tech { margin-top: 8px; }
+.sandbox-tech > summary { cursor: pointer; font-size: 0.72rem; color: var(--ink-soft); }
+.assist-done p { margin: 0; }
+.assist-since { margin-top: 3px !important; font-family: var(--mono); font-size: 0.7rem; color: var(--ink-soft); }
+/* 助手：当前钓况命中的情况 chip */
+.assist-chip-likely { border-color: #d98a2b; }
+.assist-likely { color: #b8621b; font-weight: 700; font-size: 0.66rem; }
+.fish-hud-setup { font-size: 0.74rem; padding: 6px 10px; }
+.assist-fab-badge { display: inline-grid; place-items: center; min-width: 18px; height: 18px; margin-left: 6px; padding: 0 5px; border-radius: 999px; background: #d98a2b; color: #fff; font-size: 0.68rem; }
+.fish-hud-rate { font-style: normal; font-size: 0.66rem; color: var(--ink-soft); }
+/* 向导：找底时一键回到调法目标钓目 */
+.onboard-link { padding: 0 4px; border: 0; background: none; box-shadow: none; color: var(--accent); font: inherit; text-decoration: underline; cursor: pointer; }
+.onboard-next:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* HUD：钓目步进 + 灵钝区（开钓后最常调的一项） */
+.fish-hud-depth { display: flex; align-items: center; gap: 6px; font-size: 0.74rem; color: var(--ink-soft); }
+.fish-hud-depth input[type='range'] { flex: 1; min-width: 0; margin: 0; accent-color: var(--accent); }
+.fish-hud-depth b { min-width: 2.2em; text-align: center; color: var(--ink); font-variant-numeric: tabular-nums; }
+.fish-hud-depth .zone-chip { flex: none; }
+.fish-hud-issue { margin: 0; color: var(--bad); font-size: 0.68rem; }
+/* 提杆：常驻同一位置、同一高度；有口时亮起并写出漂相，结果行固定一行，HUD 不跳。 */
+.fish-hud-lift { width: 100%; padding: 8px 10px; border-radius: 10px; font-size: 0.86rem; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fish-hud-lift-on { border-color: var(--bad); background: var(--bad); color: #fff; animation: fish-signal 0.6s ease-in-out infinite alternate; }
+.fish-hud-result { margin: 0; min-height: 1.3em; font-size: 0.7rem; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fish-hud-record-toggle { justify-self: start; margin-left: 0; }
+.fish-hud-records { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.fish-hud-records .gear-opt { padding: 6px 2px; }
+/* 钓组页：收起的次要区块 */
+.rig-more { margin-top: 12px; }
+.rig-more > summary { cursor: pointer; font-size: 0.78rem; color: var(--ink-soft); }
+
+/* 助手：建议 = 写明后果的操作按钮；做完列出实际改动 */
+.assist-op { display: grid; gap: 4px; padding-top: 6px; border-top: 1px dashed var(--frame); }
+.assist-op-kicker { font-size: 0.66rem; font-weight: 700; color: var(--ink-soft); letter-spacing: 0.04em; }
+.op { display: grid; gap: 3px; justify-items: start; }
+.op-btn { font-size: 0.78rem; padding: 6px 12px; }
+.op-btn-alt { border-color: var(--accent); color: var(--accent); background: #fffdf7; box-shadow: none; }
+.op-effect { font-family: var(--mono); font-size: 0.68rem; color: var(--ink-soft); }
+.assist-judge { display: grid; gap: 4px; padding-top: 6px; border-top: 1px dashed var(--frame); }
+.assist-judge-head { display: flex; align-items: center; justify-content: space-between; font-size: 0.72rem; font-weight: 700; color: var(--ink-soft); }
+.assist-agree { color: #1c6b40; }
+.assist-done-title { font-weight: 700; }
+.assist-changes { margin: 4px 0 0; padding: 0; list-style: none; display: grid; gap: 2px; font-size: 0.72rem; }
+.assist-changes li { display: grid; grid-template-columns: 5em auto auto; gap: 8px; justify-content: start; align-items: baseline; }
+.assist-changes span { color: var(--ink-soft); }
+.assist-changes s { color: var(--ink-soft); }
+.assist-changes b::before { content: '→ '; font-weight: 400; color: var(--ink-soft); }
+.assist-feedback { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-size: 0.7rem; }
+
+/* 判断者记录与校准：一行一个判断者，结论在前，明细收起 */
+.calib { display: grid; gap: 8px; padding-top: 6px; }
+.calib-table { width: 100%; border-collapse: collapse; font-size: 0.74rem; }
+.calib-table th, .calib-table td { padding: 4px 6px; text-align: right; font-variant-numeric: tabular-nums; }
+.calib-table thead th { font-weight: 600; font-size: 0.66rem; color: var(--ink-soft); border-bottom: 1px solid var(--frame); }
+.calib-table th[scope='row'], .calib-table thead th:first-child { text-align: left; }
+.calib-verdict-row td { text-align: left; padding-top: 0; border-bottom: 1px solid var(--frame); }
+.calib-verdict { font-size: 0.68rem; }
+.calib-ok { color: #1c6b40; }
+.calib-warn { color: #b8621b; }
+.calib-idle { color: var(--ink-soft); }
+.calib-more > summary { cursor: pointer; font-size: 0.7rem; color: var(--ink-soft); }
+.calib-buckets p { margin: 6px 0 2px; font-size: 0.7rem; color: var(--ink-soft); }
+.calib-clear { justify-self: start; padding: 2px 0; border: 0; background: none; box-shadow: none; font-size: 0.68rem; color: var(--ink-soft); text-decoration: underline; cursor: pointer; }
+
+.fish-hud, .assist {
+  border: 0;
+  border-radius: var(--radius);
+  background: #ffffff;
+  box-shadow: var(--shadow);
+  backdrop-filter: none;
+}
+.fish-hud-stats b, .rig-field b { font-variant-numeric: tabular-nums; }
+.gear-opt-on, .assist-chip-on { background: var(--graphite) !important; border-color: var(--graphite) !important; color: #ffffff !important; box-shadow: none !important; }
+.assist-card, .assist-input { background: #f4f5f7; border-color: transparent; }
+.onboard-next { background: var(--graphite); border-color: var(--graphite); color: #ffffff; font-weight: 700; }
+.onboard-next:hover { background: #3a3e46; border-color: #3a3e46; }
+.assist-fab { background: var(--graphite); border-color: var(--graphite); }
+.assist-fab:hover { background: #3a3e46; border-color: #3a3e46; }
+.assist-fab-badge { background: var(--warm); color: #1a1200; }
+.assist-chip-likely { border-color: var(--warm); }
+.assist-likely { color: #a87f00; }
+.op-btn-alt { border-color: var(--line); color: var(--ink); background: #f4f5f7; }
+.assist-done { background: rgba(47, 185, 106, 0.08); color: #1f7a47; }
+.fish-hud-signal { background: #fdeeee; color: var(--bad); }
+
+/* 手机：钓况与画布分行，助手/向导按需展开；横屏保持左右分区。 */
+@media (max-width: 760px), (max-width: 960px) and (max-height: 500px) {
+  .studio-inspecting :is(.assist, .assist-fab, .fish-hud) { display: none; }
+  .scene-stage:has(.fish-controls) { display: grid; grid-template-rows: minmax(0, 1fr) auto; }
+  .fish-controls {
+    position: relative; left: auto; bottom: auto; transform: none; width: 100%; min-width: 0;
+    padding: 8px; gap: 6px; background: var(--cream-soft); border-top: 1px solid var(--line);
+  }
+  .fish-controls-hint { padding: 0; background: none; font-size: 0.75rem; }
+  .fish-primary { width: 100%; min-height: 48px !important; padding: 8px 16px; border-radius: 10px; }
+  .fish-controls-baits { width: 100%; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) 44px; padding: 0; border: 0; background: none; box-shadow: none; }
+  .fish-bait, .fish-sound { min-width: 0; padding: 6px 4px; font-size: 0.78rem; }
+  .scene-stage:has(.fish-controls) .vp-clock { display: none; }
+  .viewport-frame:has(.assist) .fish-controls, .studio-inspecting .fish-controls { display: none; }
+  .viewport-frame:has(.assist) .scene-stage { grid-template: minmax(0, 1fr) / minmax(0, 1fr); }
+  .fish-catch-card { padding: 12px 20px; gap: 10px; }
+  .fish-catch-card strong { font-size: 1.2rem; }
+  .assist > *, .onboard-body > * { min-width: 0; }
+  .fish-hud {
+    position: static; width: auto; min-width: 0; max-height: 34dvh; overflow-y: auto;
+    padding: 10px 12px; gap: 6px; align-content: start; border-radius: 0; border-top: 1px solid var(--line); box-shadow: none;
+  }
+  .fish-hud-row { flex-wrap: wrap; }
+  .fish-hud-stats { flex-wrap: wrap; gap: 4px 14px; font-size: 0.8rem; }
+  .fish-hud-stats[hidden] { display: none; }
+  .fish-hud-fish { font-size: 0.9rem; }
+  .fish-hud-btn { width: 44px; height: 44px; }
+  .fish-hud-depth { font-size: 0.8rem; }
+  .fish-hud-result { font-size: 0.8rem; }
+  .fish-hud-lift { min-height: 48px; font-size: 1rem; }
+  .fish-hud-conds:empty { display: none; }
+  .fish-hud-ask { min-width: 44px; }
+  .zone-chip, .fish-hud-rate { font-size: 0.75rem; }
+  .fish-hud-setup { white-space: normal; }
+  .assist-fab { right: 8px; top: 8px; bottom: auto; min-height: 44px; padding: 8px 12px; font-size: 0.8rem; }
+  .assist {
+    left: 0; right: 0; bottom: 0; width: auto; min-height: 0; max-height: calc(100% - 112px);
+    padding: 0 12px 12px; border-radius: 16px 16px 0 0; border-top: 1px solid var(--line);
+    overscroll-behavior-y: contain; overflow-x: hidden;
+  }
+  .assist-head { position: sticky; top: 0; z-index: 2; flex-wrap: wrap; gap: 6px; padding: 8px 0; background: var(--cream-card); }
+  .assist-head strong { flex: 1; font-size: 0.9rem; }
+  .assist-head .assist-mode { order: 1; width: 100%; margin: 0; }
+  .assist-head .assist-mode .seg { flex: 1; }
+  .assist-setup-btn, .onboard-close { width: 44px; height: 44px; }
+  .assist-setup { top: 28%; max-height: none; padding: 0; }
+  .assist-chip, .gear-opt { padding: 8px 10px; font-size: 0.8rem; }
+  .assist-chips { gap: 6px; }
+  .assist-note, .assist-rule, .assist-card ul, .assist-changes { font-size: 0.82rem; line-height: 1.6; }
+  .assist-op-kicker, .op-effect, .assist-sub, .assist-since { font-size: 0.75rem; overflow-wrap: anywhere; }
+  .assist-mode .seg { font-size: 0.8rem; }
+  .assist-mic { width: 44px; height: 44px; }
+  .assist-input { width: 0; }
+  .assist-changes li { grid-template-columns: 4em minmax(0, auto) minmax(0, auto); gap: 6px; }
+  .op-btn { max-width: 100%; text-align: left; }
+  .onboard-head { flex-wrap: wrap; gap: 6px; padding: 8px 12px; }
+  .onboard-head strong { font-size: 0.95rem; }
+  .onboard-sub { font-size: 0.75rem; }
+  .onboard-steps { gap: 3px; padding: 0 10px 8px; }
+  .onboard-steps li { font-size: 0.7rem; border-radius: 6px; }
+  .onboard-body { padding: 12px; overscroll-behavior-y: contain; }
+  .onboard-card strong { font-size: 0.9rem; }
+  .onboard-card span, .onboard-card em, .onboard-hint, .onboard-issue, .gear-check { font-size: 0.8rem; }
+  .onboard-foot { padding: 8px 12px; align-items: center; }
+  .onboard-foot > button { min-width: 0; }
+  .onboard-back { flex: none; }
+  .gear-row { grid-template-columns: 36px minmax(0, 1fr); }
+  .gear-label { font-size: 0.8rem; }
+  .rig-gear { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rig-gear label { font-size: 0.8rem; }
+  .rig-field { grid-template-columns: minmax(0, 1fr) 44px 40px 44px; font-size: 0.8rem; }
+  .rig-field button { width: 44px; height: 44px; }
+  .sandbox-svg { display: block; max-height: 260px; }
+  .sandbox-hint { font-size: 0.75rem; }
+  .sandbox-tip { left: 8px !important; right: 8px; max-width: none; transform: translateY(8px); }
+  .ruler-side button { min-width: 56px; }
+}
+@media (min-width: 540px) and (max-width: 960px) and (max-height: 500px) {
+  .viewport-frame:has(.fish-hud) { grid-template-columns: minmax(0, 1fr) 220px; grid-template-rows: minmax(0, 1fr); }
+  .fish-hud { max-height: 100%; border-top: 0; border-left: 1px solid var(--line); padding: 8px; }
+  .scene-stage:has(.fish-controls) { grid-template-columns: minmax(0, 1fr) 180px; grid-template-rows: minmax(0, 1fr); }
+  .fish-controls { align-content: end; border-top: 0; border-left: 1px solid var(--line); }
+  .fish-controls-baits { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fish-controls .fish-sound { grid-column: 1 / -1; }
+  .viewport-frame:has(.assist) .scene-stage { grid-template: minmax(0, 1fr) / minmax(0, 1fr); }
+  .assist, .assist-setup { top: 0; bottom: 0; left: auto; width: min(58%, 440px); max-height: none; border-radius: 12px 0 0 12px; }
+  .onboard-cards { gap: 6px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fish-hud-signal, .fish-hud-lift-on, .assist-mic-on { animation: none; }
+  .zone-pin { transition: none; }
+}

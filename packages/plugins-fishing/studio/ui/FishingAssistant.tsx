@@ -18,7 +18,7 @@ import {
   type SituationId,
   type SituationMatch,
 } from '@twin-platform/plugins-fishing';
-import type { StudioSession } from '../../scene/studioSession';
+import type { StudioSessionPort } from '@twin-platform/studio-sdk';
 import { readRig, refreshWhilePaused, setFishingMode, writeRig } from './fishingWorld';
 import FishingOnboarding from './FishingOnboarding';
 import { fetchJevStatus, judgeDomain, loadDecisionLog, saveDecisionLog, type JevStatus, type JudgeMode } from './judging';
@@ -117,11 +117,11 @@ export interface FishingAssistantApi {
 type Counts = NonNullable<ReturnType<typeof readRig>>['counts'];
 
 export default function FishingAssistant(props: {
-  session: StudioSession;
+  session: StudioSessionPort;
   tick: number;
   connect?: (api: FishingAssistantApi) => void;
   /** 正在为哪个会话走开钓向导（没有就是平常的助手）。 */
-  setup?: StudioSession;
+  setup?: StudioSessionPort;
   onSetup: () => void;
   onSetupClose: () => void;
   onOpen?: () => void;
@@ -159,7 +159,7 @@ export default function FishingAssistant(props: {
 
   onSettled(() => {
     log = loadDecisionLog();
-    void fetchJevStatus().then(setJev);
+    void fetchJevStatus(props.session).then(setJev);
   });
 
   /** 问一个情况：规则答案立即出；判断者异步跑。 */
@@ -330,7 +330,7 @@ export default function FishingAssistant(props: {
     <>
       {/* 开钓向导住在助手里：keyed，每个会话一个向导实例，会话一换旧向导卸掉。 */}
       <Show when={props.setup === props.session ? props.setup : undefined} keyed>
-        {(target: StudioSession) => (
+        {(target: StudioSessionPort) => (
           <section class="assist assist-setup" aria-label="钓鱼助手 · 开钓向导">
             <FishingOnboarding session={target} onClose={props.onSetupClose} />
           </section>

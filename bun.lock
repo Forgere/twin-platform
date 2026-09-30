@@ -46,6 +46,7 @@
         "@twin-platform/storage-contracts": "workspace:*",
         "@twin-platform/storage-http": "workspace:*",
         "@twin-platform/storage-memory": "workspace:*",
+        "@twin-platform/studio-sdk": "workspace:*",
         "@twin-platform/world-kernel": "workspace:*",
         "camera-controls": "^3.1.2",
         "solid-js": "^2.0.0-rc.6",
@@ -139,6 +140,26 @@
         "@twin-platform/scene-schema": "workspace:*",
         "@twin-platform/world-kernel": "workspace:*",
       },
+      "devDependencies": {
+        "@solidjs/diagnostics": "^2.0.0-rc.6",
+        "@solidjs/testing-library": "^1.0.0-beta.3",
+        "@twin-platform/replay-core": "workspace:*",
+        "@twin-platform/storage-memory": "workspace:*",
+        "@types/three": "^0.185.4",
+        "vitest": "^4.0.0",
+      },
+      "peerDependencies": {
+        "@solidjs/web": "^2.0.0-rc.6",
+        "@twin-platform/studio-sdk": "workspace:*",
+        "solid-js": "^2.0.0-rc.6",
+        "three": "^0.185.1",
+      },
+      "optionalPeers": [
+        "@solidjs/web",
+        "@twin-platform/studio-sdk",
+        "solid-js",
+        "three",
+      ],
     },
     "packages/plugins-logistics": {
       "name": "@twin-platform/plugins-logistics",
@@ -238,6 +259,22 @@
         "@twin-platform/scene-schema": "workspace:*",
         "@twin-platform/storage-contracts": "workspace:*",
         "@twin-platform/world-kernel": "workspace:*",
+      },
+    },
+    "packages/studio-sdk": {
+      "name": "@twin-platform/studio-sdk",
+      "version": "0.1.0",
+      "dependencies": {
+        "@twin-platform/plugin-sdk": "workspace:*",
+        "@twin-platform/replay-core": "workspace:*",
+        "@twin-platform/world-kernel": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/three": "^0.185.4",
+      },
+      "peerDependencies": {
+        "solid-js": "^2.0.0-rc.6",
+        "three": "^0.185.1",
       },
     },
     "packages/world-kernel": {
@@ -672,6 +709,8 @@
     "@twin-platform/storage-testkit": ["@twin-platform/storage-testkit@workspace:packages/storage-testkit"],
 
     "@twin-platform/studio": ["@twin-platform/studio@workspace:apps/studio"],
+
+    "@twin-platform/studio-sdk": ["@twin-platform/studio-sdk@workspace:packages/studio-sdk"],
 
     "@twin-platform/worker": ["@twin-platform/worker@workspace:apps/worker"],
 

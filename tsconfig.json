@@ -10,6 +10,8 @@
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
+      "@twin-platform/plugins-fishing/studio": ["packages/plugins-fishing/studio/index.ts"],
+      "@twin-platform/studio-sdk/*": ["packages/studio-sdk/src/*.ts"],
       "@twin-platform/*": ["packages/*/src/index.ts"]
     }
   },

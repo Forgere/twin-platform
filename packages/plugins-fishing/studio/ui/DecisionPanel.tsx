@@ -1,8 +1,8 @@
 import { createSignal, For, onSettled, Show } from 'solid-js';
 import { DecisionLog, calibrationReport } from '@twin-platform/decision-core';
 import { fishingSuccess } from '@twin-platform/plugins-fishing';
-import type { StudioSession } from '../scene/studioSession';
-import { fetchJevStatus, loadDecisionLog, saveDecisionLog, type JevStatus, type JudgeMode } from './fishing/judging';
+import type { StudioSessionPort } from '@twin-platform/studio-sdk';
+import { fetchJevStatus, loadDecisionLog, saveDecisionLog, type JevStatus, type JudgeMode } from './judging';
 
 /**
  * 判断者记录与校准（嵌在「钓组」页的收起区里）。
@@ -14,14 +14,14 @@ import { fetchJevStatus, loadDecisionLog, saveDecisionLog, type JevStatus, type 
  * 持久化要等服务端决策仓储（见开发计划 Phase 6b）。
  */
 
-export default function DecisionPanel(props: { session: StudioSession }) {
+export default function DecisionPanel(props: { session: StudioSessionPort }) {
   const [jev, setJev] = createSignal<JevStatus>();
   const [log, setLog] = createSignal<DecisionLog>();
   const [version, setVersion] = createSignal(0);
 
   onSettled(() => {
     setLog(loadDecisionLog());
-    void fetchJevStatus().then(setJev);
+    void fetchJevStatus(props.session).then(setJev);
   });
 
   const records = () => {

@@ -1,6 +1,6 @@
 import { createSignal, Show } from 'solid-js';
 import { fishingView, rigPartsOf, rigPosture, type FishingView, type RigPartId, type RigPosture } from '@twin-platform/plugins-fishing';
-import type { StudioSession } from '../scene/studioSession';
+import type { StudioSessionPort } from '@twin-platform/studio-sdk';
 
 /**
  * 台钓剖面沙盒（2D / SVG）。
@@ -49,7 +49,7 @@ const hoverInfo = (posture: RigPosture, id: HoverId): { label: string; text: str
   return part && { label: part.label, text: part.text };
 };
 
-export default function FishingSandbox(props: { session: StudioSession; tick: number }) {
+export default function FishingSandbox(props: { session: StudioSessionPort; tick: number }) {
   // 剖面图每个节拍整张重建，悬停不能挂在单个元素的 enter/leave 上（节点被替换后
   // leave 永远不来），统一在外层容器按 data-part 判定。
   const [hover, setHover] = createSignal<{ id: HoverId; x: number; y: number; flip: boolean }>();

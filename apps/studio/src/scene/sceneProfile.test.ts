@@ -1,27 +1,36 @@
 import { describe, expect, test } from 'vitest';
+import type { StudioPresentation } from '@twin-platform/studio-sdk';
 import { defaultTab, inspectorTabs, sceneProfileOf } from './sceneProfile';
 
-describe('场景画像决定右侧检视区', () => {
-  test('钓场：只有一个钓鱼页「钓组」，排第一，没有物流专属页', () => {
-    const profile = sceneProfileOf({ hasRig: true, plugins: ['fishing'] });
-    expect(profile).toBe('fishing');
-    const ids = inspectorTabs(profile).map((tab) => tab.id);
-    expect(ids[0]).toBe('rig');
-    expect(ids).toEqual(['rig', 'entity', 'events', 'scene', 'plugins']);
-    expect(ids).not.toContain('metrics');
-    expect(ids).not.toContain('compare');
-    expect(defaultTab(profile)).toBe('rig');
+const presentation: StudioPresentation = {
+  pluginId: 'example', matches: () => true,
+  inspector: {
+    defaultTab: 'custom', label: '领域 / 面板',
+    tabs: [
+      { id: 'custom', icon: '◆', label: '领域页' },
+      { id: 'entity', icon: '🧩', label: '实体' },
+    ],
+  },
+};
+
+describe('场景画像消费展示插件数据', () => {
+  test('领域插件拥有自己的页面顺序、默认页和文案', () => {
+    const profile = sceneProfileOf({ plugins: ['example'], presentation });
+    expect(profile.id).toBe('example');
+    expect(inspectorTabs(profile).map((tab) => tab.id)).toEqual(['custom', 'entity']);
+    expect(defaultTab(profile)).toBe('custom');
+    expect(profile.label).toBe('领域 / 面板');
   });
 
-  test('开着钓鱼插件但场景里没有钓组（导入的物流布局）→ 不出现钓组页', () => {
-    const profile = sceneProfileOf({ hasRig: false, plugins: ['fishing', 'logistics'] });
-    expect(profile).toBe('logistics');
-    expect(inspectorTabs(profile).map((tab) => tab.id)).not.toContain('rig');
+  test('没有匹配的展示插件时沿用物流画像', () => {
+    const profile = sceneProfileOf({ plugins: ['example', 'logistics'] });
+    expect(profile.id).toBe('logistics');
+    expect(inspectorTabs(profile).map((tab) => tab.id)).toEqual(['entity', 'metrics', 'compare', 'data', 'events', 'scene', 'plugins']);
   });
 
-  test('没有已知插件 → 通用画像，落地页是实体', () => {
-    const profile = sceneProfileOf({ hasRig: false, plugins: [] });
-    expect(profile).toBe('generic');
+  test('没有已知插件时使用通用画像', () => {
+    const profile = sceneProfileOf({ plugins: [] });
+    expect(profile.id).toBe('generic');
     expect(defaultTab(profile)).toBe('entity');
   });
 });

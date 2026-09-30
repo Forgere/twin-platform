@@ -22,7 +22,7 @@ import {
   type WizardState,
   type WizardStep,
 } from '@twin-platform/plugins-fishing';
-import type { StudioSession } from '../../scene/studioSession';
+import type { StudioSessionPort } from '@twin-platform/studio-sdk';
 import { readRig, RIG_ID, setFishingMode, writeRig } from './fishingWorld';
 
 /**
@@ -87,7 +87,7 @@ const STEP_PHASE: Readonly<Record<WizardStep, RigPhase>> = {
   done: 'find_bottom',
 };
 
-export default function FishingOnboarding(props: { session: StudioSession; onClose: () => void }) {
+export default function FishingOnboarding(props: { session: StudioSessionPort; onClose: () => void }) {
   // 会话在创建时取一次：父组件按会话 keyed 重建本组件，这里不会被偷换。
   const session = props.session;
   const [state, setState] = createSignal<WizardState>(wizardStart());

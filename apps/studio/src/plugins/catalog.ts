@@ -1,4 +1,3 @@
-import type { Component } from 'solid-js';
 import type { TwinPlugin } from '@twin-platform/plugin-sdk';
 import type { TwinScene } from '@twin-platform/scene-schema';
 import { buildCenterScene, logisticsPlugin } from '@twin-platform/plugins-logistics';
@@ -23,8 +22,6 @@ export interface PluginEntry {
   readonly plugin: TwinPlugin;
   /** 领域包才提供：默认场景。用于区分"领域包"与"可叠加的能力插件"。 */
   readonly buildScene?: () => TwinScene;
-  /** PanelDescriptor.component -> 组件。插件面板被点开时由视口解析。 */
-  readonly panelComponents?: Readonly<Record<string, Component>>;
 }
 
 export const PLUGIN_CATALOG: readonly PluginEntry[] = [

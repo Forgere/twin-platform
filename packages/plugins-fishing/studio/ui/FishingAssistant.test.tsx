@@ -3,8 +3,12 @@ import { captureArtifact } from '@solidjs/diagnostics';
 import '@solidjs/diagnostics/vitest';
 import { createSignal, flush } from 'solid-js';
 import { afterEach, expect, test, vi } from 'vitest';
-import { StudioSession } from '../../scene/studioSession';
-import { resolvePlugins } from '../../plugins/catalog';
+import { PluginHost } from '@twin-platform/plugin-sdk';
+import { ReplayController } from '@twin-platform/replay-core';
+import { createMemoryStorage } from '@twin-platform/storage-memory';
+import { TwinWorld } from '@twin-platform/world-kernel';
+import { buildFishingScene, fishingPlugin } from '@twin-platform/plugins-fishing';
+import type { StudioSessionPort } from '@twin-platform/studio-sdk';
 import FishingAssistant from './FishingAssistant';
 
 vi.mock('./judging', async (original) => ({
@@ -14,7 +18,11 @@ vi.mock('./judging', async (original) => ({
 afterEach(cleanup);
 
 test('condition buttons keep their DOM and focus across world samples', async () => {
-  const session = new StudioSession(undefined, undefined, resolvePlugins(['fishing']), { autoPlay: false });
+  const host = new PluginHost();
+  host.install(fishingPlugin);
+  const world = new TwinWorld(buildFishingScene({}), { seed: 20240906, behaviors: host.behaviors });
+  const controller = new ReplayController({ world, storage: createMemoryStorage() });
+  const session: StudioSessionPort = { world, controller, host };
   session.world.setAttr('rig-01', 'wizardDone', true);
   session.world.setAttr('rig-01', 'mode', 'sim');
   let sample!: () => void;

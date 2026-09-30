@@ -16,8 +16,8 @@ export default function PluginsPanel(props: {
   activeIds: readonly string[];
   onChange: (ids: string[]) => void;
 }) {
-  const records = props.host.list();
-  const errors = props.host.errors;
+  const records = () => props.host.list();
+  const errors = () => props.host.errors;
   const isActive = (id: string) => props.activeIds.includes(id);
   const domainIds = PLUGIN_CATALOG.filter((entry) => entry.buildScene).map((entry) => entry.id);
 
@@ -27,7 +27,7 @@ export default function PluginsPanel(props: {
       props.onChange(props.activeIds.filter((item) => item !== id));
       return;
     }
-    // 选领域包时先摘掉别的领域包，避免"物流场景 + 钓鱼决策"这种无意义组合。
+    // 选领域包时先摘掉别的领域包，避免把互不匹配的场景与决策混在一起。
     const base = entry?.buildScene ? props.activeIds.filter((item) => !domainIds.includes(item)) : [...props.activeIds];
     props.onChange([...base, id]);
   };
@@ -55,7 +55,7 @@ export default function PluginsPanel(props: {
       <p class="plugin-note">切换插件会重建会话（插件集是回放输入的一部分，不能热插拔）。</p>
 
       <div class="plugin-list">
-        <For each={records}>
+        <For each={records()}>
           {(record) => (
             <article class={`plugin-card ${record.state === 'active' ? 'ok' : 'bad'}`}>
               <header>
@@ -74,9 +74,9 @@ export default function PluginsPanel(props: {
           )}
         </For>
       </div>
-      <Show when={errors.length > 0}>
+      <Show when={errors().length > 0}>
         <div class="plugin-errors" role="alert">
-          <For each={errors}>{(error) => <p>{error.pluginId}：{error.message}</p>}</For>
+          <For each={errors()}>{(error) => <p>{error.pluginId}：{error.message}</p>}</For>
         </div>
       </Show>
     </section>

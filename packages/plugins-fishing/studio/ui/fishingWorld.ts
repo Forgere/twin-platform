@@ -14,7 +14,7 @@ import {
   type Loadout,
   type PondConditions,
 } from '@twin-platform/plugins-fishing';
-import type { StudioSession } from '../../scene/studioSession';
+import type { StudioSessionPort } from '@twin-platform/studio-sdk';
 
 /**
  * 钓场 UI 共用的读写口：浮层向导、钓况 HUD、钓鱼助手、钓组检视页都走这里，
@@ -62,11 +62,11 @@ const LIFT_RESULTS: readonly LiftResult[] = ['caught', 'empty', 'broken', 'misse
 
 const count = (value: unknown): number => (typeof value === 'number' && Number.isFinite(value) ? value : 0);
 
-export function hasRig(session: StudioSession): boolean {
+export function hasRig(session: StudioSessionPort): boolean {
   return session.world.getEntity(RIG_ID) !== undefined;
 }
 
-export function readRig(session: StudioSession): RigSnapshot | undefined {
+export function readRig(session: StudioSessionPort): RigSnapshot | undefined {
   const entity = session.world.getEntity(RIG_ID);
   if (!entity) return undefined;
   const attrs = entity.attrs ?? {};
@@ -103,7 +103,7 @@ export function readRig(session: StudioSession): RigSnapshot | undefined {
 }
 
 /** 批量写 rig attrs；暂停中也立刻推一帧，让 3D 与剖面马上反映新状态。 */
-export function writeRig(session: StudioSession, values: Readonly<Record<string, number | string | boolean>>): void {
+export function writeRig(session: StudioSessionPort, values: Readonly<Record<string, number | string | boolean>>): void {
   for (const [key, value] of Object.entries(values)) session.world.setAttr(RIG_ID, key, value);
   refreshWhilePaused(session);
 }
@@ -112,7 +112,7 @@ export function writeRig(session: StudioSession, values: Readonly<Record<string,
  * 暂停时世界不推进，布局实体（漂 / 铅 / 钩）就停在旧位置——布局是 fish-sim
  * 在 step 里算的，推 0 帧只刷渲染不跑行为，所以这里推 1 帧（1/60 秒）。
  */
-export function refreshWhilePaused(session: StudioSession): void {
+export function refreshWhilePaused(session: StudioSessionPort): void {
   if (!session.controller.playing) session.controller.stepFrames(1);
 }
 
@@ -120,7 +120,7 @@ export function refreshWhilePaused(session: StudioSession): void {
  * 调钓参数步进（半目为单位）。先过 calculateRigState：不合法的组合不写进世界，
  * 返回人话原因；成功返回 undefined。HUD 的钓目与「钓组」页的调目共用这一处。
  */
-export function stepRigParam(session: StudioSession, key: 't0' | 't' | 'w' | 'd', delta: number): string | undefined {
+export function stepRigParam(session: StudioSessionPort, key: 't0' | 't' | 'w' | 'd', delta: number): string | undefined {
   const current = readRig(session)?.state?.rig;
   if (!current) return '钓组参数还不完整。';
   const input = { t0: current.t0, t: current.t, w: current.w, d: current.d };
@@ -132,7 +132,7 @@ export function stepRigParam(session: StudioSession, key: 't0' | 't' | 'w' | 'd'
 }
 
 /** 换钓场模式：计数从 0 记起——模拟出来的鱼口不能混进真实钓点的记录，反之亦然。 */
-export function setFishingMode(session: StudioSession, mode: FishingMode): void {
+export function setFishingMode(session: StudioSessionPort, mode: FishingMode): void {
   writeRig(session, {
     fishingMode: mode,
     manualCast: mode === 'sim',
@@ -158,21 +158,21 @@ export function setFishingMode(session: StudioSession, mode: FishingMode): void 
 }
 
 /** 手动抛竿：只有收竿状态接受新意图，连点也不会重置正在等的鱼口。 */
-export function castRod(session: StudioSession): void {
+export function castRod(session: StudioSessionPort): void {
   const current = readRig(session);
   if (!current?.ready || current.mode !== 'sim' || current.inWater || current.pendingBite) return;
   writeRig(session, { manualCast: true, autoLift: false, cast: true, lift: false });
 }
 
 /** 快捷换饵只在岸上生效，和右侧装备页使用同一份 attrs。 */
-export function switchBait(session: StudioSession, bait: BaitId): void {
+export function switchBait(session: StudioSessionPort, bait: BaitId): void {
   const current = readRig(session);
   if (!current?.ready || current.inWater || current.pendingBite) return;
   writeRig(session, { bait });
 }
 
 /** 模拟模式下提杆：写一个意图，fish-sim 下一步消费并结算。 */
-export function liftRod(session: StudioSession): void {
+export function liftRod(session: StudioSessionPort): void {
   const current = readRig(session);
   if (!current?.ready || current.mode !== 'sim') return;
   if (current.manualCast && !current.inWater) return;
@@ -182,7 +182,7 @@ export function liftRod(session: StudioSession): void {
 /** 实际做钓的一竿结果（用户手动记）。 */
 export type CastRecord = 'none' | 'caught' | 'empty' | 'broken';
 
-export function recordCast(session: StudioSession, outcome: CastRecord): void {
+export function recordCast(session: StudioSessionPort, outcome: CastRecord): void {
   const counts = readRig(session)?.counts;
   if (!counts) return;
   const bit = outcome !== 'none';

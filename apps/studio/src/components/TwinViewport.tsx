@@ -1,4 +1,8 @@
-import { createSignal, For, onCleanup, onSettled, Show, untrack } from 'solid-js';
+import { createSignal, flush, For, onCleanup, onSettled, Show, untrack } from 'solid-js';
+import { Dynamic } from '@solidjs/web';
+import { presentationFor } from '../plugins/presentations';
+import { createWorkspace, type WorkspaceHandle } from '../plugins/workspace';
+import { requestApi } from '../plugins/requestApi';
 import type { WorldEvent } from '@twin-platform/world-kernel';
 import type { LineMetrics } from '@twin-platform/analytics-core';
 import { StudioSession, type StudioTelemetry } from '../scene/studioSession';
@@ -15,12 +19,7 @@ import DataSourcePanel from './DataSourcePanel';
 import EventLogPanel from './EventLogPanel';
 import TimelineBar from './TimelineBar';
 import PluginsPanel from './PluginsPanel';
-import FishingHud from './fishing/FishingHud';
-import FishingControls from './fishing/FishingControls';
-import FishingAssistant from './fishing/FishingAssistant';
-import RigInspector from './fishing/RigInspector';
-import { hasRig, readRig } from './fishing/fishingWorld';
-import { defaultTab, inspectorTabs, sceneProfileOf, type InspectorTab, type SceneProfile } from '../scene/sceneProfile';
+import { defaultTab, inspectorTabs, sceneProfileOf, type SceneProfile } from '../scene/sceneProfile';
 import MetricsPanel from './MetricsPanel';
 import ScenarioComparePanel from './ScenarioComparePanel';
 
@@ -34,8 +33,8 @@ import ScenarioComparePanel from './ScenarioComparePanel';
  * 布局约束（本轮改动的重点）：
  * - 整页锁在 100vh 内，只有视口与右侧面板内部可以滚动，页面本身不滚；
  * - 右侧检视区是**互斥标签页**，一次只显示一个面板；实体页内设备/物料也是互斥切换；
- *   标签组由场景画像决定（scene/sceneProfile.ts）：钓场看钓组 / 剖面，物流看指标 / 对比；
- * - 右侧是**编辑器**；应用本身（开钓向导、钓况 HUD、钓鱼助手）浮在画布上；
+ *   标签组由领域展示插件或通用回退画像提供；
+ * - 领域应用挂到舞台与视口插槽，通用视口不解释领域状态；
  * - 画布上常驻的只有左上角一列小按钮，其余（遥测浮层、仿真控制条、区域列表）
  *   默认全部收起，点了才展开，把画面尽量让给场景。
  */
@@ -123,11 +122,14 @@ export default function TwinViewport() {
   /** 机位：物流的产线机位只在物流领域包在场时才列；否则只留全景（全景按包围盒自动取景）。 */
   const regionPresets = () => (activePlugins().includes('logistics') ? REGIONS : REGIONS.filter((item) => item.id === 'overview'));
   const [session, setSession] = createSignal(
-    new StudioSession(restoreScene(), undefined, resolvePlugins(activePlugins())),
+    new StudioSession(restoreScene(), undefined, resolvePlugins(untrack(activePlugins))),
   );
-  /** 场景画像：决定右侧标签组、画布浮层（钓场才有向导 / HUD / 助手）。 */
+  /** 展示插件自行匹配场景；导入文档不会凭安装列表启用无关的领域 UI。 */
   const profileFor = (target: StudioSession): SceneProfile =>
-    sceneProfileOf({ hasRig: hasRig(target), plugins: target.pluginIds });
+    sceneProfileOf({
+      plugins: target.host.list().filter((record) => record.state === 'active').map((record) => record.manifest.id),
+      presentation: presentationFor(target),
+    });
   const profile = (): SceneProfile => profileFor(session());
   const tabs = () => inspectorTabs(profile());
   let controller: TwinSceneController | undefined;
@@ -135,22 +137,8 @@ export default function TwinViewport() {
 
   const [selected, setSelected] = createSignal<TwinEntityView>();
   const [entities, setEntities] = createSignal<TwinEntityView[]>([]);
-  const [tab, setTab] = createSignal<InspectorTab>(untrack(() => defaultTab(profile())));
+  const [tab, setTab] = createSignal(untrack(() => defaultTab(profile())), { name: 'studio.inspectorTab' });
   const [mobileInspector, setMobileInspector] = createSignal(false, { name: 'studio.mobileInspector' });
-  /**
-   * 开钓向导（在助手里）：进钓场且钓组还没配过就自动打开——"从一开始就有人带着"，
-   * 不让新手自己猜从哪儿开始。配过之后随时可从 HUD 的 ⚙ / 钓组页重新打开。
-   *
-   * 存的是"给哪个会话开的向导"而不是布尔：换会话时旧向导必须卸掉、新会话另起一个
-   * （向导持有会话做写入与暂停，不能在一个活着的向导底下偷换会话）。
-   */
-  const onboardingTarget = (target: StudioSession): StudioSession | undefined =>
-    profileFor(target) === 'fishing' && readRig(target)?.wizardDone !== true ? target : undefined;
-  const [onboardingFor, setOnboardingFor] = createSignal<StudioSession | undefined>(untrack(() => onboardingTarget(session())));
-  const openOnboarding = (): void => {
-    setMobileInspector(false);
-    setOnboardingFor(session());
-  };
   const [filter, setFilter] = createSignal<EntityFilter>('device');
   /** 遥测浮层：默认**收起**，点工具条的小按钮才显示（"隐藏浮层"的默认值）。 */
   const [hud, setHud] = createSignal(false);
@@ -170,7 +158,13 @@ export default function TwinViewport() {
   const [metrics, setMetrics] = createSignal<LineMetrics>(untrack(() => session().metrics()));
   const [telemetry, setTelemetry] = createSignal<StudioTelemetry>(untrack(() => session().telemetry()));
   /** 采样节拍：实体详情里的实时状态（货位、库存、当前任务）按它刷新。 */
-  const [tick, setTick] = createSignal(0);
+  const [tick, setTick] = createSignal(0, { name: 'studio.tick' });
+  const workspaceFor = (target: StudioSession): WorkspaceHandle => createWorkspace(presentationFor(target), {
+    session: { world: target.world, controller: target.controller, host: target.host, request: requestApi },
+    tick,
+    closeInspector: () => setMobileInspector(false),
+  });
+  const [workspace, setWorkspace] = createSignal<WorkspaceHandle | undefined>(untrack(() => workspaceFor(session())), { name: 'studio.workspace' });
   /** 右键菜单：记下弹在哪、对哪个实体，以及刚复制了什么（用来给个即时反馈）。 */
   const [menu, setMenu] = createSignal<{ x: number; y: number; entity: TwinEntityView; note?: string } | null>(
     null,
@@ -222,10 +216,11 @@ export default function TwinViewport() {
       {
         scene: target.world.scene,
         controller: target.controller,
+        presentation: presentationFor(target)?.createScene,
         // 数字孪生只看不改：不传 onDragCommit，画布上的物体不可拖拽。
       },
     );
-    // 换场景 / 换插件后按包围盒重新取景：写死机位会让小场景（台钓钓场）直接看不见。
+    // 插件可提供领域取景；否则按包围盒自动取景。
     controller.setCameraPreset('overview');
     setEntities(controller.entities);
     setTheme(controller.themeName);
@@ -241,15 +236,20 @@ export default function TwinViewport() {
    * 再重建三维控制器把新场景画出来。
    */
   const replaceSession = (next: StudioSession) => {
-    session().controller.pause();
+    const previous = session();
+    const oldWorkspace = workspace();
+    // 先同步卸载旧插槽，使其清理不能在新会话启动后恢复旧世界的播放。
+    setWorkspace(undefined);
+    flush();
+    oldWorkspace?.dispose();
+    previous.controller.pause();
     setSession(next);
     setSelected(undefined);
     // 以下一律用 next，不读 session()（见 buildController 的注释）。
     buildController(next);
-    // 换了场景就换一套检视页；钓场且没配过钓组 → 向导重新浮出来。
     setTab(defaultTab(profileFor(next)));
     setMobileInspector(false);
-    setOnboardingFor(onboardingTarget(next));
+    setWorkspace(workspaceFor(next));
   };
 
   /**
@@ -315,7 +315,7 @@ export default function TwinViewport() {
 
   /** 还原到所选领域包的模板场景（服务端在线时继续用服务端仓储）。 */
   const resetScene = () => {
-    // 模板场景的 id 也可能是"库里录过"的那个（例如重建台钓钓场），所以一样要对齐。
+    // 模板场景的 id 也可能是库里录过的那个，所以一样要对齐。
     const persisted = serverStorage();
     const next = new StudioSession(undefined, persisted, resolvePlugins(activePlugins()), { autoPlay: !persisted });
     rememberScene(next.world.scene);
@@ -486,6 +486,8 @@ export default function TwinViewport() {
 
   onCleanup(() => {
     clearInterval(timer);
+    workspace()?.dispose();
+    session().controller.pause();
     controller?.dispose();
   });
 
@@ -533,7 +535,7 @@ export default function TwinViewport() {
           aria-controls="studio-inspector"
           onClick={() => setMobileInspector(!mobileInspector())}
         >
-          {mobileInspector() ? '收起面板' : profile() === 'fishing' ? '钓组 / 面板' : '详情 / 面板'}
+          {mobileInspector() ? '收起面板' : profile().label ?? '详情 / 面板'}
         </button>
       </header>
 
@@ -555,7 +557,7 @@ export default function TwinViewport() {
               >
                 📷
               </button>
-              <Show when={profile() === 'logistics'}>
+              <Show when={profile().id === 'logistics'}>
               <button
                 type="button"
                 class={hud() ? 'vp-btn vp-btn-on' : 'vp-btn'}
@@ -634,7 +636,7 @@ export default function TwinViewport() {
               </>
             </Show>
 
-            <Show when={hud() && profile() === 'logistics'}>
+            <Show when={hud() && profile().id === 'logistics'}>
 
               <div class="telemetry-hud" aria-label="仿真遥测">
                 <h3>📡 Sim Telemetry · t = {view().time.toFixed(1)}s</h3>
@@ -741,23 +743,11 @@ export default function TwinViewport() {
                 <em>{view().playing ? `▶ ${view().speed}×` : '⏸'}</em>
               </button>
             </Show>
-            <Show when={profile() === 'fishing'}>
-              <FishingControls session={session()} tick={tick()} />
-            </Show>
+            <Dynamic component={workspace()?.views.Stage} />
             </div>
 
-            {/* 手机端 HUD 排在画布下方，助手按需展开；桌面仍保留浮层布局。 */}
-            <Show when={profile() === 'fishing'}>
-              <FishingHud session={session()} tick={tick()} />
-              <FishingAssistant
-                session={session()}
-                tick={tick()}
-                setup={onboardingFor()}
-                onOpen={() => setMobileInspector(false)}
-                onSetup={openOnboarding}
-                onSetupClose={() => setOnboardingFor(undefined)}
-              />
-            </Show>
+            {/* 插件浮层保留原有布局插槽；会话切换时整体卸载。 */}
+            <Dynamic component={workspace()?.views.Overlay} />
           </div>
 
           {/* 仿真控制不常用：默认不渲染，明确点开才出现。 */}
@@ -913,9 +903,7 @@ export default function TwinViewport() {
               <EventLogPanel events={view().events} stored={view().stored} />
             </Show>
 
-            <Show when={tab() === 'rig'}>
-              <RigInspector session={session()} tick={tick()} />
-            </Show>
+            <Dynamic component={workspace()?.views.panels?.[tab()]} />
 
             <Show when={tab() === 'plugins'}>
               <PluginsPanel host={session().host} activeIds={activePlugins()} onChange={applyPlugins} />

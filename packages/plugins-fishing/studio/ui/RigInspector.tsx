@@ -6,10 +6,10 @@ import {
   loadoutChecks,
   type Loadout,
 } from '@twin-platform/plugins-fishing';
-import type { StudioSession } from '../../scene/studioSession';
+import type { StudioSessionPort } from '@twin-platform/studio-sdk';
 import { readRig, stepRigParam, writeRig } from './fishingWorld';
-import FishingSandbox from '../FishingSandbox';
-import DecisionPanel from '../DecisionPanel';
+import FishingSandbox from './FishingSandbox';
+import DecisionPanel from './DecisionPanel';
 
 /**
  * 钓组页 —— 右侧检视区里钓场的**唯一**一页。
@@ -37,7 +37,7 @@ const CHECK_ICON: Readonly<Record<string, string>> = { ok: '✅', warn: '⚠️'
 const problems = (loadout: Loadout) => loadoutChecks(loadout).filter((check) => check.level !== 'ok');
 const fmt = (value: number): string => String(Math.round(value * 100) / 100);
 
-export default function RigInspector(props: { session: StudioSession; tick: number }) {
+export default function RigInspector(props: { session: StudioSessionPort; tick: number }) {
   const [issue, setIssue] = createSignal<string>();
 
   const rig = () => {

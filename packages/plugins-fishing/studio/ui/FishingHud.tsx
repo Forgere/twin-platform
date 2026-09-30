@@ -1,6 +1,6 @@
 import { createMemo, Show } from 'solid-js';
 import { fishById, SIGNAL_LABEL, type FloatSignal } from '@twin-platform/plugins-fishing';
-import type { StudioSession } from '../../scene/studioSession';
+import type { StudioSessionPort } from '@twin-platform/studio-sdk';
 import { readRig } from './fishingWorld';
 
 /** 右上角只读钓况；操作集中在底部，调目与装备在「钓组」页。 */
@@ -12,7 +12,7 @@ const ZONE_CLASS: Readonly<Record<string, string>> = {
 };
 const fmt = (value: number): string => String(Math.round(value * 100) / 100);
 
-export default function FishingHud(props: { session: StudioSession; tick: number }) {
+export default function FishingHud(props: { session: StudioSessionPort; tick: number }) {
   const rig = createMemo(() => {
     props.tick;
     return readRig(props.session);
