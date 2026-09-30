@@ -53,7 +53,7 @@ export default function FishingSandbox(props: { session: StudioSession; tick: nu
   // 剖面图每个节拍整张重建，悬停不能挂在单个元素的 enter/leave 上（节点被替换后
   // leave 永远不来），统一在外层容器按 data-part 判定。
   const [hover, setHover] = createSignal<{ id: HoverId; x: number; y: number; flip: boolean }>();
-  const onPointerMove = (event: PointerEvent & { currentTarget: HTMLDivElement }): void => {
+  const onInspect = (event: (PointerEvent | MouseEvent) & { currentTarget: HTMLDivElement }): void => {
     const target = (event.target as Element).closest('[data-part]');
     const id = target?.getAttribute('data-part') as HoverId | null;
     if (!id) {
@@ -255,7 +255,12 @@ export default function FishingSandbox(props: { session: StudioSession; tick: nu
         {(current) => (
           <>
             {/* 各部件状态不再单列：悬停图上的部件 / 线看，与图不重复。 */}
-            <div class="sandbox-figure" onPointerMove={onPointerMove} onPointerLeave={() => setHover(undefined)}>
+            <div
+              class="sandbox-figure"
+              onClick={onInspect}
+              onPointerMove={(event) => { if (event.pointerType !== 'touch') onInspect(event); }}
+              onPointerLeave={(event) => { if (event.pointerType !== 'touch') setHover(undefined); }}
+            >
               {crossSection()}
               <Show when={hover() && hoverInfo(postureOf(current()), hover()!.id)}>
                 {(info) => (
@@ -265,7 +270,7 @@ export default function FishingSandbox(props: { session: StudioSession; tick: nu
                 )}
               </Show>
             </div>
-            <p class="sandbox-hint">悬停图中部件或线查看状态</p>
+            <p class="sandbox-hint">点击或悬停部件与钓线查看状态</p>
 
             {/* 刻度条：绿 = 灵区、橙 = 钝区，红针 = 当前钓目；刻度写明含义，不靠记 d1/d2/d3。 */}
             <div class="sandbox-ruler" style="margin:8px 0 4px" aria-label={'钓目 ' + fmt(current().state.rig.d) + '，' + zoneLabel(current().state.rig.zone)}>

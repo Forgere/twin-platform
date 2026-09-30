@@ -156,6 +156,11 @@ export function manualLiftOf(attrs: Readonly<Record<string, unknown>> | undefine
   return attrs?.fishingMode === 'sim' && attrs.autoLift !== true;
 }
 
+/** 交互式模拟显式开启；旧场景/评测仍自动抛竿，不改变它们的随机数序列。 */
+export function manualCastOf(attrs: Readonly<Record<string, unknown>> | undefined): boolean {
+  return manualLiftOf(attrs) && attrs?.manualCast === true;
+}
+
 /** 有口后留给提杆的时间（仿真秒），与漂相动画一样长：漂动完了还没提就算错过。 */
 export const LIFT_WINDOW = 1.6;
 
@@ -290,7 +295,7 @@ export function createFishSimBehavior(config: FishSimConfig = {}): WorldBehavior
         ctx.setAttr(entity.id, 'bitHook', bitHook);
         ctx.emit('fish:cast', {
           entityId: entity.id,
-          payload: { cast: casts, zone: result.state.zone, bite: bit, caught, broken, signal, bitHook },
+          payload: { cast: casts, zone: result.state.zone, bite: bit, caught, broken, signal, bitHook, ...(caught ? { fishId: loadoutFromAttrs(entity.attrs).targetFish } : {}) },
         });
         if (broken) ctx.emit('fish:break', { entityId: entity.id, payload: { cast: casts } });
       }
@@ -316,14 +321,55 @@ interface LiftOdds {
 function stepManualLift(ctx: BehaviorContext, rigId: string, attrs: Readonly<Record<string, unknown>>, odds: LiftOdds): void {
   const pending = attrs.pendingBite === true;
   const cast = num(attrs.casts, 0);
+  const manualCast = manualCastOf(attrs);
+
+  // 一次抛竿可以等多轮鱼口，但只记一竿。意图在世界里消费，UI 不自行计时或结算。
+  if (manualCast) {
+    if (attrs.cast === true) {
+      ctx.setAttr(rigId, 'cast', false);
+      if (attrs.inWater !== true) {
+        ctx.setAttr(rigId, 'inWater', true);
+        ctx.setAttr(rigId, 'castAt', ctx.time);
+        ctx.setAttr(rigId, 'casts', cast + 1);
+        ctx.setAttr(rigId, 'lift', false);
+        ctx.setAttr(rigId, 'pendingBite', false);
+        ctx.setAttr(rigId, 'lastLift', '');
+        ctx.setAttr(rigId, 'signal', 'none');
+        ctx.setAttr(rigId, 'bitHook', 'none');
+        ctx.setAttr(rigId, 'biteFish', '');
+        ctx.setAttr(rigId, 'nextAt', ctx.time + odds.interval);
+        ctx.emit('fish:cast', { entityId: rigId, payload: { cast: cast + 1, zone: odds.state.zone, bite: false, signal: 'none', bitHook: 'none' } });
+        return;
+      }
+    }
+    if (attrs.inWater !== true) {
+      if (attrs.lift === true) ctx.setAttr(rigId, 'lift', false);
+      return;
+    }
+  }
 
   const settle = (outcome: LiftResult): void => {
     ctx.setAttr(rigId, 'lastLift', outcome);
     ctx.setAttr(rigId, 'pendingBite', false);
     ctx.setAttr(rigId, 'signal', 'none');
     ctx.setAttr(rigId, 'nextAt', ctx.time + odds.interval);
-    ctx.emit('fish:lift', { entityId: rigId, payload: { cast, result: outcome } });
+    if (manualCast) {
+      ctx.setAttr(rigId, 'inWater', false);
+      ctx.setAttr(rigId, 'bitHook', 'none');
+    }
+    ctx.emit('fish:lift', {
+      entityId: rigId,
+      payload: { cast, result: outcome, ...(outcome === 'caught' ? { fishId: str(attrs.biteFish, loadoutFromAttrs(attrs).targetFish) } : {}) },
+    });
   };
+
+  // 窗口到期的同一帧提竿也算错过，不能用残留的 pendingBite 捞回过期鱼口。
+  if (manualCast && pending && ctx.time + 1e-9 >= num(attrs.biteUntil, 0)) {
+    if (attrs.lift === true) ctx.setAttr(rigId, 'lift', false);
+    ctx.setAttr(rigId, 'missedBites', num(attrs.missedBites, 0) + 1);
+    settle('missed');
+    return;
+  }
 
   if (attrs.lift === true) {
     ctx.setAttr(rigId, 'lift', false);
@@ -352,11 +398,12 @@ function stepManualLift(ctx: BehaviorContext, rigId: string, attrs: Readonly<Rec
   const bit = ctx.rng.bool(odds.biteChance);
   const signal: FloatSignal = bit ? ctx.rng.pick(BITE_SIGNALS) : 'none';
   const bitHook: BitHook = bit ? (ctx.rng.bool(UPPER_BITE_SHARE) ? 'upper' : 'lower') : 'none';
-  ctx.setAttr(rigId, 'casts', cast + 1);
+  if (!manualCast) ctx.setAttr(rigId, 'casts', cast + 1);
   if (bit) {
     ctx.setAttr(rigId, 'bites', num(attrs.bites, 0) + 1);
     ctx.setAttr(rigId, 'pendingBite', true);
     ctx.setAttr(rigId, 'biteUntil', ctx.time + LIFT_WINDOW);
+    ctx.setAttr(rigId, 'biteFish', loadoutFromAttrs(attrs).targetFish);
   } else {
     ctx.setAttr(rigId, 'nextAt', ctx.time + odds.interval);
   }
@@ -364,8 +411,10 @@ function stepManualLift(ctx: BehaviorContext, rigId: string, attrs: Readonly<Rec
   ctx.setAttr(rigId, 'bottomLoad', odds.state.bottomLoad);
   ctx.setAttr(rigId, 'signal', signal);
   ctx.setAttr(rigId, 'bitHook', bitHook);
-  ctx.emit('fish:cast', {
-    entityId: rigId,
-    payload: { cast: cast + 1, zone: odds.state.zone, bite: bit, signal, bitHook, awaitingLift: bit },
-  });
+  if (!manualCast || bit) {
+    ctx.emit(manualCast ? 'fish:bite' : 'fish:cast', {
+      entityId: rigId,
+      payload: { cast: manualCast ? cast : cast + 1, zone: odds.state.zone, bite: bit, signal, bitHook, awaitingLift: bit },
+    });
+  }
 }

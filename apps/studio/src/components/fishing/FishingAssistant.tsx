@@ -124,6 +124,7 @@ export default function FishingAssistant(props: {
   setup?: StudioSession;
   onSetup: () => void;
   onSetupClose: () => void;
+  onOpen?: () => void;
 }) {
   const [open, setOpen] = createSignal(false);
   const [situation, setSituation] = createSignal<SituationId>();
@@ -253,6 +254,7 @@ export default function FishingAssistant(props: {
   props.connect?.({
     askAbout: (id) => {
       setHeard(undefined);
+      props.onOpen?.();
       setOpen(true);
       ask(id);
     },
@@ -297,26 +299,29 @@ export default function FishingAssistant(props: {
     setHeard(undefined);
   };
 
-  /** 模拟模式下"制造情况"：写进 attrs，和真实变化一样可回放、可被助手读到。 */
-  const drills = () => {
-    const rig = rigNow();
-    if (!rig) return [];
-    const { conditions } = rig;
-    const time = props.session.world.time;
-    const nest = time < conditions.nestUntil;
-    return [
-      { id: 'drift', label: '🌊 走水', on: conditions.drift, apply: () => writeRig(props.session, { drift: !conditions.drift, antiDrift: false }) },
-      { id: 'small', label: '🐟 小鱼闹窝', on: conditions.smallFish, apply: () => writeRig(props.session, { smallFish: !conditions.smallFish }) },
-      {
-        id: 'cold',
-        label: '🥶 降温 8℃',
-        on: conditions.waterTemperature < 12,
-        apply: () => writeRig(props.session, { waterTemperature: conditions.waterTemperature < 12 ? 20 : 8 }),
-      },
-      { id: 'nest', label: '🪣 打窝', on: nest, apply: () => writeRig(props.session, { nestUntil: nest ? 0 : time + 120 }) },
-      { id: 'auto', label: '🤖 自动提杆', on: !rig.manualLift, apply: () => writeRig(props.session, { autoLift: rig.manualLift }) },
-    ];
-  };
+  /** 按钮定义不随采样重建；只追踪选中态，避免触摸和键盘焦点丢失。 */
+  const drills = [
+    {
+      id: 'drift', label: '🌊 走水', on: () => rigNow()?.conditions.drift ?? false,
+      apply: () => writeRig(props.session, { drift: !rigNow()?.conditions.drift, antiDrift: false }),
+    },
+    {
+      id: 'small', label: '🐟 小鱼闹窝', on: () => rigNow()?.conditions.smallFish ?? false,
+      apply: () => writeRig(props.session, { smallFish: !rigNow()?.conditions.smallFish }),
+    },
+    {
+      id: 'cold', label: '🥶 降温 8℃', on: () => (rigNow()?.conditions.waterTemperature ?? 20) < 12,
+      apply: () => writeRig(props.session, { waterTemperature: (rigNow()?.conditions.waterTemperature ?? 20) < 12 ? 20 : 8 }),
+    },
+    {
+      id: 'nest', label: '🪣 打窝', on: () => props.session.world.time < (rigNow()?.conditions.nestUntil ?? 0),
+      apply: () => writeRig(props.session, { nestUntil: props.session.world.time < (rigNow()?.conditions.nestUntil ?? 0) ? 0 : props.session.world.time + 120 }),
+    },
+    {
+      id: 'auto', label: '🤖 自动提杆', on: () => !rigNow()?.manualLift,
+      apply: () => writeRig(props.session, { autoLift: rigNow()?.manualLift ?? false }),
+    },
+  ];
 
   const problems = SITUATIONS.filter((item) => item.kind === 'problem');
   const howtos = SITUATIONS.filter((item) => item.kind === 'howto');
@@ -333,7 +338,7 @@ export default function FishingAssistant(props: {
       </Show>
 
       <Show when={!open() && props.setup !== props.session}>
-        <button type="button" class="assist-fab" onClick={() => setOpen(true)} title="遇到情况随时问：点选或直接说">
+        <button type="button" class="assist-fab" onClick={() => { props.onOpen?.(); setOpen(true); }} title="遇到情况随时问：点选或直接说">
           🎣 助手
           {/* 收起时也要让人知道"现在有情况值得问"：命中的现状数挂在按钮上。 */}
           <Show when={likely().size > 0}>
@@ -397,9 +402,9 @@ export default function FishingAssistant(props: {
             <div class="assist-drills">
               <span class="assist-op-kicker">制造情况（练应对）</span>
               <div class="assist-chips" role="group" aria-label="制造情况">
-                <For each={drills()}>
+                <For each={drills}>
                   {(item) => (
-                    <button type="button" class={item.on ? 'gear-opt gear-opt-on' : 'gear-opt'} aria-pressed={item.on ? 'true' : 'false'} onClick={item.apply}>
+                    <button type="button" class={item.on() ? 'gear-opt gear-opt-on' : 'gear-opt'} aria-pressed={item.on() ? 'true' : 'false'} onClick={item.apply}>
                       {item.label}
                     </button>
                   )}

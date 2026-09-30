@@ -16,7 +16,8 @@ import EventLogPanel from './EventLogPanel';
 import TimelineBar from './TimelineBar';
 import PluginsPanel from './PluginsPanel';
 import FishingHud from './fishing/FishingHud';
-import FishingAssistant, { type FishingAssistantApi } from './fishing/FishingAssistant';
+import FishingControls from './fishing/FishingControls';
+import FishingAssistant from './fishing/FishingAssistant';
 import RigInspector from './fishing/RigInspector';
 import { hasRig, readRig } from './fishing/fishingWorld';
 import { defaultTab, inspectorTabs, sceneProfileOf, type InspectorTab, type SceneProfile } from '../scene/sceneProfile';
@@ -45,7 +46,7 @@ type EntityFilter = 'device' | 'cargo';
 const CARGO_KINDS = new Set(['parcel', 'pallet']);
 
 /** 画布操作提示：只在区域浮层底部出现，不再常驻占一条高度。 */
-const VIEW_HINT = '拖动旋转 · 右键平移 · 滚轮缩放 · 点击可选中';
+const VIEW_HINT = '单指旋转 · 双指缩放/平移 · 轻点选中；鼠标拖动旋转、右键平移、滚轮缩放';
 
 /** 区域 / 机位：点工具条上的相机按钮呼出。 */
 const REGIONS: { id: CameraPreset; icon: string; label: string }[] = [
@@ -135,6 +136,7 @@ export default function TwinViewport() {
   const [selected, setSelected] = createSignal<TwinEntityView>();
   const [entities, setEntities] = createSignal<TwinEntityView[]>([]);
   const [tab, setTab] = createSignal<InspectorTab>(untrack(() => defaultTab(profile())));
+  const [mobileInspector, setMobileInspector] = createSignal(false, { name: 'studio.mobileInspector' });
   /**
    * 开钓向导（在助手里）：进钓场且钓组还没配过就自动打开——"从一开始就有人带着"，
    * 不让新手自己猜从哪儿开始。配过之后随时可从 HUD 的 ⚙ / 钓组页重新打开。
@@ -145,8 +147,8 @@ export default function TwinViewport() {
   const onboardingTarget = (target: StudioSession): StudioSession | undefined =>
     profileFor(target) === 'fishing' && readRig(target)?.wizardDone !== true ? target : undefined;
   const [onboardingFor, setOnboardingFor] = createSignal<StudioSession | undefined>(untrack(() => onboardingTarget(session())));
-  let assistant: FishingAssistantApi | undefined;
   const openOnboarding = (): void => {
+    setMobileInspector(false);
     setOnboardingFor(session());
   };
   const [filter, setFilter] = createSignal<EntityFilter>('device');
@@ -212,7 +214,10 @@ export default function TwinViewport() {
       (entity) => {
         setSelected(entity);
         // 点中场景里的东西就把实体页翻出来，不然选中了也看不见。
-        if (entity) setTab('entity');
+        if (entity) {
+          setTab('entity');
+          setMobileInspector(true);
+        }
       },
       {
         scene: target.world.scene,
@@ -243,6 +248,7 @@ export default function TwinViewport() {
     buildController(next);
     // 换了场景就换一套检视页；钓场且没配过钓组 → 向导重新浮出来。
     setTab(defaultTab(profileFor(next)));
+    setMobileInspector(false);
     setOnboardingFor(onboardingTarget(next));
   };
 
@@ -515,16 +521,26 @@ export default function TwinViewport() {
   };
 
   return (
-    <main class="studio-shell">
+    <main class={mobileInspector() ? 'studio-shell studio-inspecting' : 'studio-shell'}>
       <header class="studio-heading">
         <span class="brand">TWIN STUDIO</span>
         {/* 标题跟着场景走：导入外部布局后，这里显示的就是那个场景的名字。 */}
         <h1>{session().world.scene.name}</h1>
+        <button
+          type="button"
+          class="mobile-inspector-toggle"
+          aria-expanded={mobileInspector() ? 'true' : 'false'}
+          aria-controls="studio-inspector"
+          onClick={() => setMobileInspector(!mobileInspector())}
+        >
+          {mobileInspector() ? '收起面板' : profile() === 'fishing' ? '钓组 / 面板' : '详情 / 面板'}
+        </button>
       </header>
 
       <div class="studio-grid">
         <section class="viewport-panel">
           <div class="viewport-frame">
+            <div class="scene-stage">
             <div ref={mountViewport} class="viewport" aria-label="数字孪生三维场景" />
 
             {/* 画布左上角一列小按钮：区域 / 遥测 / 主题 / 仿真控制，各自点了才展开内容。 */}
@@ -532,7 +548,7 @@ export default function TwinViewport() {
               <button
                 type="button"
                 class={regions() ? 'vp-btn vp-btn-on' : 'vp-btn'}
-                aria-expanded={regions()}
+                aria-expanded={regions() ? 'true' : 'false'}
                 aria-label="选择区域 / 机位"
                 title={`选择区域 / 机位（${VIEW_HINT}）`}
                 onClick={() => setRegions(!regions())}
@@ -543,7 +559,7 @@ export default function TwinViewport() {
               <button
                 type="button"
                 class={hud() ? 'vp-btn vp-btn-on' : 'vp-btn'}
-                aria-pressed={hud()}
+                aria-pressed={hud() ? 'true' : 'false'}
                 aria-label="显示 / 隐藏遥测浮层"
                 title={hud() ? '隐藏浮层' : '显示浮层'}
                 onClick={() => setHud(!hud())}
@@ -554,7 +570,7 @@ export default function TwinViewport() {
               <button
                 type="button"
                 class={theme() === 'industrial' ? 'vp-btn vp-btn-on' : 'vp-btn'}
-                aria-pressed={theme() === 'industrial'}
+                aria-pressed={theme() === 'industrial' ? 'true' : 'false'}
                 aria-label="切换设备主题"
                 title={`设备主题：${theme() === 'pastel' ? '玩具工厂' : '工业涂装'}（点击切换）`}
                 onClick={() => {
@@ -568,7 +584,7 @@ export default function TwinViewport() {
               <button
                 type="button"
                 class={controls() ? 'vp-btn vp-btn-on' : 'vp-btn'}
-                aria-pressed={controls()}
+                aria-pressed={controls() ? 'true' : 'false'}
                 aria-label="显示 / 隐藏仿真控制条"
                 title={controls() ? '收起仿真控制条' : '展开仿真控制条'}
                 onClick={() => setControls(!controls())}
@@ -578,10 +594,14 @@ export default function TwinViewport() {
               <button
                 type="button"
                 class={tab() === 'scene' ? 'vp-btn vp-btn-on' : 'vp-btn'}
-                aria-pressed={tab() === 'scene'}
+                aria-pressed={tab() === 'scene' ? 'true' : 'false'}
                 aria-label="场景导入导出"
                 title={`场景导入 / 导出（当前：${session().sceneSource === 'imported' ? '外部导入' : '插件模板'}）`}
-                onClick={() => setTab(tab() === 'scene' ? defaultTab(profile()) : 'scene')}
+                onClick={() => {
+                  const closing = tab() === 'scene' && mobileInspector();
+                  setTab(closing ? defaultTab(profile()) : 'scene');
+                  setMobileInspector(!closing);
+                }}
               >
                 🗂
               </button>
@@ -590,7 +610,7 @@ export default function TwinViewport() {
             {/* 区域列表：点相机呼出，选一个就飞过去并关掉，不常驻占高度。 */}
             <Show when={regions()}>
               <>
-                <div class="vp-backdrop" onMouseDown={() => setRegions(false)} />
+                <div class="vp-backdrop" onPointerDown={() => setRegions(false)} />
                 <div class="vp-popover" aria-label="选择区域">
                   <div class="vp-popover-head">区域 / 机位</div>
                   <div class="vp-regions">
@@ -708,19 +728,6 @@ export default function TwinViewport() {
               </div>
             </Show>
 
-            {/* 钓场：钓况 HUD（右上）+ 钓鱼助手（右下）常驻；开钓向导在助手里。 */}
-            <Show when={profile() === 'fishing'}>
-              <FishingHud session={session()} tick={tick()} onReconfigure={openOnboarding} onAsk={(id) => assistant?.askAbout(id)} />
-              <FishingAssistant
-                session={session()}
-                tick={tick()}
-                connect={(api) => (assistant = api)}
-                setup={onboardingFor()}
-                onSetup={openOnboarding}
-                onSetupClose={() => setOnboardingFor(undefined)}
-              />
-            </Show>
-
             {/* 控制条收起时，左下角只留一枚时间胶囊；点它（或工具条 ⏱）才展开完整控制条。 */}
             <Show when={!controls()}>
               <button
@@ -733,6 +740,23 @@ export default function TwinViewport() {
                 t {view().time.toFixed(1)}s
                 <em>{view().playing ? `▶ ${view().speed}×` : '⏸'}</em>
               </button>
+            </Show>
+            <Show when={profile() === 'fishing'}>
+              <FishingControls session={session()} tick={tick()} />
+            </Show>
+            </div>
+
+            {/* 手机端 HUD 排在画布下方，助手按需展开；桌面仍保留浮层布局。 */}
+            <Show when={profile() === 'fishing'}>
+              <FishingHud session={session()} tick={tick()} />
+              <FishingAssistant
+                session={session()}
+                tick={tick()}
+                setup={onboardingFor()}
+                onOpen={() => setMobileInspector(false)}
+                onSetup={openOnboarding}
+                onSetupClose={() => setOnboardingFor(undefined)}
+              />
             </Show>
           </div>
 
@@ -753,7 +777,7 @@ export default function TwinViewport() {
           </Show>
         </section>
 
-        <aside class="inspector" aria-label="场景控制与实体详情">
+        <aside id="studio-inspector" class="inspector" aria-label="场景控制与实体详情">
           <div class="tab-bar" role="tablist" aria-label="检视面板">
             <For each={tabs()}>
               {(item) => (
@@ -761,7 +785,7 @@ export default function TwinViewport() {
                   type="button"
                   role="tab"
                   class={tab() === item.id ? 'tab tab-active' : 'tab'}
-                  aria-selected={tab() === item.id}
+                  aria-selected={tab() === item.id ? 'true' : 'false'}
                   onClick={() => setTab(item.id)}
                 >
                   <span aria-hidden="true">{item.icon}</span>
@@ -812,7 +836,7 @@ export default function TwinViewport() {
                 <button
                   type="button"
                   class={filter() === 'device' ? 'seg seg-active' : 'seg'}
-                  aria-pressed={filter() === 'device'}
+                  aria-pressed={filter() === 'device' ? 'true' : 'false'}
                   onClick={() => setFilter('device')}
                 >
                   设备
@@ -820,7 +844,7 @@ export default function TwinViewport() {
                 <button
                   type="button"
                   class={filter() === 'cargo' ? 'seg seg-active' : 'seg'}
-                  aria-pressed={filter() === 'cargo'}
+                  aria-pressed={filter() === 'cargo' ? 'true' : 'false'}
                   onClick={() => setFilter('cargo')}
                 >
                   物料

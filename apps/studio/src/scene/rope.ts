@@ -78,6 +78,12 @@ export class Rope {
     return [this.nodes[o], this.nodes[o + 1], this.nodes[o + 2]];
   }
 
+  /** 按当前挂点直接采样平衡曲线：回放 / 暂停用，不依赖此前渲染过多少帧。 */
+  pose(from: Vec3, to: Vec3, length: number, forces: RopeForces): void {
+    this.ready = false;
+    this.step(from, to, length, 0, forces);
+  }
+
   step(from: Vec3, to: Vec3, length: number, dt: number, forces: RopeForces): void {
     const target = targetBulge(from, to, length, forces);
     if (!this.ready) {

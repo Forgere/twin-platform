@@ -1,9 +1,12 @@
 import CameraControls from 'camera-controls';
-import { MAX_FLOAT_DROP, MAX_FLOAT_SHIFT, SIGNAL_DURATION, type FloatSignalName } from './floatSignal';
+import { CanvasTap } from './CanvasTap';
+import { MAX_FLOAT_DROP, MAX_FLOAT_SHIFT, type FloatSignalName } from './floatSignal';
+import { castEntryPoint, fishingPresentation } from './fishingPresentation';
 import { driftWobble, flowOffset, rigVisualPose } from './rigVisual';
 import { solveRigChainBuoyant, subLineLength, SUBLINE_SIDE, type HookKey, type V3 } from './rigChain';
 import { Rope } from './rope';
-import { calculateRigState, conditionsOf, rigPosture } from '@twin-platform/plugins-fishing';
+import { FishingConditionsVisual } from './FishingConditionsVisual';
+import { calculateRigState, conditionsOf, rigPartsOf, rigPhaseOf, rigPosture } from '@twin-platform/plugins-fishing';
 import type { ReplayController } from '@twin-platform/replay-core';
 import type { TwinScene, TwinVector3, FrameDelta } from '@twin-platform/world-kernel';
 import * as THREE from 'three';
@@ -80,7 +83,7 @@ const CHAIN_RUN = 0.6;
 const FISHING_UP = new THREE.Vector3(0, 1, 0);
 const fishingDirection = new THREE.Vector3();
 const fishingFrom = new THREE.Vector3();
-/** 钓场固定模板：漂相来自 rig-01 的 attrs.signal，一次抛竿（attrs.casts 递增）触发一次动作。 */
+/** 钓场固定模板：漂相来自 rig-01 的 attrs.signal，按存档中的鱼口时间取当前姿态。 */
 const FISHING_RIG_ID = 'rig-01';
 const FISHING_FLOAT_ID = 'float-01';
 const FISHING_SWIVEL_ID = 'swivel-01';
@@ -162,14 +165,19 @@ export class TwinSceneController {
   private readonly entityMeshes = new Map<string, THREE.Object3D>();
   /** 物料（parcel/pallet）走实例化池，省 draw call。 */
   private readonly cargoPool: CargoPool;
+  private readonly fishingConditions = new FishingConditionsVisual();
   /** 物料尺寸：帧差量里不带 size，靠实体声明记住，write 时复用。 */
   private readonly entitySizes = new Map<string, TwinVector3>();
   /** 皮带箭头流动时间（秒），暂停即停——视觉跟随仿真。 */
   private beltTime = 0;
-  private selectionHelper: THREE.Object3D | undefined;
+  private selectionHelper: THREE.BoxHelper | THREE.Box3Helper | undefined;
   private selectedId: string | undefined;
   /** 进行中的拖拽（预览期间只改网格，不写世界）。 */
   private drag: DragState | undefined;
+  /** 进行中的轻点：按下的那根指针与按下位置；抬起时没怎么动才算点选。 */
+  private readonly tap = new CanvasTap();
+  /** 编辑态才有：拖拽松手时的提交通道（只看不改的孪生视图不传）。 */
+  private readonly onDragCommit: TwinSceneControllerOptions['onDragCommit'];
   private readonly resizeObserver: ResizeObserver;
   private readonly renderer: THREE.WebGLRenderer;
   private readonly controls: CameraControls;
@@ -182,6 +190,7 @@ export class TwinSceneController {
   ) {
     this.controller = options.controller;
     this.worldScene = options.scene;
+    this.onDragCommit = options.onDragCommit;
     this.entities = options.scene.entities.map((entity) => ({
       id: entity.id,
       kind: entity.kind,
@@ -207,16 +216,21 @@ export class TwinSceneController {
 
     this.cargoPool = new CargoPool();
     this.scene.add(this.cargoPool.mesh);
+    this.scene.add(this.fishingConditions.group);
 
     this.buildEnvironment(this.worldScene);
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(this.host);
-    this.renderer.domElement.addEventListener('pointerdown', this.pick);
-    // 捕获阶段挂在**容器**上：camera-controls 的监听器比我们先注册在画布上，
+    // 点选 = 轻点：画布上按下记位置，抬起（在哪抬起都算，所以挂 window）时没怎么动才拾取。
+    this.renderer.domElement.addEventListener('pointerdown', this.onTapStart);
+    window.addEventListener('pointermove', this.onTapMove);
+    window.addEventListener('pointerup', this.onTapEnd);
+    window.addEventListener('pointercancel', this.onTapCancel);
+    // 编辑态的抓取在捕获阶段挂在**容器**上：camera-controls 的监听器比我们先注册在画布上，
     // 同一个节点上的监听器按注册顺序跑、不吃 capture 标志，直接在画布上抢不过它；
     // 挂到父容器的捕获阶段才能先于画布执行，从而在它看到 pointerdown 之前
     // 把 `controls.enabled` 关掉——否则"拖设备"会同时变成"转相机"。
-    this.host.addEventListener('pointerdown', this.pick, true);
+    this.host.addEventListener('pointerdown', this.grab, true);
     this.resize();
     // 钓场：一进来就对准水下钓组（默认机位是给产线的远景，钓组只剩几个像素）。
     if (this.entityMeshes.has(FISHING_RIG_ID)) this.frameScene(false);
@@ -367,7 +381,8 @@ export class TwinSceneController {
       const surfaceY = typeof config.surfaceY === 'number' ? config.surfaceY : 2;
       const depth = typeof config.depth === 'number' ? config.depth : 2;
       const midY = surfaceY - depth / 2 + 0.1;
-      const distance = Math.max(4.2, depth * 2.3);
+      // 抛竿初段的浮漂在水面上方，机位也要容纳这段入水过程，而不只框住稳态钓组。
+      const distance = Math.max(5.2, depth * 2.8);
       void this.controls.setLookAt(0.9, midY + distance * 0.22, distance, 0.1, midY, 0, animate);
       return;
     }
@@ -389,10 +404,14 @@ export class TwinSceneController {
     if (this.frameId !== undefined) cancelAnimationFrame(this.frameId);
     this.resizeObserver.disconnect();
     this.finishDrag(false); // 拖到一半卸载：先撤监听、把网格放回原处
-    this.renderer.domElement.removeEventListener('pointerdown', this.pick);
-    this.host.removeEventListener('pointerdown', this.pick, true);
+    this.renderer.domElement.removeEventListener('pointerdown', this.onTapStart);
+    window.removeEventListener('pointermove', this.onTapMove);
+    window.removeEventListener('pointerup', this.onTapEnd);
+    window.removeEventListener('pointercancel', this.onTapCancel);
+    this.host.removeEventListener('pointerdown', this.grab, true);
     this.controls.dispose();
     this.removeSelectionHelper();
+    this.fishingConditions.dispose();
     for (const object of this.entityMeshes.values()) disposeObject(object);
     this.cargoPool.dispose();
     this.renderer.dispose();
@@ -401,9 +420,12 @@ export class TwinSceneController {
 
   private buildEnvironment(scene: TwinScene): void {
     this.scene.background = new THREE.Color('#F5F2EB');
-    const grid = new THREE.GridHelper(64, 64, '#D8D0C2', '#E8E4DC');
-    this.scene.add(grid);
-    this.addCoordinateAxes(scene);
+    // 钓场靠水面 / 水底辨认深度，不叠加工厂坐标轴和网格遮挡漂相。
+    if (!scene.entities.some((entity) => entity.id === FISHING_RIG_ID)) {
+      const grid = new THREE.GridHelper(64, 64, '#D8D0C2', '#E8E4DC');
+      this.scene.add(grid);
+      this.addCoordinateAxes(scene);
+    }
     this.scene.add(new THREE.HemisphereLight('#FFF4E6', '#E8E4DC', 1.7));
     const key = new THREE.DirectionalLight('#FFF4E6', 2.4);
     key.position.set(14, 20, 16);
@@ -653,15 +675,17 @@ export class TwinSceneController {
   private animateSubParts(realDelta: number): void {
     const playing = this.controller.playing;
     if (playing) this.beltTime += realDelta;
-    this.animateFloatSignal(playing ? realDelta : 0);
+    this.animateFloatSignal();
+    const fishingTime = this.controller.world.time;
+    this.fishingConditions.update(this.controller.world, this.entityMeshes);
     for (const object of this.entityMeshes.values()) {
       const anim = object.userData.anim as EntityAnim | undefined;
       if (!anim) continue;
       if (anim.belt) anim.belt.uniforms.time.value = this.beltTime;
-      // 水 / 水草 / 鱼的纯表现动效：跟皮带箭头同一个时钟（暂停即停），不读写世界状态。
+      // 钓场表现按仿真时刻取样：暂停、倍速与 seek 都不改变同一状态的样子。
       if (anim.ripples) {
         for (const ripple of anim.ripples) {
-          const k = (this.beltTime / ripple.period + ripple.phase) % 1;
+          const k = (fishingTime / ripple.period + ripple.phase) % 1;
           const radius = 0.15 + k * ripple.maxRadius;
           // 走水：涟漪边扩散边往下游（+X，与水下钓组被推的方向一致）漂，并被拉成椭圆。
           const drift = Math.min(1, this.rigFlowTan * 4);
@@ -672,7 +696,7 @@ export class TwinSceneController {
       }
       if (anim.sway) {
         for (const part of anim.sway) {
-          part.mesh.rotation[part.axis] = part.base + part.amp * Math.sin(this.beltTime * part.speed + part.phase);
+          part.mesh.rotation[part.axis] = part.base + part.amp * Math.sin(fishingTime * part.speed + part.phase);
         }
       }
       // 滚筒不再自转：输送线滚筒属装饰件，转动既无物理含义又增加每帧矩阵写入，
@@ -701,7 +725,8 @@ export class TwinSceneController {
 
       // 台钓钓组的主线 / 子线：每根线是一条软绳（rope.ts），首尾钉在两个挂线点上，
       // 线长来自受力链的静止位（animateRig 写入 lineLengths）——有余量就下垂 / 贴底 / 被水流吹弯，
-      // 拉满就绷直，被拖时带惯性甩动。必须跑在 applyFrame 与 animateRig 之后，且与是否播放无关——
+      // 有余量就下垂 / 贴底 / 被水流吹弯，钩被拖时线随真实挂点晃动。
+      // 按当前形状取样，不积累渲染 dt，否则同一回放状态会因此前渲染帧数不同而分叉。
       // 调漂后即使暂停，线也要立刻跟着新的钩饵位置走。
       if (anim.fishingLines) {
         for (const line of anim.fishingLines) {
@@ -709,7 +734,7 @@ export class TwinSceneController {
           if (line.segment.index === 0) {
             const fromObject = this.entityMeshes.get(line.fromId);
             const toObject = this.entityMeshes.get(line.toId);
-            if (!fromObject || !toObject) {
+            if (!fromObject || !toObject || !fromObject.visible || !toObject.visible) {
               this.ropes.delete(key);
             } else {
               // 线挂在零件的挂线点（漂座 / 钩眼），不是实体原点。
@@ -718,7 +743,7 @@ export class TwinSceneController {
               const chord = from.distanceTo(to);
               const rope = this.ropes.get(key) ?? new Rope();
               this.ropes.set(key, rope);
-              rope.step([from.x, from.y, from.z], [to.x, to.y, to.z], Math.max(this.lineLengths.get(key) ?? chord, 1e-3), realDelta, {
+              rope.pose([from.x, from.y, from.z], [to.x, to.y, to.z], Math.max(this.lineLengths.get(key) ?? chord, 1e-3), {
                 // 主线大半在空气里（竿梢→漂），下垂明显；水下的尼龙子线几乎零浮力，只轻轻下沉。
                 gravity: line.kind === 'main' ? -6 : -1.2,
                 current: [this.rigFlowTan * 6, 0, 0],
@@ -756,8 +781,6 @@ export class TwinSceneController {
     }
   }
 
-  /** 当前这一口的漂相与已播放秒数；casts 变化且有口时重新起播。 */
-  private floatBite = { casts: -1, signal: 'none' as FloatSignalName, hook: 'lower' as HookKey, t: SIGNAL_DURATION };
   /** 每根钓线的软绳（键 = "起点id->终点id"）与线长（受力链静止位给出）。 */
   private readonly ropes = new Map<string, Rope>();
   private readonly lineLengths = new Map<string, number>();
@@ -766,24 +789,28 @@ export class TwinSceneController {
   /** 走水倾角正切（0 = 静水），水面涟漪据此往下游漂。 */
   private rigFlowTan = 0;
 
-  /** 跟踪"这一口"：按渲染时钟播放（暂停即停），不写世界状态。 */
-  private animateFloatSignal(delta: number): void {
-    const attrs = this.controller.world.getEntity(FISHING_RIG_ID)?.attrs;
-    if (!attrs) return;
-    const casts = typeof attrs.casts === 'number' ? attrs.casts : 0;
-    const signal = (typeof attrs.signal === 'string' ? attrs.signal : 'none') as FloatSignalName;
-    const bite = this.floatBite;
-    if (casts !== bite.casts) {
-      // 首次看到（切场景 / 回放跳转）只对齐计数，不补播已经过去的那一口。
-      const fresh = bite.casts >= 0 && casts > bite.casts;
-      bite.casts = casts;
-      bite.signal = signal;
-      // 咬哪只钩由 fish-sim 用 ctx.rng 决定并写进 attrs（老存档没有这个字段时按下钩）。
-      bite.hook = attrs.bitHook === 'upper' ? 'upper' : 'lower';
-      bite.t = fresh && signal !== 'none' ? 0 : SIGNAL_DURATION;
+  /** 取“当前这一口”的世界时间，而不是在渲染器里另起一个计时器。 */
+  private animateFloatSignal(): void {
+    const world = this.controller.world;
+    const rig = world.getEntity(FISHING_RIG_ID);
+    if (!rig) return;
+    const state = fishingPresentation(rig.attrs, world.time, Number(rig.config.castInterval ?? 3));
+    const parts = rigPartsOf(rigPhaseOf(rig.attrs));
+    for (const [id, attached] of [
+      [FISHING_RIG_ID, true], [FISHING_FLOAT_ID, true], [FISHING_SINKER_ID, true], [FISHING_SWIVEL_ID, true],
+      ['hook-upper-01', parts.hooks], ['hook-lower-01', parts.hooks],
+      ['bait-upper-01', parts.upperBait], ['bait-lower-01', parts.lowerBait],
+    ] as const) {
+      const object = this.entityMeshes.get(id);
+      if (object) object.visible = !state.stowed && attached;
     }
-    bite.t += delta;
-    this.animateRig(bite.signal, bite.hook, bite.t);
+    if (state.stowed) {
+      this.rigFlowTan = conditionsOf(rig).drift ? 0.25 : 0;
+      const biter = (this.entityMeshes.get(FISHING_RIG_ID)?.userData.anim as EntityAnim | undefined)?.biter;
+      if (biter) biter.visible = false;
+      return;
+    }
+    this.animateRig(state.signal, state.hook, state.biteAge, state.castProgress);
   }
 
   /**
@@ -793,7 +820,7 @@ export class TwinSceneController {
    *    子线先被拉直，再拉 8 字环 → 铅坠 → 漂。线长守恒，漂的下顿 / 没入是被拉出来的。
    * 只写各零件的内层枢轴，并让每个挂线点**正好**落在解出来的位置上。
    */
-  private animateRig(signal: FloatSignalName, bitten: HookKey, t: number): void {
+  private animateRig(signal: FloatSignalName, bitten: HookKey, t: number, castProgress = 1): void {
     const rig = this.controller.world.getEntity(FISHING_RIG_ID);
     const objects = {
       float: this.entityMeshes.get(FISHING_FLOAT_ID),
@@ -838,8 +865,8 @@ export class TwinSceneController {
       const y = object.position.y + dy;
       return [object.position.x + flow(y), y, object.position.z];
     };
-    // 走水：漂被水流乱推（按渲染时钟，暂停即停）；下面的零件经受力链跟着漂一起动。
-    const wobble = driftWobble(this.beltTime, pose.flowTan);
+    // 水流晃动取同一仿真时刻；下面的零件经受力链跟着漂一起动。
+    const wobble = driftWobble(this.controller.world.time, pose.flowTan);
     const restFloat: V3 = [floatObject.position.x + floatLocal.x + wobble.dx, floatAnchorY + wobble.dy, floatObject.position.z + floatLocal.z];
     const restSwivel = at(objects.swivel, pose.mainLift);
     // 钩的原点就是钩眼（挂线点）；躺底的钩整只放倒在底上，钩眼随之落到底面。
@@ -858,7 +885,7 @@ export class TwinSceneController {
     const shake = pose.drag.shake * Math.sin(t * 38);
     const from = eyes[bitten];
     const target: V3 = [from[0] + bittenSpec.side * pose.drag.out, from[1] + pose.drag.dy, from[2] + shake];
-    const solved = solveRigChainBuoyant(
+    let solved = solveRigChainBuoyant(
       {
         float: restFloat,
         sinker: at(objects.sinker, pose.mainLift),
@@ -888,6 +915,16 @@ export class TwinSceneController {
       );
     }
 
+    // 新抛竿只改变这组挂点的入水进度：线长仍取稳态长度，多出的线自然松弛，绝不各画各的。
+    if (castProgress < 1 && rodTip) {
+      const entry = (point: V3): V3 => castEntryPoint(point, restFloat, [rodTip.x, rodTip.y, rodTip.z], surfaceY, castProgress);
+      solved = {
+        ...solved,
+        float: entry(solved.float), sinker: entry(solved.sinker), swivel: entry(solved.swivel),
+        upper: entry(solved.upper), lower: entry(solved.lower),
+      };
+    }
+
     // ── 写回枢轴 ──
     const pivotOf = (object: THREE.Object3D | undefined) => object?.userData.lineAnchorPivot as THREE.Object3D | undefined;
     // 漂：挂线点落到解出的漂座上；被线往哪边拉，漂脚就被拽向哪边、漂身反向倾。
@@ -907,7 +944,7 @@ export class TwinSceneController {
     const sinkerPivot = pivotOf(objects.sinker);
     if (sinkerPivot) {
       sinkerPivot.position.set(...offset(solved.sinker, objects.sinker));
-      sinkerPivot.rotation.z = (pose.sinkerLie * Math.PI) / 2;
+      sinkerPivot.rotation.z = (pose.sinkerLie * castProgress * Math.PI) / 2;
     }
     pivotOf(objects.swivel)?.position.set(...offset(solved.swivel, objects.swivel));
 
@@ -916,7 +953,7 @@ export class TwinSceneController {
       if (!hook) continue;
       const eye = new THREE.Vector3(...solved[spec.key]);
       // 钩从钩眼顺着子线垂下（本地 +Y 指向 8 字环），躺底的钩平躺。
-      const rotation = hookRotation(eye, solved.swivel, spec, pose.hooks[spec.key].lie);
+      const rotation = hookRotation(eye, solved.swivel, spec, pose.hooks[spec.key].lie * castProgress);
       const bait = this.entityMeshes.get(spec.baitId);
       for (const object of [hook, bait]) {
         const pivot = pivotOf(object);
@@ -925,7 +962,7 @@ export class TwinSceneController {
         pivot.position.set(eye.x - object.position.x, eye.y - object.position.y, eye.z - object.position.z);
         pivot.rotation.copy(rotation);
         // 饵：躺底压扁、被吸入变小（只缩饵团本身，不动它在钩弯上的位置）。
-        if (object !== hook) pivot.children[0]?.scale.set(1, pose.baits[spec.key], 1);
+        if (object !== hook) pivot.children[0]?.scale.set(1, 1 + (pose.baits[spec.key] - 1) * castProgress, 1);
       }
       const baitBall = pivotOf(bait)?.children[0];
       if (spec.key === bitten && bait && baitBall) {
@@ -967,29 +1004,55 @@ export class TwinSceneController {
     this.selectionHelper = undefined;
   }
 
-  private readonly pick = (event: PointerEvent): void => {
+  /** 屏幕点 → 命中的实体（设备网格 + 实例化货池一起拾取）与命中点。 */
+  private hitTest(event: PointerEvent): { id: string; point: THREE.Vector3 } | undefined {
     const bounds = this.renderer.domElement.getBoundingClientRect();
     this.pointer.x = ((event.clientX - bounds.left) / bounds.width) * 2 - 1;
     this.pointer.y = -((event.clientY - bounds.top) / bounds.height) * 2 + 1;
     this.raycaster.setFromCamera(this.pointer, this.camera);
-    // 设备网格 + 实例化货池一起拾取。
-    const selectable = [
-      ...[...this.entityMeshes.values()],
-      this.cargoPool.mesh,
-    ];
-    const hit = this.raycaster.intersectObjects(selectable, true)[0];
+    const hit = this.raycaster.intersectObjects([...this.entityMeshes.values(), this.cargoPool.mesh], true)[0];
+    if (!hit) return undefined;
+    const id =
+      hit.object === this.cargoPool.mesh && hit.instanceId !== undefined
+        ? this.cargoPool.entityIdAt(hit.instanceId)
+        : this.entityIdOf(hit.object);
+    return id ? { id, point: hit.point } : undefined;
+  }
+
+  /**
+   * 点选 = 轻点（按下后没怎么动就抬起）。
+   *
+   * 以前按下就选中：手机上单指转相机、双指缩放，手指多半落在设备上，
+   * 转一下选中就跳一次，检视区也被翻到实体页。现在拖过的（转 / 移 / 缩放）一律不算点选。
+   */
+  private readonly onTapStart = (event: PointerEvent): void => {
+    this.tap.down(event);
+  };
+
+  private readonly onTapMove = (event: PointerEvent): void => {
+    this.tap.move(event);
+  };
+
+  private readonly onTapEnd = (event: PointerEvent): void => {
+    if (!this.tap.up(event) || this.drag) return;
+    const bounds = this.renderer.domElement.getBoundingClientRect();
+    if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) return;
+    const hit = this.hitTest(event);
+    if (hit) this.selectEntity(hit.id);
+  };
+
+  private readonly onTapCancel = (event: PointerEvent): void => {
+    this.tap.cancel(event);
+  };
+
+  /** 编辑态（有提交通道）：左键按下即抓取——选中并进入拖拽待命。 */
+  private readonly grab = (event: PointerEvent): void => {
+    if (!this.onDragCommit || event.button !== 0) return;
+    const hit = this.hitTest(event);
     if (!hit) return;
-    let id: string | undefined;
-    if (hit.object === this.cargoPool.mesh && hit.instanceId !== undefined) {
-      id = this.cargoPool.entityIdAt(hit.instanceId);
-    } else {
-      id = this.entityIdOf(hit.object);
-    }
-    if (id) {
-      this.selectEntity(id);
-      // 左键按下即进入拖拽待命：可编辑性由内核回答，路径 / 行为接管的实体根本起不来。
-      if (event.button === 0) this.beginDrag(id, hit.point);
-    }
+    this.selectEntity(hit.id);
+    // 可编辑性由内核回答，路径 / 行为接管的实体根本起不来。
+    this.beginDrag(hit.id, hit.point);
   };
 
   // ---------------------------------------------------------------------------

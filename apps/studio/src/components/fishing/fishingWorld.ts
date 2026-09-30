@@ -3,8 +3,11 @@ import {
   conditionsOf,
   fishingModeOf,
   loadoutFromAttrs,
+  manualCastOf,
   manualLiftOf,
   observeFishingWorld,
+  rigPhaseOf,
+  type BaitId,
   type FishingMode,
   type FishingState,
   type LiftResult,
@@ -45,6 +48,10 @@ export interface RigSnapshot {
   readonly mode: FishingMode;
   /** 模拟模式下有口要用户提杆才结算。 */
   readonly manualLift: boolean;
+  readonly manualCast: boolean;
+  readonly inWater: boolean;
+  /** 向导配置中不能抛竿/换饵，避免和半水测量争写同一副钓组。 */
+  readonly ready: boolean;
   /** 有口、正等着提杆。 */
   readonly pendingBite: boolean;
   /** 最近一次提杆（或错过）的结果。 */
@@ -87,6 +94,9 @@ export function readRig(session: StudioSession): RigSnapshot | undefined {
     wizardDone: attrs.wizardDone === true,
     mode: fishingModeOf(attrs),
     manualLift: manualLiftOf(attrs),
+    manualCast: manualCastOf(attrs),
+    inWater: attrs.inWater === true,
+    ready: attrs.wizardDone === true && rigPhaseOf(attrs) === 'fishing' && state !== undefined,
     pendingBite: attrs.pendingBite === true,
     lastLift: LIFT_RESULTS.includes(attrs.lastLift as LiftResult) ? (attrs.lastLift as LiftResult) : undefined,
   };
@@ -125,6 +135,16 @@ export function stepRigParam(session: StudioSession, key: 't0' | 't' | 'w' | 'd'
 export function setFishingMode(session: StudioSession, mode: FishingMode): void {
   writeRig(session, {
     fishingMode: mode,
+    manualCast: mode === 'sim',
+    autoLift: false,
+    cast: false,
+    lift: false,
+    inWater: false,
+    castAt: -1,
+    biteUntil: 0,
+    biteFish: '',
+    bitHook: 'none',
+    nextAt: 0,
     casts: 0,
     bites: 0,
     catches: 0,
@@ -137,8 +157,25 @@ export function setFishingMode(session: StudioSession, mode: FishingMode): void 
   });
 }
 
+/** 手动抛竿：只有收竿状态接受新意图，连点也不会重置正在等的鱼口。 */
+export function castRod(session: StudioSession): void {
+  const current = readRig(session);
+  if (!current?.ready || current.mode !== 'sim' || current.inWater || current.pendingBite) return;
+  writeRig(session, { manualCast: true, autoLift: false, cast: true, lift: false });
+}
+
+/** 快捷换饵只在岸上生效，和右侧装备页使用同一份 attrs。 */
+export function switchBait(session: StudioSession, bait: BaitId): void {
+  const current = readRig(session);
+  if (!current?.ready || current.inWater || current.pendingBite) return;
+  writeRig(session, { bait });
+}
+
 /** 模拟模式下提杆：写一个意图，fish-sim 下一步消费并结算。 */
 export function liftRod(session: StudioSession): void {
+  const current = readRig(session);
+  if (!current?.ready || current.mode !== 'sim') return;
+  if (current.manualCast && !current.inWater) return;
   writeRig(session, { lift: true });
 }
 
