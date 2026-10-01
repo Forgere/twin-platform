@@ -178,13 +178,20 @@ const PART_LABEL: Readonly<Record<RigPartId, string>> = {
   baitLower: '下饵',
 };
 
-const ZONE_SUMMARY: Readonly<Record<RigZone, string>> = {
-  off_bottom: '双钩离底、线组悬在水中——没到底，几乎没有有效口',
-  sensitive: '下饵刚触底，灵：口多但空竿多',
-  neutral: '下钩饵到底、上钩饵轻触底，不灵不钝',
-  blunt: '子线被压弯，钝：信号上来得慢',
-  sinker_on_bottom: '铅坠触底（走铅），最钝',
-};
+/** 从钩自身的承重判断触底，不把先触底的饵当成钩，也不把灵钝方向当状态。 */
+export function hookBottomState(state: RigState): { code: string; label: string; detail: string } {
+  const lower = contactOf(state.loads.lowerHook, state.hw);
+  const upper = contactOf(state.loads.upperHook, state.hw);
+  if (state.bottomLoad >= state.H + 2 * state.w - EPSILON) {
+    return { code: 'sinker_on_bottom', label: '双钩躺底 · 铅坠触底', detail: '双钩躺底，铅坠也已触底' };
+  }
+  if (upper === 'on_bottom') return { code: 'both_on_bottom', label: '双钩躺底', detail: '上下钩均由水底承托' };
+  if (upper === 'touching') return { code: 'lower_lying_upper_touching', label: '一钩躺底、一钩触底', detail: '下钩躺底，上钩轻触底' };
+  if (lower === 'on_bottom') return { code: 'single_on_bottom', label: '单钩触底', detail: '下钩落底，上钩仍悬浮' };
+  if (lower === 'touching') return { code: 'single_touching', label: '单钩轻微触底', detail: '水底承担部分下钩重量，上钩仍悬浮' };
+  if (state.loads.lowerBait > EPSILON) return { code: 'bait_touching', label: '下饵触底 · 双钩悬浮', detail: '下饵已触底，但上下钩仍悬浮' };
+  return { code: 'suspended', label: '双钩悬浮', detail: '双钩双饵均离底' };
+}
 
 export interface PostureEnvironment {
   /** 走水：主线被水流拉斜、漂走位。 */
@@ -248,7 +255,7 @@ export function rigPosture(state: RigState, env: PostureEnvironment = {}): RigPo
     { part: 'baitLower', label: PART_LABEL.baitLower, code: contactOf(state.loads.lowerBait, state.w), text: '' },
   ] as PartPosture[]).map((part) => ({ ...part, text: part.text || CONTACT_TEXT[part.code as ContactState] }));
 
-  const summary = ZONE_SUMMARY[state.zone] + '；长子线' + SUBLINE_TEXT[lowerState];
+  const summary = hookBottomState(state).detail + '；长子线' + SUBLINE_TEXT[lowerState];
 
   return {
     zone: state.zone,

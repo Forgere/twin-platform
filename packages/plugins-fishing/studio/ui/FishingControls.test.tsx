@@ -4,7 +4,7 @@ import { captureArtifact } from '@solidjs/diagnostics';
 import '@solidjs/diagnostics/vitest';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { TwinWorld, type WorldEvent } from '@twin-platform/world-kernel';
-import { buildFishingScene, createFishSimBehavior } from '@twin-platform/plugins-fishing';
+import { buildFishingScene, createFishSimBehavior, GEAR_OPTIONS } from '@twin-platform/plugins-fishing';
 import { ReplayController } from '@twin-platform/replay-core';
 import { createMemoryStorage } from '@twin-platform/storage-memory';
 import type { StudioSessionPort } from '@twin-platform/studio-sdk';
@@ -155,17 +155,30 @@ describe('钓鱼操作与只读钓况', () => {
       fireEvent.click(controls.getByRole('button', { name: new RegExp('^' + label + '( ·|$)') })); flush();
       const panel = controls.getByRole('region', { name: label });
       expect(view.container.querySelectorAll('.fish-quick-panel')).toHaveLength(1);
-      fireEvent.click(within(panel).getByRole('button', { name: option, exact: true }));
+      if (key === 'targetFish') {
+        fireEvent.click(within(panel).getByRole('button', { name: option, exact: true }));
+      } else {
+        const slider = within(panel).getByRole('slider', { name: label });
+        expect(slider).toHaveAttribute('aria-orientation', 'vertical');
+        fireEvent.input(slider, { target: { value: String((GEAR_OPTIONS[key] as readonly number[]).indexOf(value)) } });
+      }
       view.refresh();
       expect(readRig(view.session)!.loadout[key]).toBe(value);
+      if (key !== 'targetFish') { fireEvent.click(controls.getByRole('button', { name: '关闭调整' })); flush(); }
       expect(view.container.querySelector('.fish-quick-panel')).toBeNull();
     }
     const after = readRig(view.session)!.state!.rig;
     expect([after.t0, after.t, after.w]).toEqual([before.t0, before.t, before.w]);
     fireEvent.click(controls.getByRole('button', { name: /^钓 .* 目$/ })); flush();
-    fireEvent.click(controls.getByRole('button', { name: '钓目加半目' })); view.refresh();
+    const depthSlider = controls.getByRole('slider', { name: '调钓目' });
+    fireEvent.input(depthSlider, { target: { value: String(before.d + 0.5) } });
+    // 模拟两个事件先于UI tick到达：不能在旧值上重复加半目。
+    const time = view.world.time;
+    fireEvent.input(depthSlider, { target: { value: String(before.d + 0.5) } });
+    expect(view.world.time).toBe(time);
+    view.refresh();
     expect(readRig(view.session)!.state!.rig.d).toBe(before.d + 0.5);
-    fireEvent.keyDown(controls.getByRole('button', { name: '完成' }), { key: 'Escape' }); flush();
+    fireEvent.keyDown(depthSlider, { key: 'Escape' }); flush();
     expect(view.container.querySelector('.fish-quick-panel')).toBeNull();
     const peer = render(() => <RigSettings session={view.session} rig={readRig(view.session)!} />);
     expect(within(peer.container).getByLabelText('竿长')).toHaveValue('5.4');
@@ -212,7 +225,7 @@ describe('钓鱼操作与只读钓况', () => {
       const view = setup();
       fireEvent.click(view.getByRole('button', { name: '更多', exact: true })); flush();
       fireEvent.click(view.getByRole('button', { name: /^竿长 ·/ })); flush();
-      fireEvent.click(view.getByRole('button', { name: '5.4m', exact: true })); view.refresh();
+      fireEvent.input(view.getByRole('slider', { name: '竿长' }), { target: { value: String(GEAR_OPTIONS.rodLength.indexOf(5.4)) } }); view.refresh();
     }, { scenario: 'fishing-gear' });
     expect(artifact).toHaveNoDiagnostics();
     expect(artifact).toStayWithinRerunBudget(2, { scope: /fishing.controls.rig/ });

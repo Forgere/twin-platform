@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { calculateRigState } from './fishingCore';
 import {
   RIG_LINKS,
+  hookBottomState,
   rigPosture,
   subLineBend,
   type FloatSignal,
@@ -108,6 +109,30 @@ describe('五档灵钝下的部件状态', () => {
   });
 });
 
+describe('钩底状态独立于灵钝方向', () => {
+  test('按上下钩受力细分状态，饵触底不冒充钩触底', () => {
+    for (const [d, label] of [
+      [0, '双钩悬浮'], [0.5, '下饵触底 · 双钩悬浮'], [1, '下饵触底 · 双钩悬浮'],
+      [1.5, '单钩轻微触底'], [2, '单钩触底'], [3, '单钩触底'],
+      [3.5, '一钩躺底、一钩触底'], [4, '双钩躺底 · 铅坠触底'],
+    ] as const) {
+      expect(hookBottomState(rigAt(d)).label).toBe(label);
+      expect(rigPosture(rigAt(d)).summary).not.toMatch(/偏灵|偏钝|不灵不钝/);
+    }
+  });
+
+  test('临界点前后不跨级，并与逐部件触底状态保持一致', () => {
+    expect(hookBottomState(rigAt(1 + 1e-6)).code).toBe('single_touching');
+    expect(hookBottomState(rigAt(2 - 1e-6)).code).toBe('single_touching');
+    expect(hookBottomState(rigAt(2)).code).toBe('single_on_bottom');
+    expect(hookBottomState(rigAt(3 + 1e-6)).code).toBe('lower_lying_upper_touching');
+    expect(hookBottomState(rigAt(4 - 1e-6)).code).toBe('lower_lying_upper_touching');
+    const posture = rigPosture(rigAt(3.5));
+    expect(partOf(posture, 'hookLower').code).toBe('on_bottom');
+    expect(partOf(posture, 'hookUpper').code).toBe('touching');
+  });
+});
+
 describe('漂相与走水', () => {
   test('漂常态是"露出 d 目"', () => {
     const posture = rigPosture(rigAt(2));
@@ -160,9 +185,10 @@ describe('状态表', () => {
     }
   });
 
-  test('摘要带上灵钝与子线形态，一眼能读懂', () => {
+  test('摘要带上钩底状态与子线形态，一眼能读懂', () => {
     const posture = rigPosture(rigAt(3));
-    expect(posture.summary).toContain('钝');
+    expect(posture.summary).toContain('下钩落底');
+    expect(posture.summary).toContain('上钩仍悬浮');
     expect(posture.summary).toContain('子线');
   });
 });

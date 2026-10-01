@@ -344,14 +344,24 @@ function buildFish(color: string, size: TwinVector3): THREE.Group {
   return group;
 }
 
-/** 岸坡：一圈比水体大的沙土垫片，把"水体悬在地面网格上"变成"池子嵌在岸里"。 */
-function buildShore(size: TwinVector3, color: string): THREE.Group {
+/** 岸沿：四条窄边围住水面，中央留空，不能用整板盖住水下钓组。 */
+function buildShore(size: TwinVector3, color: string, config?: Record<string, unknown>): THREE.Group {
   const group = new THREE.Group();
   group.userData.codePath = 'plugins-fishing/studio/scene/fishingMeshes.ts:buildShore';
-  const pad = rbox(size[0], size[1], size[2], color, { roughness: 0.95 });
-  pad.castShadow = false;
-  pad.receiveShadow = true;
-  group.add(pad);
+  const water = config?.waterSize;
+  const innerX = Array.isArray(water) && typeof water[0] === 'number' ? water[0] : size[0] - 1.6;
+  const innerZ = Array.isArray(water) && typeof water[1] === 'number' ? water[1] : size[2] - 1.6;
+  const rimX = Math.max(0.05, (size[0] - innerX) / 2);
+  const rimZ = Math.max(0.05, (size[2] - innerZ) / 2);
+  for (const sign of [-1, 1]) {
+    const side = rbox(rimX, size[1], size[2], color, { roughness: 0.95 });
+    side.position.x = sign * (size[0] - rimX) / 2;
+    const end = rbox(innerX, size[1], rimZ, color, { roughness: 0.95 });
+    end.position.z = sign * (size[2] - rimZ) / 2;
+    side.castShadow = end.castShadow = false;
+    side.receiveShadow = end.receiveShadow = true;
+    group.add(side, end);
+  }
   return group;
 }
 
@@ -477,7 +487,7 @@ export function buildFishingEntityMesh(entity: EntityMeshInput): THREE.Group | u
     case 'pondBottom':
       return buildPondBottom(size, color);
     case 'shore':
-      return buildShore(size, color);
+      return buildShore(size, color, entity.config);
     case 'rod':
       return buildRod(color, entity.config);
     case 'rodTip':

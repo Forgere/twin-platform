@@ -1,15 +1,9 @@
 import { createMemo, Show } from 'solid-js';
-import { fishById, SIGNAL_LABEL, type FloatSignal } from '@twin-platform/plugins-fishing';
+import { fishById, hookBottomState, SIGNAL_LABEL, type FloatSignal } from '@twin-platform/plugins-fishing';
 import type { StudioSessionPort } from '@twin-platform/studio-sdk';
 import { readRig } from './fishingWorld';
 
-/** 右上角只读钓况；操作集中在底部，调目与装备在「钓组」页。 */
-const ZONE_LABEL: Readonly<Record<string, string>> = {
-  off_bottom: '未到底', sensitive: '偏灵', neutral: '不灵不钝', blunt: '偏钝', sinker_on_bottom: '铅坠触底',
-};
-const ZONE_CLASS: Readonly<Record<string, string>> = {
-  off_bottom: 'zone-chip-off', sensitive: 'zone-chip-sens', neutral: 'zone-chip-neutral', blunt: 'zone-chip-blunt', sinker_on_bottom: 'zone-chip-lead',
-};
+/** 右上角只读钓况；钩底状态与正在发生的漂相分别表达。 */
 const fmt = (value: number): string => String(Math.round(value * 100) / 100);
 
 export default function FishingHud(props: { session: StudioSessionPort; tick: number }) {
@@ -44,7 +38,7 @@ export default function FishingHud(props: { session: StudioSessionPort; tick: nu
             {(state) => (
               <div class="fish-hud-depth">
                 <span>钓目</span><b>{fmt(state().rig.d)}</b>
-                <span class={'zone-chip ' + (ZONE_CLASS[state().rig.zone] ?? '')}>{ZONE_LABEL[state().rig.zone]}</span>
+                <span class="fish-hook-state" aria-label="钩底状态" title={hookBottomState(state().rig).detail}>{hookBottomState(state().rig).label}</span>
               </div>
             )}
           </Show>

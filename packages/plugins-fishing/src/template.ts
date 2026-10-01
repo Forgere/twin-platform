@@ -72,6 +72,8 @@ export const fishingTemplate: SceneTemplateDescriptor<FishingTemplateParams> = {
     // 水底贴地：Studio 的地面平面在 y=0，水必须从 0 往上长到 depth。
     // 放在 0 以下会被那块 64×64 的实心地面挡住，切到钓场就什么都看不到。
     const surfaceY = depth;
+    const bankY = surfaceY + 0.12;
+    const bankThickness = 0.12;
     const waterTemperature = params.waterTemperature ?? 20;
     const castInterval = Math.max(0.5, params.castInterval ?? 3);
     const rig = params.rig ?? {};
@@ -101,7 +103,7 @@ export const fishingTemplate: SceneTemplateDescriptor<FishingTemplateParams> = {
     // 朝向不烘死在模型里：这里给出"竿梢相对竿中心的偏移"，studio 的 buildRod 照它摆，
     // 模板与模型共用同一组端点，不会各画一套。
     const rodTip: TwinVector3 = [0.85, surfaceY + 0.32, 0.5];
-    const rodGrip: TwinVector3 = [2.5, 0.55, 1.75];
+    const rodGrip: TwinVector3 = [2.5, bankY + 0.55, 3.02];
     const rodCenter: TwinVector3 = [
       (rodTip[0] + rodGrip[0]) / 2,
       (rodTip[1] + rodGrip[1]) / 2,
@@ -124,10 +126,12 @@ export const fishingTemplate: SceneTemplateDescriptor<FishingTemplateParams> = {
       },
       // 水底泥沙：贴地薄板，透过半透明水体看得见，钓场才有"底"。
       decorEntity('bottom-01', 'pondBottom', [0, 0.04, 0], '#d9c49a', [8, 0.08, 5]),
-      // 岸坡垫片：比水体大一圈，池子嵌在岸里而不是悬在网格上。
-      decorEntity('shore-01', 'shore', [0, 0.025, 0], '#d8c69b', [9.6, 0.05, 6.6]),
-      // 钓台（钓箱）在岸边、鱼竿从它后面斜指水面。
-      decorEntity('platform-01', 'platform', [2.75, 0, 1.85], '#c94f3d', [0.62, 0.34, 0.45]),
+      // 岸沿围住水面但中央开口；钓箱落在水域外侧，不再沉在水底。
+      {
+        ...decorEntity('shore-01', 'shore', [0, bankY - bankThickness / 2, 0], '#d8c69b', [9.6, bankThickness, 6.6]),
+        config: { waterSize: [8, 5] },
+      },
+      decorEntity('platform-01', 'platform', [2.75, bankY, 3.02], '#c94f3d', [0.62, 0.34, 0.45]),
       {
         id: 'rod-01',
         kind: 'rod',
@@ -140,8 +144,8 @@ export const fishingTemplate: SceneTemplateDescriptor<FishingTemplateParams> = {
       decorEntity('rod-tip-01', 'rodTip', rodTip, '#c9ccd1', [0.06, 0.06, 0.06]),
       // 岸边芦苇两丛、水里水草两丛、鱼影三条：位置固定（装饰不做行为，避免破坏确定性回放）。
       // 鱼影避开钓组所在的中间一列（x∈[−1, 1.5]）：钩被拖向 +X、V 字向两侧张，别让装饰挡住钩。
-      decorEntity('reed-01', 'reed', [-3.6, 0, 2.4], '#8a6a45', [0.5, 1.0, 0.2]),
-      decorEntity('reed-02', 'reed', [3.8, 0, -2.2], '#8a6a45', [0.45, 0.9, 0.2]),
+      decorEntity('reed-01', 'reed', [-3.6, bankY, 3.0], '#8a6a45', [0.5, 1.0, 0.2]),
+      decorEntity('reed-02', 'reed', [4.4, bankY, -2.2], '#8a6a45', [0.45, 0.9, 0.2]),
       decorEntity('weed-01', 'weed', [-1.5, 0.18, 0.9], '#4c7a3f', [0.5, 0.36, 0.3]),
       decorEntity('weed-02', 'weed', [1.9, 0.16, -0.7], '#5d8a4a', [0.4, 0.32, 0.28]),
       decorEntity('fish-01', 'fish', [-1.9, 0.55, -0.6], '#5c6b73', [0.42, 0.16, 0.1]),

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import * as THREE from 'three';
+import { buildFishingScene } from '@twin-platform/plugins-fishing';
 import { buildFishingEntityMesh } from './fishingMeshes';
 import type { EntityMeshInput } from '@twin-platform/studio-sdk';
 import { disposeObject } from '@twin-platform/studio-sdk/three';
@@ -84,6 +85,36 @@ describe('台钓钓组模型', () => {
     const float = buildEntityMesh(entity('float', '#ff7a3c', [0.1, 0.9, 0.1]));
     const seat = float.userData.lineAnchor as [number, number, number];
     expect(seat[1]).toBeCloseTo(new THREE.Box3().setFromObject(float).min.y, 5);
+  });
+
+  test('不同水深下钓箱在岸面上、竿身不穿水，岸沿不盖住水面中央', () => {
+    for (const depth of [0.5, 2, 4]) {
+      const scene = buildFishingScene({ depth });
+      const byId = (id: string) => scene.entities.find((entity) => entity.id === id)!;
+      const placed = (id: string) => {
+        const entity = byId(id);
+        const mesh = buildEntityMesh(entity);
+        mesh.position.set(...entity.transform.position);
+        mesh.updateMatrixWorld(true);
+        return mesh;
+      };
+      const water = new THREE.Box3(new THREE.Vector3(-4, 0, -2.5), new THREE.Vector3(4, depth, 2.5));
+      const platform = new THREE.Box3().setFromObject(placed('platform-01'));
+      const rod = placed('rod-01');
+      const rodBox = new THREE.Box3().setFromObject(rod);
+      expect(platform.intersectsBox(water), `depth=${depth}: 钓箱不能在水里`).toBe(false);
+      expect(platform.min.y).toBeGreaterThan(depth);
+      expect(rodBox.min.y).toBeGreaterThan(depth);
+      const offset = byId('rod-01').config!.tipOffset as [number, number, number];
+      const tip = new THREE.Vector3(...offset).add(rod.position);
+      expect(tip.distanceTo(new THREE.Vector3(...byId('rod-tip-01').transform.position))).toBeLessThan(1e-9);
+      const shore = placed('shore-01');
+      const hits = new THREE.Raycaster(new THREE.Vector3(platform.getCenter(new THREE.Vector3()).x, depth + 2, platform.getCenter(new THREE.Vector3()).z), new THREE.Vector3(0, -1, 0)).intersectObject(shore, true);
+      expect(hits.length).toBeGreaterThan(0);
+      expect(hits[0]!.point.y).toBeCloseTo(platform.min.y, 4);
+      const centerHits = new THREE.Raycaster(new THREE.Vector3(0, depth + 2, 0), new THREE.Vector3(0, -1, 0)).intersectObject(shore, true);
+      expect(centerHits).toHaveLength(0);
+    }
   });
 
   test('鱼竿按 tipOffset 定长定向：竿尖正好落在竿梢导线环上', () => {

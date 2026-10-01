@@ -1,5 +1,5 @@
 import { createSignal, Show } from 'solid-js';
-import { fishingView, rigPartsOf, rigPosture, type FishingView, type RigPartId, type RigPosture } from '@twin-platform/plugins-fishing';
+import { fishingView, hookBottomState, rigPartsOf, rigPosture, type FishingView, type RigPartId, type RigPosture } from '@twin-platform/plugins-fishing';
 import type { StudioSessionPort } from '@twin-platform/studio-sdk';
 
 /**
@@ -23,16 +23,6 @@ const SURFACE_Y = PAD + 30;
 const fmt = (value: number): string => String(Math.round(value * 100) / 100);
 const pct = (value: number, min: number, max: number): number =>
   max - min <= 1e-9 ? 0 : Math.min(Math.max((value - min) / (max - min), 0), 1);
-
-const ZONE_LABEL: Readonly<Record<string, string>> = {
-  off_bottom: '未到底',
-  sensitive: '灵区',
-  neutral: '不灵不钝',
-  blunt: '钝区',
-  sinker_on_bottom: '铅坠触底',
-};
-
-const zoneLabel = (zone: string): string => ZONE_LABEL[zone] ?? zone;
 
 /** 图上可悬停的对象：部件 + 三段线。 */
 type HoverId = RigPartId | 'mainLine' | 'subLineUpper' | 'subLineLower';
@@ -273,7 +263,7 @@ export default function FishingSandbox(props: { session: StudioSessionPort; tick
             <p class="sandbox-hint">点击或悬停部件与钓线查看状态</p>
 
             {/* 刻度条：绿 = 灵区、橙 = 钝区，红针 = 当前钓目；刻度写明含义，不靠记 d1/d2/d3。 */}
-            <div class="sandbox-ruler" style="margin:8px 0 4px" aria-label={'钓目 ' + fmt(current().state.rig.d) + '，' + zoneLabel(current().state.rig.zone)}>
+            <div class="sandbox-ruler" style="margin:8px 0 4px" aria-label={'钓目 ' + fmt(current().state.rig.d) + '，' + hookBottomState(current().state.rig).label}>
               <div style="position:relative;height:10px;border-radius:5px;overflow:hidden;background:#eee">
                 <div style={sensitiveStyle(current())} />
                 <div style={bluntStyle(current())} />
@@ -281,7 +271,7 @@ export default function FishingSandbox(props: { session: StudioSessionPort; tick
               </div>
               <div style="display:flex;justify-content:space-between;font-size:11px;opacity:0.75">
                 <span>离底 d1 {fmt(current().state.rig.criticalMarks.d1)}</span>
-                <span>不灵不钝 d2 {fmt(current().state.rig.criticalMarks.d2)}</span>
+                <span>单钩落底 d2 {fmt(current().state.rig.criticalMarks.d2)}</span>
                 <span>到铅 d3 {fmt(current().state.rig.criticalMarks.d3)}</span>
               </div>
             </div>
@@ -292,7 +282,7 @@ export default function FishingSandbox(props: { session: StudioSessionPort; tick
               t0 {fmt(current().state.rig.t0)} · 带钩调目 t {fmt(current().state.rig.t)} · 单饵压目 w {fmt(current().state.rig.w)} · 钓目 d {fmt(current().state.rig.d)}
             </p>
             <p class="plugin-contrib">
-              底承重 B {fmt(current().state.rig.bottomLoad)} · {zoneLabel(current().state.rig.zone)}
+              底承重 B {fmt(current().state.rig.bottomLoad)} · {hookBottomState(current().state.rig).label}
             </p>
 
             <p class="plugin-note">
