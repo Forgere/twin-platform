@@ -7,6 +7,7 @@ import {
   WIZARD_STEPS,
   estimateMarks,
   fishById,
+  hookBottomState,
   loadoutChecks,
   loadoutToAttrs,
   presetById,
@@ -50,14 +51,6 @@ const STEP_LABEL: Readonly<Record<WizardStep, string>> = {
   choose_preset: '调法',
   find_bottom: '找底',
   done: '开钓',
-};
-
-const ZONE_LABEL: Readonly<Record<string, string>> = {
-  off_bottom: '未到底',
-  sensitive: '偏灵',
-  neutral: '不灵不钝',
-  blunt: '偏钝',
-  sinker_on_bottom: '铅坠触底',
 };
 
 const GEAR_ROWS: { key: 'rodLength' | 'mainLine' | 'subLine' | 'hookSize' | 'floatSize'; label: string; unit: string }[] = [
@@ -167,8 +160,8 @@ export default function FishingOnboarding(props: { session: StudioSessionPort; o
     const values: Record<string, number | string> = { rigPhase: phase };
     if (phase === 'measure_t0') values.setupMarks = picked ?? known('t0');
     if (phase === 'measure_t') values.setupMarks = picked ?? known('t');
-    // 这一步点的是"被压下去几目"，漂尾实际露出的是 t − w。
-    if (phase === 'measure_w') values.setupMarks = known('t') - (picked ?? known('w'));
+    // 用户直接读挂饵后露出的目数；单饵压目在确认时换算。
+    if (phase === 'measure_w') values.setupMarks = picked ?? known('t') - known('w');
     writeRig(session, values);
   };
 
@@ -209,7 +202,7 @@ export default function FishingOnboarding(props: { session: StudioSessionPort; o
       setIssue('先在漂上点一下露出的位置。');
       return;
     }
-    advance({ kind, value });
+    advance({ kind, value: kind === 'w' ? (state().t ?? 0) - value : value });
   };
 
   const finish = (): void => {
@@ -362,9 +355,10 @@ export default function FishingOnboarding(props: { session: StudioSessionPort; o
         </Show>
 
         <Show when={state().step === 'measure_w'}>
-          <p class="onboard-q">单钩挂一颗饵，漂尾被压下去几目？</p>
-          <p class="onboard-hint">这就是"单饵压目"——点被压下去的目数。</p>
-          <FloatRuler value={marks()} max={4} onChange={pickMarks} />
+          <p class="onboard-q">单钩挂一颗饵，漂还有几目？</p>
+          <p class="onboard-hint">点漂尾现在露出的目数，系统会根据挂饵前的 {fmt(state().t ?? 0)} 目自动算出单饵压目。</p>
+          <FloatRuler value={marks()} min={0} max={state().t} onChange={pickMarks} />
+          <p class="onboard-hint">0 目表示漂尖刚好平水；若漂已完全沉没，请先减轻饵重再测，不能把没顶当成精确的 0 目。</p>
         </Show>
 
         <Show when={state().step === 'choose_preset'}>
@@ -397,7 +391,7 @@ export default function FishingOnboarding(props: { session: StudioSessionPort; o
                 <p class="onboard-q">找底：推漂，看画面里的钩饵落在哪</p>
                 <ZoneMeter d={rig().d} d1={rig().criticalMarks.d1} d2={rig().criticalMarks.d2} d3={rig().criticalMarks.d3} />
                 <p class="onboard-zone">
-                  钓 {fmt(rig().d)} 目 · <b>{ZONE_LABEL[rig().zone] ?? rig().zone}</b>
+                  钓 {fmt(rig().d)} 目 · <b>{hookBottomState(rig()).label}</b>
                 </p>
                 <p class="onboard-hint">{rigPosture(rig()).summary}</p>
                 <Show when={preset()}>
@@ -512,14 +506,14 @@ const RULER_MARKS = 13;
  * 漂尾刻度：自下而上 13 目，红黑相间。点哪一目就是"水面在这里、露出这么多目"，
  * 旁边 ± 半目微调。——把"读漂"这件事做成一次点选。
  */
-function FloatRuler(props: { value?: number; max?: number; onChange: (value: number) => void }) {
+function FloatRuler(props: { value?: number; min?: number; max?: number; onChange: (value: number) => void }) {
   const limit = (): number => Math.min(RULER_MARKS, props.max ?? RULER_MARKS);
   const segment = 16;
   const height = RULER_MARKS * segment + 16;
   const waterY = (): number => 8 + (RULER_MARKS - (props.value ?? 0)) * segment;
   const nudge = (delta: number): void => {
     const next = Math.round(((props.value ?? 0) + delta) * 2) / 2;
-    props.onChange(Math.max(0.5, Math.min(limit(), next)));
+    props.onChange(Math.max(props.min ?? 0.5, Math.min(limit(), next)));
   };
   return (
     <div class="ruler">
@@ -541,6 +535,9 @@ function FloatRuler(props: { value?: number; max?: number; onChange: (value: num
       </svg>
       <div class="ruler-side">
         <span class="ruler-value">{props.value === undefined ? '点漂尾' : fmt(props.value) + ' 目'}</span>
+        <Show when={props.min === 0}>
+          <button type="button" onClick={() => props.onChange(0)}>平水（0 目）</button>
+        </Show>
         <button type="button" onClick={() => nudge(0.5)}>
           +½
         </button>
@@ -566,8 +563,8 @@ function ZoneMeter(props: { d: number; d1: number; d2: number; d3: number }) {
       <div class="zone-pin" style={{ left: pct(props.d) }} />
       <div class="zone-legend">
         <span>离底</span>
-        <span>灵</span>
-        <span>钝</span>
+        <span>← 调灵</span>
+        <span>调钝 →</span>
         <span>到铅</span>
       </div>
     </div>

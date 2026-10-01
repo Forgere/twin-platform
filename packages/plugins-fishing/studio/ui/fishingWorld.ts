@@ -121,7 +121,10 @@ export function refreshWhilePaused(session: StudioSessionPort): void {
  * 返回人话原因；成功返回 undefined。HUD 的钓目与「钓组」页的调目共用这一处。
  */
 export function stepRigParam(session: StudioSessionPort, key: 't0' | 't' | 'w' | 'd', delta: number): string | undefined {
-  const current = readRig(session)?.state?.rig;
+  const snapshot = readRig(session);
+  const issue = rigEditIssue(snapshot);
+  if (issue) return issue;
+  const current = snapshot?.state?.rig;
   if (!current) return '钓组参数还不完整。';
   const input = { t0: current.t0, t: current.t, w: current.w, d: current.d };
   const next = { ...input, [key]: Math.round((input[key] + delta) * 2) / 2 };
@@ -164,11 +167,23 @@ export function castRod(session: StudioSessionPort): void {
   writeRig(session, { manualCast: true, autoLift: false, cast: true, lift: false });
 }
 
-/** 快捷换饵只在岸上生效，和右侧装备页使用同一份 attrs。 */
+export function rigEditIssue(current: RigSnapshot | undefined): string | undefined {
+  if (!current?.ready) return '请先完成钓组配置。';
+  if (current.inWater || current.pendingBite) return '收竿后可更换装备与调整钓目。';
+  return undefined;
+}
+
+/** 装备编辑共用入口，不用估算值覆盖实测调目。 */
+export function switchGear(session: StudioSessionPort, patch: Partial<Loadout>): string | undefined {
+  const issue = rigEditIssue(readRig(session));
+  if (issue) return issue;
+  writeRig(session, patch as Record<string, number | string>);
+  return undefined;
+}
+
+/** 快捷换饵与装备编辑使用相同的收竿守卫。 */
 export function switchBait(session: StudioSessionPort, bait: BaitId): void {
-  const current = readRig(session);
-  if (!current?.ready || current.inWater || current.pendingBite) return;
-  writeRig(session, { bait });
+  switchGear(session, { bait });
 }
 
 /** 模拟模式下提杆：写一个意图，fish-sim 下一步消费并结算。 */

@@ -10,7 +10,8 @@ import { createMemoryStorage } from '@twin-platform/storage-memory';
 import type { StudioSessionPort } from '@twin-platform/studio-sdk';
 import FishingControls from './FishingControls';
 import FishingHud from './FishingHud';
-import { readRig, setFishingMode, switchBait } from './fishingWorld';
+import { readRig, setFishingMode, stepRigParam, switchBait, switchGear } from './fishingWorld';
+import RigSettings from './RigSettings';
 
 const audio = vi.hoisted(() => ({ unlock: vi.fn(), play: vi.fn(), silence: vi.fn(), dispose: vi.fn() }));
 vi.mock('./biteAudio', () => ({ createBiteAudio: () => audio }));
@@ -32,7 +33,8 @@ const setup = () => {
     refresh();
   };
   flush();
-  return { ...view, session, world, refresh, event, events, setSession };
+  const openBait = () => { fireEvent.click(view.getByRole('button', { name: '换饵', exact: true })); flush(); };
+  return { ...view, session, world, refresh, event, events, setSession, openBait };
 };
 
 beforeEach(() => { vi.useFakeTimers(); vi.clearAllMocks(); });
@@ -43,15 +45,19 @@ describe('钓鱼操作与只读钓况', () => {
     const view = setup();
     const hud = view.getByLabelText('钓况');
     expect(hud.querySelectorAll('button,input,select,a,[tabindex]')).toHaveLength(0);
+    view.openBait();
     fireEvent.click(view.getByRole('button', { name: '玉米粒' }));
     view.refresh();
     expect(readRig(view.session)?.loadout.bait).toBe('corn');
+    expect(view.queryByRole('button', { name: '玉米粒' })).toBeNull();
+    view.openBait();
     expect(view.getByRole('button', { name: '玉米粒' })).toHaveAttribute('aria-pressed', 'true');
+    view.openBait();
     fireEvent.click(view.getByRole('button', { name: /抛竿/ }));
     view.refresh();
     expect(audio.unlock).toHaveBeenCalledOnce();
     expect(readRig(view.session)?.counts.casts).toBe(1);
-    expect(view.getByRole('button', { name: '蚯蚓' })).toBeDisabled();
+    expect(view.getByRole('button', { name: '换饵', exact: true })).toBeDisabled();
     switchBait(view.session, 'worm');
     expect(readRig(view.session)?.loadout.bait).toBe('corn');
     fireEvent.click(view.getByRole('button', { name: /提竿/ }));
@@ -133,9 +139,89 @@ describe('钓鱼操作与只读钓况', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  test('一次只调一个参数：低频装备藏在更多里，选完收起且保留测量值', () => {
+    const view = setup();
+    const controls = within(view.getByLabelText('钓鱼操作'));
+    expect(controls.queryByRole('combobox')).toBeNull();
+    expect(controls.queryByText('调目（测量值）')).toBeNull();
+    expect(controls.queryByRole('button', { name: /竿长/ })).toBeNull();
+    const before = readRig(view.session)!.state!.rig;
+    for (const [label, key, option, value] of [
+      ['目标鱼', 'targetFish', '鲤鱼', 'carp'], ['竿长', 'rodLength', '5.4m', 5.4],
+      ['主线', 'mainLine', '2号', 2], ['子线', 'subLine', '1号', 1],
+      ['钩', 'hookSize', '5号', 5], ['浮漂', 'floatSize', '2g', 2],
+    ] as const) {
+      fireEvent.click(controls.getByRole('button', { name: '更多', exact: true })); flush();
+      fireEvent.click(controls.getByRole('button', { name: new RegExp('^' + label + '( ·|$)') })); flush();
+      const panel = controls.getByRole('region', { name: label });
+      expect(view.container.querySelectorAll('.fish-quick-panel')).toHaveLength(1);
+      fireEvent.click(within(panel).getByRole('button', { name: option, exact: true }));
+      view.refresh();
+      expect(readRig(view.session)!.loadout[key]).toBe(value);
+      expect(view.container.querySelector('.fish-quick-panel')).toBeNull();
+    }
+    const after = readRig(view.session)!.state!.rig;
+    expect([after.t0, after.t, after.w]).toEqual([before.t0, before.t, before.w]);
+    fireEvent.click(controls.getByRole('button', { name: /^钓 .* 目$/ })); flush();
+    fireEvent.click(controls.getByRole('button', { name: '钓目加半目' })); view.refresh();
+    expect(readRig(view.session)!.state!.rig.d).toBe(before.d + 0.5);
+    fireEvent.keyDown(controls.getByRole('button', { name: '完成' }), { key: 'Escape' }); flush();
+    expect(view.container.querySelector('.fish-quick-panel')).toBeNull();
+    const peer = render(() => <RigSettings session={view.session} rig={readRig(view.session)!} />);
+    expect(within(peer.container).getByLabelText('竿长')).toHaveValue('5.4');
+    const w = readRig(view.session)!.state!.rig.w;
+    expect(stepRigParam(view.session, 'w', -100)).toBeTruthy();
+    expect(readRig(view.session)!.state!.rig.w).toBe(w);
+  });
+
+  test('写入口守卫收竿及配置状态，真实模式仍可逐项编辑', () => {
+    const view = setup();
+    fireEvent.click(view.getByRole('button', { name: /抛竿/ })); view.refresh();
+    const before = readRig(view.session)!;
+    expect(view.getByRole('button', { name: '更多', exact: true })).toBeDisabled();
+    expect(switchGear(view.session, { rodLength: 7.2 })).toContain('收竿');
+    expect(stepRigParam(view.session, 'd', 0.5)).toContain('收竿');
+    expect(readRig(view.session)!.loadout).toEqual(before.loadout);
+    setFishingMode(view.session, 'real'); view.refresh();
+    view.openBait();
+    fireEvent.click(view.getByRole('button', { name: '玉米粒' })); view.refresh();
+    expect(readRig(view.session)!.loadout.bait).toBe('corn');
+    view.world.setAttr('rig-01', 'rigPhase', 'measure_w'); view.refresh();
+    expect(view.getByRole('button', { name: '更多', exact: true })).toBeDisabled();
+    expect(switchGear(view.session, { bait: 'worm' })).toContain('配置');
+  });
+
+  test('消息与鱼获放在上方提示层，底部只留操作；HUD显示钩底状态', () => {
+    const view = setup();
+    const notices = view.getByLabelText('钓鱼提示');
+    const controls = view.getByLabelText('钓鱼操作');
+    expect(notices.querySelector('.fish-controls-hint')).not.toBeNull();
+    expect(controls.querySelector('.fish-controls-hint')).toBeNull();
+    view.event('fish:lift', { result: 'caught', fishId: 'carp' });
+    expect(within(notices).getByText('钓到了！')).toBeTruthy();
+    for (const [d, label] of [[1.5, '单钩轻微触底'], [2, '单钩触底'], [3.5, '一钩躺底、一钩触底']] as const) {
+      for (const [key, value] of Object.entries({ t0: 4, t: 2, w: 1, d })) view.world.setAttr('rig-01', key, value);
+      view.refresh();
+      expect(view.getByLabelText('钩底状态')).toHaveTextContent(label);
+    }
+    expect(view.getByLabelText('钓况')).not.toHaveTextContent(/偏灵|偏钝|不灵不钝/);
+  });
+
+  test('装备切换无响应式诊断，沿用控件单次采样', async () => {
+    const { artifact } = await captureArtifact(() => {
+      const view = setup();
+      fireEvent.click(view.getByRole('button', { name: '更多', exact: true })); flush();
+      fireEvent.click(view.getByRole('button', { name: /^竿长 ·/ })); flush();
+      fireEvent.click(view.getByRole('button', { name: '5.4m', exact: true })); view.refresh();
+    }, { scenario: 'fishing-gear' });
+    expect(artifact).toHaveNoDiagnostics();
+    expect(artifact).toStayWithinRerunBudget(2, { scope: /fishing.controls.rig/ });
+  });
+
   test('换饵/抛竿的 Solid 响应式诊断为空，采样只读取一次控件模型', async () => {
     const { artifact } = await captureArtifact(() => {
       const view = setup();
+      view.openBait();
       fireEvent.click(view.getByRole('button', { name: '蚯蚓' }));
       view.refresh();
       fireEvent.click(view.getByRole('button', { name: /抛竿/ }));

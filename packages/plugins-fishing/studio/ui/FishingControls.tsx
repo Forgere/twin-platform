@@ -1,14 +1,14 @@
 import { createEffect, createMemo, createSignal, For, onCleanup, Show } from 'solid-js';
-import { BAITS, fishById, LIFT_RESULT_LABEL, SIGNAL_LABEL, type FishProfile, type FloatSignal } from '@twin-platform/plugins-fishing';
+import { fishById, LIFT_RESULT_LABEL, SIGNAL_LABEL, type FishProfile, type FloatSignal } from '@twin-platform/plugins-fishing';
 import type { WorldEvent } from '@twin-platform/world-kernel';
 import type { StudioSessionPort } from '@twin-platform/studio-sdk';
-import { castRod, liftRod, readRig, recordCast, RIG_ID, switchBait, type CastRecord } from './fishingWorld';
+import { castRod, liftRod, readRig, recordCast, RIG_ID, type CastRecord } from './fishingWorld';
 import { createBiteAudio } from './biteAudio';
+import QuickRigSettings from './QuickRigSettings';
 
 const RECORDS: readonly { id: CastRecord; label: string }[] = [
   { id: 'none', label: '没口' }, { id: 'caught', label: '🐟 中鱼' }, { id: 'empty', label: '空钩' }, { id: 'broken', label: '切线' },
 ];
-const BAIT_LABEL = { worm: '蚯蚓', grain: '谷物', commercial: '商品饵', corn: '玉米' } as const;
 
 /** 画布下方中央的单一操作位；反馈不拦截指针，也不接管键盘焦点。 */
 export default function FishingControls(props: { session: StudioSessionPort; tick: number }) {
@@ -89,14 +89,18 @@ export default function FishingControls(props: { session: StudioSessionPort; tic
     const current = rig();
     if (!current?.ready) return '先在钓鱼助手中完成钓组配置';
     if (current.pendingBite) return `${signal()} · 鱼来了，快提竿！`;
-    if (current.inWater) return '等待鱼口… 提竿可收回，收竿后可换饵';
-    return current.lastLift ? LIFT_RESULT_LABEL[current.lastLift] : '选好鱼饵，抛竿开始';
+    if (current.inWater) return '等待鱼口… 提竿可收回，收竿后可换装备';
+    return current.lastLift ? LIFT_RESULT_LABEL[current.lastLift] : '选好装备与鱼饵，抛竿开始';
   };
 
   return (
     <Show when={rig()}>
       {(current) => (
-        <div class="fish-controls" aria-label="钓鱼操作">
+        <>
+        <div class="fish-notices" aria-label="钓鱼提示">
+          <Show when={current().mode === 'sim'}>
+            <p class="fish-controls-hint" aria-live="polite">{hint()}</p>
+          </Show>
           <div class="fish-catch" role="status" aria-live="polite" aria-atomic="true">
             <Show when={caught()}>
               {(fish) => (
@@ -112,6 +116,8 @@ export default function FishingControls(props: { session: StudioSessionPort; tic
               )}
             </Show>
           </div>
+        </div>
+        <div class="fish-controls" aria-label="钓鱼操作">
           <Show when={current().mode === 'sim'} fallback={
             <div class="fish-controls-real">
               <button type="button" disabled={!current().ready} aria-expanded={recording() ? 'true' : 'false'} onClick={() => setRecording(!recording())}>📝 记录一竿</button>
@@ -122,7 +128,6 @@ export default function FishingControls(props: { session: StudioSessionPort; tic
               </Show>
             </div>
           }>
-            <p class="fish-controls-hint" aria-live="polite">{hint()}</p>
             <button
               type="button"
               class={'fish-primary' + (current().pendingBite ? ' fish-primary-bite' : '')}
@@ -132,20 +137,10 @@ export default function FishingControls(props: { session: StudioSessionPort; tic
               <svg class="fish-control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 21 9-18h8v12a4 4 0 0 1-8 0v-2l2 2" /></svg>
               {lifting() ? (current().pendingBite ? '提竿！' : '提竿') : '抛竿'}
             </button>
-            <div class="fish-controls-baits" role="group" aria-label="快速换饵">
-              <For each={BAITS}>
-                {(bait) => (
-                  <button
-                    type="button"
-                    class="fish-bait"
-                    aria-label={bait.label}
-                    aria-pressed={current().loadout.bait === bait.id ? 'true' : 'false'}
-                    disabled={!current().ready || lifting()}
-                    title={lifting() ? '收竿后可换饵' : bait.note}
-                    onClick={() => switchBait(props.session, bait.id)}
-                  >{BAIT_LABEL[bait.id]}</button>
-                )}
-              </For>
+          </Show>
+          <div class="fish-controls-tools">
+            <QuickRigSettings session={props.session} rig={current()} />
+            <Show when={current().mode === 'sim'}>
               <button
                 type="button"
                 class="fish-sound"
@@ -166,9 +161,10 @@ export default function FishingControls(props: { session: StudioSessionPort; tic
                   </Show>
                 </svg>
               </button>
-            </div>
-          </Show>
+            </Show>
+          </div>
         </div>
+        </>
       )}
     </Show>
   );
