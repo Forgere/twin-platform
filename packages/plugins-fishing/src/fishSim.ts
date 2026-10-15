@@ -1,7 +1,8 @@
 import type { BehaviorContext, WorldBehavior } from '@twin-platform/world-kernel';
 import type { TwinVector3 } from '@twin-platform/scene-schema';
 import { calculateRigState, type RigState, type RigZone, type TaidiaoInput } from './fishingCore';
-import { BITE_SIGNALS, subLineBend, type FloatSignal } from './rigPosture';
+import { BITE_SIGNAL_POOL, biteSignalWeights, liftWindowOf, type SignalSituation } from './biteSignals';
+import { subLineBend, type FloatSignal } from './rigPosture';
 import { conditionMultipliers, conditionsOf } from './conditions';
 import { loadoutEffects, loadoutFromAttrs } from './loadout';
 import { num, str } from './values';
@@ -161,7 +162,10 @@ export function manualCastOf(attrs: Readonly<Record<string, unknown>> | undefine
   return manualLiftOf(attrs) && attrs?.manualCast === true;
 }
 
-/** 有口后留给提杆的时间（仿真秒），与漂相动画一样长：漂动完了还没提就算错过。 */
+/**
+ * 默认提竿窗口（仿真秒）。实际窗口按漂相取——顿口短、黑漂长，见
+ * `biteSignals.liftWindowOf()`：漂动完了还没提就算错过。
+ */
 export const LIFT_WINDOW = 1.6;
 
 /** 一次提杆（或错过）的结果：中鱼 / 空钩 / 切线 / 错过这口 / 没口空提。 */
@@ -258,14 +262,23 @@ export function createFishSimBehavior(config: FishSimConfig = {}): WorldBehavior
         const interval = Math.max(0.5, num(worldConfig.castInterval, defaultInterval));
 
         // 装备（目标鱼 / 钩 / 线 / 饵）与情况（走水 / 闹窝 / 窝料）只给倍率，随机仍全部取自 ctx.rng。
-        const gear = loadoutEffects(loadoutFromAttrs(entity.attrs));
+        const loadout = loadoutFromAttrs(entity.attrs);
+        const gear = loadoutEffects(loadout);
         const situation = conditionMultipliers(conditions, ctx.time);
         const zone = result.state.zone;
         const biteChance = clamp01(biteProbability(zone, waterTemperature) * gear.biteMul * gear.zoneBite[zone] * situation.bite);
         const hookChance = clamp01(hookProbability(zone, waterTemperature) * gear.hookMul * situation.hook);
+        // 漂相权重：顿口 / 黑漂 / 送漂 / 移漂由分区、鱼种、走水共同决定（见 biteSignals）。
+        const signalSituation: SignalSituation = {
+          zone,
+          fish: loadout.targetFish,
+          drift: conditions.drift,
+          antiDrift: conditions.antiDrift,
+        };
+        const signalWeights = biteSignalWeights(signalSituation);
 
         if (manualLiftOf(entity.attrs)) {
-          stepManualLift(ctx, entity.id, entity.attrs, { biteChance, hookChance, breakChance: gear.breakChance, interval, state: result.state });
+          stepManualLift(ctx, entity.id, entity.attrs, { biteChance, hookChance, breakChance: gear.breakChance, interval, state: result.state, situation: signalSituation });
           continue;
         }
 
@@ -278,8 +291,8 @@ export function createFishSimBehavior(config: FishSimConfig = {}): WorldBehavior
         // 中鱼后按子线拉力判切线；拉力富余（breakChance = 0）时不耗随机数。
         const broken = hooked && gear.breakChance > 0 && ctx.rng.bool(gear.breakChance);
         const caught = hooked && !broken;
-        // 有口就有漂相（顿口 / 送漂 / 黑漂）——这是用户唯一能直接看到的信号。
-        const signal: FloatSignal = bit ? ctx.rng.pick(BITE_SIGNALS) : 'none';
+        // 有口就有漂相（顿口 / 送漂 / 黑漂 / 移漂）——这是用户唯一能直接看到的信号。
+        const signal: FloatSignal = bit ? ctx.rng.weighted(BITE_SIGNAL_POOL, (item) => signalWeights[item]) : 'none';
         // 咬的是哪只钩：只在有口时取随机（无口的抛竿不多耗 rng）。3D 据此决定鱼拖哪只钩。
         const bitHook: BitHook = bit ? (ctx.rng.bool(UPPER_BITE_SHARE) ? 'upper' : 'lower') : 'none';
 
@@ -295,7 +308,7 @@ export function createFishSimBehavior(config: FishSimConfig = {}): WorldBehavior
         ctx.setAttr(entity.id, 'bitHook', bitHook);
         ctx.emit('fish:cast', {
           entityId: entity.id,
-          payload: { cast: casts, zone: result.state.zone, bite: bit, caught, broken, signal, bitHook, ...(caught ? { fishId: loadoutFromAttrs(entity.attrs).targetFish } : {}) },
+          payload: { cast: casts, zone: result.state.zone, bite: bit, caught, broken, signal, bitHook, ...(caught ? { fishId: loadout.targetFish } : {}) },
         });
         if (broken) ctx.emit('fish:break', { entityId: entity.id, payload: { cast: casts } });
       }
@@ -309,10 +322,12 @@ interface LiftOdds {
   readonly breakChance: number;
   readonly interval: number;
   readonly state: RigState;
+  /** 漂相权重局势（分区 / 鱼种 / 走水）——有口的那一口长什么样由它决定。 */
+  readonly situation: SignalSituation;
 }
 
 /**
- * 手动提杆：抛竿只结算"有没有口"；有口后漂动 LIFT_WINDOW 秒，期间用户提杆
+ * 手动提杆：抛竿只结算"有没有口"；有口后漂动 liftWindowOf(signal) 秒，期间用户提杆
  * （UI 写 attrs.lift = true）才结算中不中，过了窗口算错过。没口就提 = 空提，重新抛竿。
  *
  * 提杆意图走 attrs（可回放的世界变更），在 step 里消费；中不中仍只取 ctx.rng，
@@ -396,13 +411,15 @@ function stepManualLift(ctx: BehaviorContext, rigId: string, attrs: Readonly<Rec
 
   if (ctx.time + 1e-9 < num(attrs.nextAt, 0)) return;
   const bit = ctx.rng.bool(odds.biteChance);
-  const signal: FloatSignal = bit ? ctx.rng.pick(BITE_SIGNALS) : 'none';
+  const weights = biteSignalWeights(odds.situation);
+  const signal: FloatSignal = bit ? ctx.rng.weighted(BITE_SIGNAL_POOL, (item) => weights[item]) : 'none';
   const bitHook: BitHook = bit ? (ctx.rng.bool(UPPER_BITE_SHARE) ? 'upper' : 'lower') : 'none';
   if (!manualCast) ctx.setAttr(rigId, 'casts', cast + 1);
   if (bit) {
     ctx.setAttr(rigId, 'bites', num(attrs.bites, 0) + 1);
     ctx.setAttr(rigId, 'pendingBite', true);
-    ctx.setAttr(rigId, 'biteUntil', ctx.time + LIFT_WINDOW);
+    // 提竿窗口随漂相：顿口短促（1.1s）、黑漂慢（1.9s）——窗口内不提就算错过。
+    ctx.setAttr(rigId, 'biteUntil', ctx.time + liftWindowOf(signal));
     ctx.setAttr(rigId, 'biteFish', loadoutFromAttrs(attrs).targetFish);
   } else {
     ctx.setAttr(rigId, 'nextAt', ctx.time + odds.interval);

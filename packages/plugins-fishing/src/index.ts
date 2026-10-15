@@ -18,6 +18,7 @@ export * from './state';
 export * from './ruleJudge';
 export * from './domain';
 export * from './fishSim';
+export * from './biteSignals';
 export * from './rigPhase';
 export * from './template';
 export * from './rigPosture';

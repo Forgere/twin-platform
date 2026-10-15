@@ -1,4 +1,4 @@
-import { fishingModeOf, LIFT_WINDOW, manualCastOf, rigPhaseOf } from '@twin-platform/plugins-fishing';
+import { fishingModeOf, liftWindowOf, manualCastOf, rigPhaseOf } from '@twin-platform/plugins-fishing';
 import { SIGNAL_DURATION, type FloatSignalName } from './floatSignal';
 import type { HookKey, V3 } from './rigChain';
 
@@ -27,7 +27,8 @@ export function fishingPresentation(attrs: Readonly<Record<string, unknown>>, ti
   let biteAge = SIGNAL_DURATION;
   if (signal !== 'none' && fishing && sim && !stowed) {
     // 交互式鱼口用截止时刻复原起点，seek 直接落在口中间也能呈现准确姿态。
-    if (attrs.pendingBite === true && finite(attrs.biteUntil)) biteAge = time - (attrs.biteUntil - LIFT_WINDOW);
+    // 提竿窗口随漂相（顿口短、黑漂长）：口龄从截止时刻与各自窗口还原。
+    if (attrs.pendingBite === true && finite(attrs.biteUntil)) biteAge = time - (attrs.biteUntil - liftWindowOf(signal));
     // 自动模拟的旧场景已有 nextAt = 本竿时刻 + interval，不需要另添状态或遍历事件。
     else if (!manual && finite(attrs.nextAt) && attrs.nextAt > 0) biteAge = time - (attrs.nextAt - interval);
   }

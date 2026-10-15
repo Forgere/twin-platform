@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { LIFT_WINDOW } from '@twin-platform/plugins-fishing';
+import { liftWindowOf } from '@twin-platform/plugins-fishing';
 import { MAX_FLOAT_DROP } from './floatSignal';
 import { createFishingViewFixture as setup } from './sceneFixture';
 
@@ -97,7 +97,7 @@ describe('抛竿 / 入水 / 鱼口的实际钓组表现', () => {
     run.attrs({ inWater: true, castAt: 0, casts: 1, bites: 0, signal: 'none' });
     run.frame();
     const idleFloat = run.anchor('float-01').y;
-    run.attrs({ bites: 1, signal: 'sink', bitHook: 'lower', pendingBite: true, biteUntil: run.world.time + LIFT_WINDOW - 0.6 });
+    run.attrs({ bites: 1, signal: 'sink', bitHook: 'lower', pendingBite: true, biteUntil: run.world.time + liftWindowOf('sink') - 0.6 });
     run.frame();
     const drop = idleFloat - run.anchor('float-01').y;
     expect(drop).toBeGreaterThan(0.1);
@@ -119,7 +119,7 @@ describe('抛竿 / 入水 / 鱼口的实际钓组表现', () => {
   test('暂停不推进世界，多次 update 不受历史帧影响；seek 相同快照恢复相同节点', () => {
     const run = setup();
     run.world.runSteps(120);
-    run.attrs({ inWater: true, castAt: 0, casts: 1, bites: 1, drift: true, pendingBite: true, signal: 'run', bitHook: 'upper', biteUntil: run.world.time + LIFT_WINDOW - 0.5 });
+    run.attrs({ inWater: true, castAt: 0, casts: 1, bites: 1, drift: true, pendingBite: true, signal: 'run', bitHook: 'upper', biteUntil: run.world.time + liftWindowOf('run') - 0.5 });
     const snapshot = run.world.snapshot();
     run.frame();
     const original = run.fingerprint();
