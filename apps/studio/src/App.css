@@ -108,6 +108,7 @@ button { font: inherit; color: var(--ink); }
 /* z-index 高于遮罩(3)与浮层(4)：区域浮层展开时，其余小按钮仍然点得到。 */
 .vp-toolbar { position: absolute; left: 12px; top: 12px; z-index: 5; display: grid; gap: 6px; }
 .vp-btn {
+  position: relative;
   width: 28px;
   height: 28px;
   display: grid;
@@ -216,6 +217,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .entity-detail strong { color: var(--ink); }
 /* 渲染来源：等宽小字，原本没有样式，补一条和整体小字风格一致 */
 .code-path { color: var(--ink-soft); font-family: var(--mono); font-size: 0.7rem; word-break: break-all; }
+.entity-detail .part-id { color: var(--ink); font-family: var(--mono); overflow-wrap: anywhere; }
 .entity-detail span, .entity-detail p { margin: 0; color: var(--ink-soft); font-size: 0.85rem; }
 .entity-detail button { margin-top: 4px; }
 /* 实时状态（托盘货位 / 货架占用 / 堆垛机任务）：来自世界 attrs，按采样节拍刷新 */
@@ -231,6 +233,30 @@ h2 { margin: 0 0 12px; color: var(--accent); font-size: 0.82rem; letter-spacing:
 .timeline-collapse { margin-left: 2px; padding: 4px 8px !important; color: var(--ink-soft); }
 .speed-select { display: flex; align-items: center; gap: 6px; margin-left: auto; color: var(--ink-soft); font-size: 0.74rem; }
 .speed-select select { border: 1px solid var(--frame); border-radius: 8px; padding: 3px 6px; background: #fffdf7; color: var(--ink); font: inherit; font-size: 0.74rem; }
+/* 审计刻度层：红点压在时间轴上，点一下就回溯到那一刻重算现场 */
+.timeline-track { position: relative; padding-top: 11px; }
+.timeline-marks { position: absolute; left: 0; right: 0; top: 0; height: 11px; }
+.timeline-mark { position: absolute; top: 1px; width: 8px; height: 8px; margin-left: -4px; padding: 0; border: 0; border-radius: 50%; background: var(--bad); box-shadow: 0 0 0 2px rgba(192, 69, 47, 0.16); cursor: pointer; }
+.timeline-mark:hover { transform: scale(1.35); }
+.timeline-mark.audit-mark-error { background: #d97706; box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.18); }
+.timeline-mark-live { transform: scale(1.5); box-shadow: 0 0 0 4px rgba(192, 69, 47, 0.22); }
+.timeline-audit-note { margin: 0; color: var(--ink-soft); font-size: 0.66rem; line-height: 1.4; }
+
+/* 有违例时的工具条入口 + 计数角标 */
+.vp-btn-alert { border-color: rgba(192, 69, 47, 0.5); }
+.vp-badge { position: absolute; top: -5px; right: -5px; min-width: 15px; height: 15px; padding: 0 3px; border-radius: 8px; background: var(--bad); color: #fff; font-size: 0.56rem; line-height: 15px; text-align: center; font-variant-numeric: tabular-nums; }
+
+/* 巡演卡片：跟着当前这一处违例走，并写明为什么定位到这里 */
+.audit-tour { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 4; width: min(430px, calc(100% - 32px)); padding: 10px 12px; border: 1px solid rgba(192, 69, 47, 0.32); border-left: 3px solid var(--bad); border-radius: 12px; background: var(--cream-card); box-shadow: var(--shadow); }
+.audit-tour-head { display: flex; align-items: baseline; gap: 8px; }
+.audit-tour-step { flex: none; color: var(--bad); font-family: var(--mono); font-size: 0.68rem; font-weight: 700; }
+.audit-tour-head strong { color: var(--ink); font-size: 0.82rem; }
+.audit-tour-msg { margin: 5px 0 0; color: var(--ink); font-size: 0.78rem; line-height: 1.45; }
+.audit-tour-why { margin: 4px 0 0; color: var(--ink-soft); font-family: var(--mono); font-size: 0.68rem; }
+.audit-tour-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+.audit-tour-actions button { padding: 4px 9px; font-size: 0.72rem; }
+.audit-tour-actions button:disabled { opacity: 0.45; cursor: default; }
+
 .timeline-range { width: 100%; accent-color: var(--accent); }
 .timeline-readout { margin: 0; color: var(--ink-soft); font-size: 0.68rem; }
 
@@ -308,6 +334,47 @@ h2 { margin: 0 0 12px; color: var(--accent); font-size: 0.82rem; letter-spacing:
 .up { color: var(--good) !important; }
 .down { color: var(--bad) !important; }
 .muted { color: var(--ink-soft) !important; }
+
+/* ── 审计面板 ──────────────────────────────────────────────────────────
+   结论先行、证据在后：判定牌 → 证据窗口 → 逐项检查（连通过项也把账列出来）
+   → 定位按钮 → 报告出口。颜色只表达结果，不用来装饰。 */
+.audit-verdict { display: grid; gap: 2px; padding: 11px 13px; border-radius: 10px; border: 1px solid var(--mint-line); background: var(--mint-tint); }
+.audit-verdict.audit-bad { border-color: rgba(192, 69, 47, 0.42); background: rgba(192, 69, 47, 0.1); }
+.audit-verdict-word { color: var(--good); font-size: 1.35rem; font-weight: 800; letter-spacing: -0.02em; }
+.audit-verdict.audit-bad .audit-verdict-word { color: var(--bad); }
+.audit-verdict-counts { color: var(--ink-soft); font-size: 0.76rem; font-variant-numeric: tabular-nums; }
+.audit-window { margin: 8px 0 0; color: var(--ink-soft); font-size: 0.72rem; font-family: var(--mono); }
+.audit-latest { margin-top: 7px; padding: 6px 11px; border: 1px dashed var(--mint-line); border-radius: 999px; background: transparent; color: var(--accent); font-size: 0.74rem; font-weight: 700; cursor: pointer; }
+.audit-latest:hover { background: var(--mint-tint); }
+.audit-fork { margin: 7px 0 0; padding: 7px 9px; border-left: 3px solid var(--peach-line); border-radius: 6px; background: var(--peach-tint); color: var(--ink); font-size: 0.74rem; line-height: 1.45; }
+.audit-warnings { display: grid; gap: 5px; margin: 8px 0 0; padding: 0 0 0 18px; }
+.audit-warnings li { color: #8a5a12; font-size: 0.73rem; line-height: 1.45; }
+
+.audit-checks { display: grid; gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }
+.audit-check { display: grid; gap: 6px; padding: 10px 11px; border: 1px solid var(--frame); border-left: 3px solid var(--good); border-radius: 10px; background: #fffdf7; }
+.audit-check.audit-fail { border-left-color: var(--bad); }
+.audit-check.audit-error { border-left-color: #b07d2a; }
+.audit-check-head { display: flex; align-items: baseline; gap: 7px; }
+.audit-mark { color: var(--good); font-weight: 800; }
+.audit-check.audit-fail .audit-mark { color: var(--bad); }
+.audit-check.audit-error .audit-mark { color: #b07d2a; }
+.audit-title { flex: 1 1 auto; color: var(--ink); font-size: 0.82rem; font-weight: 700; }
+.audit-status { flex: none; color: var(--ink-soft); font-size: 0.7rem; }
+.audit-note { display: block; padding: 4px 7px; border-radius: 6px; background: var(--sky-tint); color: var(--ink); font-family: var(--mono); font-size: 0.72rem; }
+.audit-finding { display: grid; gap: 5px; padding-top: 5px; border-top: 1px dashed var(--line); }
+.audit-message { margin: 0; color: var(--bad); font-size: 0.78rem; line-height: 1.45; }
+.audit-where { margin-right: 5px; padding: 1px 6px; border-radius: 5px; background: rgba(192, 69, 47, 0.12); color: var(--bad); font-family: var(--mono); font-size: 0.7rem; }
+.audit-unlocatable { color: var(--ink-soft); font-size: 0.72rem; }
+.audit-locate { justify-self: start; padding: 5px 10px; border: 1px solid var(--mint-line); border-radius: 999px; background: var(--mint-tint); color: var(--accent); font-size: 0.74rem; font-weight: 700; cursor: pointer; }
+.audit-locate:hover { background: var(--mint); color: #fff; }
+.audit-check-id { margin: 2px 0 0; color: var(--ink-soft); font-family: var(--mono); font-size: 0.68rem; }
+
+.audit-doctrine { margin: 0; color: var(--ink-soft); font-size: 0.74rem; line-height: 1.5; }
+.audit-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 9px; }
+.audit-actions button { padding: 6px 11px; border: 1px solid var(--frame); border-radius: 999px; background: #fffdf7; font-size: 0.76rem; cursor: pointer; }
+.audit-actions button:hover { border-color: var(--mint-line); color: var(--accent); }
+.audit-copied { margin: 7px 0 0; color: var(--accent); font-size: 0.72rem; }
+.audit-raw { max-height: 220px; margin: 8px 0 0; padding: 9px; overflow: auto; border: 1px solid var(--frame); border-radius: 8px; background: #fffdf7; font-family: var(--mono); font-size: 0.68rem; line-height: 1.45; white-space: pre-wrap; }
 
 /* 方案对比 */
 .compare-form { display: grid; gap: 9px; }

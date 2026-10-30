@@ -4,16 +4,24 @@ import '@solidjs/diagnostics/vitest';
 import { flush } from 'solid-js';
 import { afterEach, expect, test, vi } from 'vitest';
 import TwinViewport from './TwinViewport';
-import type { TwinSceneControllerOptions } from '../scene/TwinSceneController';
+import type { TwinEntityView, TwinSceneControllerOptions } from '../scene/TwinSceneController';
 
-const mounted = vi.hoisted(() => [] as { options: TwinSceneControllerOptions; dispose: ReturnType<typeof vi.fn> }[]);
+const mounted = vi.hoisted(() => [] as {
+  options: TwinSceneControllerOptions;
+  select: (entity: TwinEntityView | undefined) => void;
+  dispose: ReturnType<typeof vi.fn>;
+}[]);
 vi.mock('../scene/TwinSceneController', () => ({
   TwinSceneController: class {
     entities = [];
     themeName = 'pastel';
     dispose = vi.fn();
-    constructor(_host: unknown, _select: unknown, options: TwinSceneControllerOptions) { mounted.push({ options, dispose: this.dispose }); }
+    constructor(_host: unknown, select: (entity: TwinEntityView | undefined) => void, options: TwinSceneControllerOptions) {
+      mounted.push({ options, select, dispose: this.dispose });
+    }
     setCameraPreset() {}
+    setAuditSpots() {}
+    codePath() { return 'mock/TwinSceneController.ts'; }
     listEntities() { return []; }
   },
 }));
@@ -23,6 +31,18 @@ afterEach(() => {
   mounted.length = 0;
   localStorage.clear();
   vi.unstubAllGlobals();
+});
+
+test('画布选中后在当前选择卡展示原始 partId，不提供剖切操作', () => {
+  vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline test')));
+  const view = render(() => <TwinViewport />);
+  flush();
+
+  mounted[0]!.select({ id: 'pump-01', kind: 'pump', label: '主泵', partId: 'IMPELLER-MAIN' });
+  flush();
+
+  expect(view.container.querySelector('.part-id')?.textContent).toBe('partId：IMPELLER-MAIN');
+  expect(view.queryByRole('button', { name: /剖切/ })).toBeNull();
 });
 
 test('真实视口通过插件插槽挂载钓场，换领域卸载旧 UI 并暂停旧会话', async () => {

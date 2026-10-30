@@ -1,0 +1,8634 @@
+{
+  "actions": [],
+  "eventHash": "7920bc37",
+  "events": [
+    {
+      "entityId": "divert-cargo-1",
+      "occurredAt": 0.016666666666666666,
+      "sequence": 1,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 0.016666666666666666,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 2,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 0.016666666666666666,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 3,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 0.016666666666666666,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 4,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 0.016666666666666666,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 5,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0001",
+      "occurredAt": 0.016666666666666666,
+      "payload": {
+        "seq": 1,
+        "source": "source-1"
+      },
+      "sequence": 6,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "pack-a",
+      "occurredAt": 0.016666666666666666,
+      "payload": {
+        "held": 0,
+        "status": "idle"
+      },
+      "sequence": 7,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "pack-b",
+      "occurredAt": 0.016666666666666666,
+      "payload": {
+        "held": 0,
+        "status": "idle"
+      },
+      "sequence": 8,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0001",
+      "occurredAt": 0.03333333333333333,
+      "sequence": 9,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 2.3999999999999964,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 10,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "transfer-1",
+      "occurredAt": 3.26666666666666,
+      "payload": {
+        "height": 0.13,
+        "lift": 1,
+        "parcelId": "divert-cargo-1"
+      },
+      "sequence": 11,
+      "type": "transfer:divert"
+    },
+    {
+      "entityId": "source-1-goods-0002",
+      "occurredAt": 6.033333333333317,
+      "payload": {
+        "seq": 2,
+        "source": "source-1"
+      },
+      "sequence": 12,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0002",
+      "occurredAt": 6.049999999999984,
+      "sequence": 13,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 7.433333333333312,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 14,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 7.866666666666644,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 15,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 9.500000000000052,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 16,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 10.200000000000086,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 17,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 10.333333333333426,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 18,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 11.96666666666684,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 19,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0003",
+      "occurredAt": 12.03333333333351,
+      "payload": {
+        "seq": 3,
+        "source": "source-1"
+      },
+      "sequence": 20,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0003",
+      "occurredAt": 12.050000000000178,
+      "sequence": 21,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 12.43333333333353,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 22,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 13.450000000000248,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 23,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "transfer-merge-1",
+      "occurredAt": 14.450000000000298,
+      "payload": {
+        "height": 0.13,
+        "lift": 1,
+        "parcelId": "divert-cargo-1"
+      },
+      "sequence": 24,
+      "type": "transfer:divert"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 15.200000000000335,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 25,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 15.516666666667017,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 26,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 16.216666666667027,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 27,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 17.316666666666965,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 28,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "divert-cargo-1",
+      "occurredAt": 17.400000000000293,
+      "sequence": 29,
+      "type": "parcel:exit"
+    },
+    {
+      "entityId": "divert-cargo-1",
+      "occurredAt": 17.400000000000293,
+      "sequence": 30,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 17.983333333333594,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 31,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0004",
+      "occurredAt": 18.03333333333359,
+      "payload": {
+        "seq": 4,
+        "source": "source-1"
+      },
+      "sequence": 32,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0004",
+      "occurredAt": 18.050000000000257,
+      "sequence": 33,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 18.450000000000234,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 34,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 19.450000000000177,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 35,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "transfer-1",
+      "occurredAt": 20.65000000000011,
+      "payload": {
+        "height": 0.13,
+        "lift": 1,
+        "parcelId": "divert-cargo-1"
+      },
+      "sequence": 36,
+      "type": "transfer:divert"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 21.200000000000077,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 37,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 21.216666666666743,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 38,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 21.516666666666726,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 39,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 22.216666666666686,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 40,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 23.983333333333253,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 41,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0005",
+      "occurredAt": 24.049999999999915,
+      "payload": {
+        "seq": 5,
+        "source": "source-1"
+      },
+      "sequence": 42,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0005",
+      "occurredAt": 24.06666666666658,
+      "sequence": 43,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 24.449999999999893,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 44,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "pack-a",
+      "occurredAt": 24.599999999999884,
+      "payload": {
+        "carrier": "stacker-a",
+        "count": 2,
+        "inputs": "source-1-goods-0001,source-1-goods-0002",
+        "pallet": "pack-a-pallet-0001",
+        "seq": 1
+      },
+      "sequence": 45,
+      "type": "goods:packed"
+    },
+    {
+      "entityId": "pack-a",
+      "occurredAt": 24.61666666666655,
+      "payload": {
+        "held": 0,
+        "status": "idle"
+      },
+      "sequence": 46,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 25.249999999999847,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 47,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 25.449999999999836,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 48,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 27.216666666666402,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 49,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 27.516666666666385,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 50,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 27.699999999999708,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 51,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 28.216666666666345,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 52,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 29.98333333333291,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 53,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0006",
+      "occurredAt": 30.06666666666624,
+      "payload": {
+        "seq": 6,
+        "source": "source-1"
+      },
+      "sequence": 54,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0006",
+      "occurredAt": 30.083333333332906,
+      "sequence": 55,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 30.44999999999955,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 56,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 30.749999999999535,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 57,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "labeler-a",
+      "occurredAt": 31.283333333332838,
+      "payload": {
+        "cargo": "pack-a-pallet-0001"
+      },
+      "sequence": 58,
+      "type": "label:applied"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 31.46666666666616,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 59,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "transfer-merge-1",
+      "occurredAt": 31.833333333332806,
+      "payload": {
+        "height": 0.13,
+        "lift": 1,
+        "parcelId": "divert-cargo-1"
+      },
+      "sequence": 60,
+      "type": "transfer:divert"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 33.216666666666065,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 61,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 33.216666666666065,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 62,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 33.53333333333271,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 63,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 34.23333333333267,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 64,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 34.699999999999314,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 65,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "divert-cargo-1",
+      "occurredAt": 34.78333333333264,
+      "sequence": 66,
+      "type": "parcel:exit"
+    },
+    {
+      "entityId": "divert-cargo-1",
+      "occurredAt": 34.78333333333264,
+      "sequence": 67,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 35.99999999999924,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 68,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0007",
+      "occurredAt": 36.08333333333257,
+      "payload": {
+        "seq": 7,
+        "source": "source-1"
+      },
+      "sequence": 69,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0007",
+      "occurredAt": 36.099999999999234,
+      "sequence": 70,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 36.46666666666588,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 71,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "pack-a",
+      "occurredAt": 36.599999999999206,
+      "payload": {
+        "carrier": "stacker-a",
+        "count": 2,
+        "inputs": "source-1-goods-0003,source-1-goods-0004",
+        "pallet": "pack-a-pallet-0002",
+        "seq": 2
+      },
+      "sequence": 72,
+      "type": "goods:packed"
+    },
+    {
+      "entityId": "pack-a",
+      "occurredAt": 36.61666666666587,
+      "payload": {
+        "held": 0,
+        "status": "idle"
+      },
+      "sequence": 73,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 37.16666666666584,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 74,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 37.48333333333249,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 75,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "transfer-1",
+      "occurredAt": 38.01666666666579,
+      "payload": {
+        "height": 0.13,
+        "lift": 1,
+        "parcelId": "divert-cargo-1"
+      },
+      "sequence": 76,
+      "type": "transfer:divert"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 39.23333333333239,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 77,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 39.54999999999904,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 78,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 40.249999999999,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 79,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 42.016666666665564,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 80,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0008",
+      "occurredAt": 42.09999999999889,
+      "payload": {
+        "seq": 8,
+        "source": "source-1"
+      },
+      "sequence": 81,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0008",
+      "occurredAt": 42.11666666666556,
+      "sequence": 82,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 42.483333333332205,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 83,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 42.61666666666553,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 84,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "labeler-a",
+      "occurredAt": 43.28333333333216,
+      "payload": {
+        "cargo": "pack-a-pallet-0002"
+      },
+      "sequence": 85,
+      "type": "label:applied"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 43.49999999999881,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 86,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 45.23333333333205,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 87,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 45.249999999998714,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 88,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 45.56666666666536,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 89,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 46.26666666666532,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 90,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 48.03333333333189,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 91,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0009",
+      "occurredAt": 48.11666666666522,
+      "payload": {
+        "seq": 9,
+        "source": "source-1"
+      },
+      "sequence": 92,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0009",
+      "occurredAt": 48.13333333333188,
+      "sequence": 93,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 48.49999999999853,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 94,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "pack-a",
+      "occurredAt": 48.633333333331855,
+      "payload": {
+        "carrier": "stacker-a",
+        "count": 2,
+        "inputs": "source-1-goods-0005,source-1-goods-0006",
+        "pallet": "pack-a-pallet-0003",
+        "seq": 3
+      },
+      "sequence": 95,
+      "type": "goods:packed"
+    },
+    {
+      "entityId": "pack-a",
+      "occurredAt": 48.64999999999852,
+      "payload": {
+        "held": 0,
+        "status": "idle"
+      },
+      "sequence": 96,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "transfer-merge-1",
+      "occurredAt": 49.19999999999849,
+      "payload": {
+        "height": 0.13,
+        "lift": 1,
+        "parcelId": "divert-cargo-1"
+      },
+      "sequence": 97,
+      "type": "transfer:divert"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 49.51666666666514,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 98,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "stacker-a",
+      "occurredAt": 49.566666666665135,
+      "payload": {
+        "column": 0,
+        "height": 1.35,
+        "lap": 3,
+        "level": 1,
+        "pallet": "pack-a-pallet-0001",
+        "seq": 1,
+        "side": "near",
+        "slot": "0:0:0"
+      },
+      "sequence": 99,
+      "type": "asrs:store"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 51.26666666666504,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 100,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 51.58333333333169,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 101,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 52.08333333333166,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 102,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "divert-cargo-1",
+      "occurredAt": 52.14999999999832,
+      "sequence": 103,
+      "type": "parcel:exit"
+    },
+    {
+      "entityId": "divert-cargo-1",
+      "occurredAt": 52.14999999999832,
+      "sequence": 104,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 52.28333333333165,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 105,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 54.049999999998214,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 106,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0010",
+      "occurredAt": 54.13333333333154,
+      "payload": {
+        "seq": 10,
+        "source": "source-1"
+      },
+      "sequence": 107,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0010",
+      "occurredAt": 54.14999999999821,
+      "sequence": 108,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 54.516666666664854,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 109,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 54.53333333333152,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 110,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 54.79999999999817,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 111,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "labeler-a",
+      "occurredAt": 55.31666666666481,
+      "payload": {
+        "cargo": "pack-a-pallet-0003"
+      },
+      "sequence": 112,
+      "type": "label:applied"
+    },
+    {
+      "entityId": "transfer-1",
+      "occurredAt": 55.39999999999814,
+      "payload": {
+        "height": 0.13,
+        "lift": 1,
+        "parcelId": "divert-cargo-1"
+      },
+      "sequence": 113,
+      "type": "transfer:divert"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 55.53333333333146,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 114,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 57.2666666666647,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 115,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 57.28333333333136,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 116,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 57.59999999999801,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 117,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 58.29999999999797,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 118,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 59.999999999997875,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 119,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 60.06666666666454,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 120,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0011",
+      "occurredAt": 60.14999999999787,
+      "payload": {
+        "seq": 11,
+        "source": "source-1"
+      },
+      "sequence": 121,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0011",
+      "occurredAt": 60.16666666666453,
+      "sequence": 122,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 60.53333333333118,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 123,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "pack-a",
+      "occurredAt": 60.666666666664504,
+      "payload": {
+        "carrier": "stacker-a",
+        "count": 2,
+        "inputs": "source-1-goods-0007,source-1-goods-0008",
+        "pallet": "pack-a-pallet-0004",
+        "seq": 4
+      },
+      "sequence": 124,
+      "type": "goods:packed"
+    },
+    {
+      "entityId": "pack-a",
+      "occurredAt": 60.68333333333117,
+      "payload": {
+        "held": 0,
+        "status": "idle"
+      },
+      "sequence": 125,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 61.54999999999779,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 126,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 62.449999999997736,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 127,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 63.29999999999769,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 128,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "stacker-a",
+      "occurredAt": 63.56666666666434,
+      "payload": {
+        "column": 0,
+        "height": 2.5,
+        "lap": 4,
+        "level": 2,
+        "pallet": "pack-a-pallet-0002",
+        "seq": 2,
+        "side": "near",
+        "slot": "0:1:0"
+      },
+      "sequence": 129,
+      "type": "asrs:store"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 63.61666666666434,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 130,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 64.3166666666643,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 131,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 66.08333333333087,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 132,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0012",
+      "occurredAt": 66.1666666666642,
+      "payload": {
+        "seq": 12,
+        "source": "source-1"
+      },
+      "sequence": 133,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0012",
+      "occurredAt": 66.18333333333086,
+      "sequence": 134,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 66.54999999999751,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 135,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "transfer-merge-1",
+      "occurredAt": 66.58333333333084,
+      "payload": {
+        "height": 0.13,
+        "lift": 1,
+        "parcelId": "divert-cargo-1"
+      },
+      "sequence": 136,
+      "type": "transfer:divert"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 66.83333333333083,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 137,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "labeler-a",
+      "occurredAt": 67.34999999999746,
+      "payload": {
+        "cargo": "pack-a-pallet-0004"
+      },
+      "sequence": 138,
+      "type": "label:applied"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 67.56666666666412,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 139,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 69.29999999999735,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 140,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 69.31666666666402,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 141,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 69.44999999999735,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 142,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "divert-cargo-1",
+      "occurredAt": 69.53333333333067,
+      "sequence": 143,
+      "type": "parcel:exit"
+    },
+    {
+      "entityId": "divert-cargo-1",
+      "occurredAt": 69.53333333333067,
+      "sequence": 144,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 69.63333333333067,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 145,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 70.33333333333063,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 146,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 71.91666666666387,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 147,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 72.0999999999972,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 148,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0013",
+      "occurredAt": 72.18333333333052,
+      "payload": {
+        "seq": 13,
+        "source": "source-1"
+      },
+      "sequence": 149,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0013",
+      "occurredAt": 72.19999999999719,
+      "sequence": 150,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 72.56666666666383,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 151,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "pack-a",
+      "occurredAt": 72.69999999999716,
+      "payload": {
+        "carrier": "stacker-a",
+        "count": 2,
+        "inputs": "source-1-goods-0009,source-1-goods-0010",
+        "pallet": "pack-a-pallet-0005",
+        "seq": 5
+      },
+      "sequence": 152,
+      "type": "goods:packed"
+    },
+    {
+      "entityId": "pack-a",
+      "occurredAt": 72.71666666666383,
+      "payload": {
+        "held": 0,
+        "status": "idle"
+      },
+      "sequence": 153,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "transfer-1",
+      "occurredAt": 72.76666666666382,
+      "payload": {
+        "height": 0.13,
+        "lift": 1,
+        "parcelId": "divert-cargo-1"
+      },
+      "sequence": 154,
+      "type": "transfer:divert"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 73.58333333333044,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 155,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 75.33333333333034,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 156,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 75.649999999997,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 157,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 76.34999999999695,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 158,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 77.36666666666356,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 159,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "stacker-a",
+      "occurredAt": 77.56666666666355,
+      "payload": {
+        "column": 0,
+        "height": 3.65,
+        "lap": 5,
+        "level": 3,
+        "pallet": "pack-a-pallet-0003",
+        "seq": 3,
+        "side": "near",
+        "slot": "0:2:0"
+      },
+      "sequence": 160,
+      "type": "asrs:store"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 78.11666666666352,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 161,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0014",
+      "occurredAt": 78.19999999999685,
+      "payload": {
+        "seq": 14,
+        "source": "source-1"
+      },
+      "sequence": 162,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0014",
+      "occurredAt": 78.21666666666351,
+      "sequence": 163,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 78.58333333333016,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 164,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "labeler-a",
+      "occurredAt": 79.38333333333011,
+      "payload": {
+        "cargo": "pack-a-pallet-0005"
+      },
+      "sequence": 165,
+      "type": "label:applied"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 79.59999999999677,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 166,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 81.33333333333,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 167,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 81.34999999999667,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 168,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 81.66666666666332,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 169,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 82.36666666666328,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 170,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "transfer-merge-1",
+      "occurredAt": 83.96666666666319,
+      "payload": {
+        "height": 0.13,
+        "lift": 1,
+        "parcelId": "divert-cargo-1"
+      },
+      "sequence": 171,
+      "type": "transfer:divert"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 84.13333333332984,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 172,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0015",
+      "occurredAt": 84.21666666666317,
+      "payload": {
+        "seq": 15,
+        "source": "source-1"
+      },
+      "sequence": 173,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0015",
+      "occurredAt": 84.23333333332984,
+      "sequence": 174,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 84.59999999999648,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 175,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "pack-a",
+      "occurredAt": 84.73333333332981,
+      "payload": {
+        "carrier": "stacker-a",
+        "count": 2,
+        "inputs": "source-1-goods-0011,source-1-goods-0012",
+        "pallet": "pack-a-pallet-0006",
+        "seq": 6
+      },
+      "sequence": 176,
+      "type": "goods:packed"
+    },
+    {
+      "entityId": "pack-a",
+      "occurredAt": 84.74999999999648,
+      "payload": {
+        "held": 0,
+        "status": "idle"
+      },
+      "sequence": 177,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 85.6166666666631,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 178,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 86.83333333332969,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 179,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "divert-cargo-1",
+      "occurredAt": 86.91666666666302,
+      "sequence": 180,
+      "type": "parcel:exit"
+    },
+    {
+      "entityId": "divert-cargo-1",
+      "occurredAt": 86.91666666666302,
+      "sequence": 181,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 87.366666666663,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 182,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 87.68333333332964,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 183,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 88.3833333333296,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 184,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 89.29999999999622,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 185,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 90.14999999999617,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 186,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "transfer-1",
+      "occurredAt": 90.14999999999617,
+      "payload": {
+        "height": 0.13,
+        "lift": 1,
+        "parcelId": "divert-cargo-1"
+      },
+      "sequence": 187,
+      "type": "transfer:divert"
+    },
+    {
+      "entityId": "source-1-goods-0016",
+      "occurredAt": 90.2333333333295,
+      "payload": {
+        "seq": 16,
+        "source": "source-1"
+      },
+      "sequence": 188,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0016",
+      "occurredAt": 90.24999999999616,
+      "sequence": 189,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 90.61666666666281,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 190,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 90.89999999999613,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 191,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "labeler-a",
+      "occurredAt": 91.41666666666276,
+      "payload": {
+        "cargo": "pack-a-pallet-0006"
+      },
+      "sequence": 192,
+      "type": "label:applied"
+    },
+    {
+      "entityId": "stacker-a",
+      "occurredAt": 91.56666666666275,
+      "payload": {
+        "column": 0,
+        "height": 1.35,
+        "lap": 6,
+        "level": 1,
+        "pallet": "pack-a-pallet-0004",
+        "seq": 4,
+        "side": "far",
+        "slot": "1:0:0"
+      },
+      "sequence": 193,
+      "type": "asrs:store"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 91.63333333332942,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 194,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 93.36666666666265,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 195,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 93.38333333332932,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 196,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 93.69999999999597,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 197,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 94.39999999999593,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 198,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 94.74999999999591,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 199,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 96.1666666666625,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 200,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0017",
+      "occurredAt": 96.24999999999582,
+      "payload": {
+        "seq": 17,
+        "source": "source-1"
+      },
+      "sequence": 201,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0017",
+      "occurredAt": 96.26666666666249,
+      "sequence": 202,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 96.63333333332913,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 203,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "pack-a",
+      "occurredAt": 96.76666666666246,
+      "payload": {
+        "carrier": "stacker-a",
+        "count": 2,
+        "inputs": "source-1-goods-0013,source-1-goods-0014",
+        "pallet": "pack-a-pallet-0007",
+        "seq": 7
+      },
+      "sequence": 204,
+      "type": "goods:packed"
+    },
+    {
+      "entityId": "pack-a",
+      "occurredAt": 96.78333333332913,
+      "payload": {
+        "held": 0,
+        "status": "idle"
+      },
+      "sequence": 205,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 97.21666666666243,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 206,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 97.64999999999574,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 207,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 99.39999999999564,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 208,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 99.71666666666229,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 209,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 100.41666666666225,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 210,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "transfer-merge-1",
+      "occurredAt": 101.33333333332887,
+      "payload": {
+        "height": 0.13,
+        "lift": 1,
+        "parcelId": "divert-cargo-1"
+      },
+      "sequence": 211,
+      "type": "transfer:divert"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 102.18333333332882,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 212,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0018",
+      "occurredAt": 102.26666666666215,
+      "payload": {
+        "seq": 18,
+        "source": "source-1"
+      },
+      "sequence": 213,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0018",
+      "occurredAt": 102.28333333332881,
+      "sequence": 214,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 102.64999999999546,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 215,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 102.93333333332878,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 216,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "labeler-a",
+      "occurredAt": 103.44999999999541,
+      "payload": {
+        "cargo": "pack-a-pallet-0007"
+      },
+      "sequence": 217,
+      "type": "label:applied"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 103.66666666666207,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 218,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "divert-cargo-1",
+      "occurredAt": 104.2833333333287,
+      "sequence": 219,
+      "type": "parcel:exit"
+    },
+    {
+      "entityId": "divert-cargo-1",
+      "occurredAt": 104.2833333333287,
+      "sequence": 220,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 105.41666666666197,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 221,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "stacker-a",
+      "occurredAt": 105.56666666666196,
+      "payload": {
+        "column": 0,
+        "height": 2.5,
+        "lap": 7,
+        "level": 2,
+        "pallet": "pack-a-pallet-0005",
+        "seq": 5,
+        "side": "far",
+        "slot": "1:1:0"
+      },
+      "sequence": 222,
+      "type": "asrs:store"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 105.73333333332862,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 223,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 106.43333333332858,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 224,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 106.6666666666619,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 225,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "transfer-1",
+      "occurredAt": 107.53333333332851,
+      "payload": {
+        "height": 0.13,
+        "lift": 1,
+        "parcelId": "divert-cargo-1"
+      },
+      "sequence": 226,
+      "type": "transfer:divert"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 108.19999999999514,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 227,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0019",
+      "occurredAt": 108.28333333332847,
+      "payload": {
+        "seq": 19,
+        "source": "source-1"
+      },
+      "sequence": 228,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0019",
+      "occurredAt": 108.29999999999514,
+      "sequence": 229,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 108.66666666666178,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 230,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "pack-a",
+      "occurredAt": 108.79999999999511,
+      "payload": {
+        "carrier": "stacker-a",
+        "count": 2,
+        "inputs": "source-1-goods-0015,source-1-goods-0016",
+        "pallet": "pack-a-pallet-0008",
+        "seq": 8
+      },
+      "sequence": 231,
+      "type": "goods:packed"
+    },
+    {
+      "entityId": "pack-a",
+      "occurredAt": 108.81666666666177,
+      "payload": {
+        "held": 0,
+        "status": "idle"
+      },
+      "sequence": 232,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 109.68333333332839,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 233,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 111.43333333332829,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 234,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 111.74999999999494,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 235,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 112.13333333332825,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 236,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 112.4499999999949,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 237,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 114.21666666666147,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 238,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0020",
+      "occurredAt": 114.2999999999948,
+      "payload": {
+        "seq": 20,
+        "source": "source-1"
+      },
+      "sequence": 239,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0020",
+      "occurredAt": 114.31666666666146,
+      "sequence": 240,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 114.58333333332811,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 241,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 114.68333333332811,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 242,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 114.96666666666142,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 243,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "labeler-a",
+      "occurredAt": 115.48333333332806,
+      "payload": {
+        "cargo": "pack-a-pallet-0008"
+      },
+      "sequence": 244,
+      "type": "label:applied"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 115.69999999999472,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 245,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 117.43333333332795,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 246,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 117.44999999999462,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 247,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 117.76666666666127,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 248,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 118.46666666666123,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 249,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "transfer-merge-1",
+      "occurredAt": 118.71666666666121,
+      "payload": {
+        "height": 0.13,
+        "lift": 1,
+        "parcelId": "divert-cargo-1"
+      },
+      "sequence": 250,
+      "type": "transfer:divert"
+    },
+    {
+      "entityId": "stacker-a",
+      "occurredAt": 119.56666666666116,
+      "payload": {
+        "column": 0,
+        "height": 3.65,
+        "lap": 8,
+        "level": 3,
+        "pallet": "pack-a-pallet-0006",
+        "seq": 6,
+        "side": "far",
+        "slot": "1:2:0"
+      },
+      "sequence": 251,
+      "type": "asrs:store"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 120.23333333332779,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 252,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0021",
+      "occurredAt": 120.31666666666112,
+      "payload": {
+        "seq": 21,
+        "source": "source-1"
+      },
+      "sequence": 253,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0021",
+      "occurredAt": 120.33333333332779,
+      "sequence": 254,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 120.69999999999443,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 255,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "pack-a",
+      "occurredAt": 120.83333333332776,
+      "payload": {
+        "carrier": "stacker-a",
+        "count": 2,
+        "inputs": "source-1-goods-0017,source-1-goods-0018",
+        "pallet": "pack-a-pallet-0009",
+        "seq": 9
+      },
+      "sequence": 256,
+      "type": "goods:packed"
+    },
+    {
+      "entityId": "pack-a",
+      "occurredAt": 120.84999999999442,
+      "payload": {
+        "held": 0,
+        "status": "idle"
+      },
+      "sequence": 257,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 121.58333333332772,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 258,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "divert-cargo-1",
+      "occurredAt": 121.66666666666104,
+      "sequence": 259,
+      "type": "parcel:exit"
+    },
+    {
+      "entityId": "divert-cargo-1",
+      "occurredAt": 121.66666666666104,
+      "sequence": 260,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 121.71666666666104,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 261,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 123.46666666666094,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 262,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 123.78333333332759,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 263,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 124.04999999999424,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 264,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 124.48333333332755,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 265,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "transfer-1",
+      "occurredAt": 124.8999999999942,
+      "payload": {
+        "height": 0.13,
+        "lift": 1,
+        "parcelId": "divert-cargo-1"
+      },
+      "sequence": 266,
+      "type": "transfer:divert"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 126.24999999999412,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 267,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0022",
+      "occurredAt": 126.33333333332745,
+      "payload": {
+        "seq": 22,
+        "source": "source-1"
+      },
+      "sequence": 268,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0022",
+      "occurredAt": 126.34999999999411,
+      "sequence": 269,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 126.71666666666076,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 270,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 126.99999999999407,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 271,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "labeler-a",
+      "occurredAt": 127.51666666666071,
+      "payload": {
+        "cargo": "pack-a-pallet-0009"
+      },
+      "sequence": 272,
+      "type": "label:applied"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 127.73333333332737,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 273,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 129.46666666666184,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 274,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 129.48333333332852,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 275,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 129.4999999999952,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 276,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 129.79999999999544,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 277,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 130.499999999996,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 278,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 131.96666666666383,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 279,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 132.26666666666407,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 280,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0023",
+      "occurredAt": 132.33333333333078,
+      "payload": {
+        "seq": 23,
+        "source": "source-1"
+      },
+      "sequence": 281,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0023",
+      "occurredAt": 132.34999999999746,
+      "sequence": 282,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 132.7333333333311,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 283,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "pack-a",
+      "occurredAt": 132.86666666666454,
+      "payload": {
+        "carrier": "stacker-a",
+        "count": 2,
+        "inputs": "source-1-goods-0019,source-1-goods-0020",
+        "pallet": "pack-a-pallet-0010",
+        "seq": 10
+      },
+      "sequence": 284,
+      "type": "goods:packed"
+    },
+    {
+      "entityId": "pack-a",
+      "occurredAt": 132.88333333333122,
+      "payload": {
+        "held": 0,
+        "status": "idle"
+      },
+      "sequence": 285,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "stacker-a",
+      "occurredAt": 133.5666666666651,
+      "payload": {
+        "column": 1,
+        "height": 1.35,
+        "lap": 9,
+        "level": 1,
+        "pallet": "pack-a-pallet-0007",
+        "seq": 7,
+        "side": "near",
+        "slot": "0:0:1"
+      },
+      "sequence": 286,
+      "type": "asrs:store"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 133.74999999999858,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 287,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 135.49999999999997,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 288,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 135.8166666666669,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 289,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "transfer-merge-1",
+      "occurredAt": 136.08333333333377,
+      "payload": {
+        "height": 0.13,
+        "lift": 1,
+        "parcelId": "divert-cargo-1"
+      },
+      "sequence": 290,
+      "type": "transfer:divert"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 136.51666666666745,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 291,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 138.28333333333552,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 292,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0024",
+      "occurredAt": 138.33333333333556,
+      "payload": {
+        "seq": 24,
+        "source": "source-1"
+      },
+      "sequence": 293,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0024",
+      "occurredAt": 138.35000000000224,
+      "sequence": 294,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 138.75000000000256,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 295,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 138.9666666666694,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 296,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "divert-cargo-1",
+      "occurredAt": 139.03333333333612,
+      "sequence": 297,
+      "type": "parcel:exit"
+    },
+    {
+      "entityId": "divert-cargo-1",
+      "occurredAt": 139.03333333333612,
+      "sequence": 298,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "labeler-a",
+      "occurredAt": 139.5500000000032,
+      "payload": {
+        "cargo": "pack-a-pallet-0010"
+      },
+      "sequence": 299,
+      "type": "label:applied"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 139.75000000000335,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 300,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 141.50000000000475,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 301,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 141.51666666667143,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 302,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 141.81666666667167,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 303,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "transfer-1",
+      "occurredAt": 142.2833333333387,
+      "payload": {
+        "height": 0.13,
+        "lift": 1,
+        "parcelId": "divert-cargo-1"
+      },
+      "sequence": 304,
+      "type": "transfer:divert"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 142.51666666667222,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 305,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 144.2833333333403,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 306,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0025",
+      "occurredAt": 144.33333333334033,
+      "payload": {
+        "seq": 25,
+        "source": "source-1"
+      },
+      "sequence": 307,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0025",
+      "occurredAt": 144.35000000000701,
+      "sequence": 308,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 144.75000000000733,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 309,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "pack-a",
+      "occurredAt": 144.90000000000745,
+      "payload": {
+        "carrier": "stacker-a",
+        "count": 2,
+        "inputs": "source-1-goods-0021,source-1-goods-0022",
+        "pallet": "pack-a-pallet-0011",
+        "seq": 11
+      },
+      "sequence": 310,
+      "type": "goods:packed"
+    },
+    {
+      "entityId": "pack-a",
+      "occurredAt": 144.91666666667413,
+      "payload": {
+        "held": 0,
+        "status": "idle"
+      },
+      "sequence": 311,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 145.75000000000813,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 312,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 146.88333333334236,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 313,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 147.5166666666762,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 314,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "stacker-a",
+      "occurredAt": 147.56666666667624,
+      "payload": {
+        "column": 1,
+        "height": 2.5,
+        "lap": 10,
+        "level": 2,
+        "pallet": "pack-a-pallet-0008",
+        "seq": 8,
+        "side": "near",
+        "slot": "0:1:1"
+      },
+      "sequence": 315,
+      "type": "asrs:store"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 147.81666666667644,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 316,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 148.516666666677,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 317,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 149.3333333333443,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 318,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 150.28333333334507,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 319,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0026",
+      "occurredAt": 150.3333333333451,
+      "payload": {
+        "seq": 26,
+        "source": "source-1"
+      },
+      "sequence": 320,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0026",
+      "occurredAt": 150.3500000000118,
+      "sequence": 321,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 150.7500000000121,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 322,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 151.05000000001235,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 323,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "labeler-a",
+      "occurredAt": 151.5833333333461,
+      "payload": {
+        "cargo": "pack-a-pallet-0011"
+      },
+      "sequence": 324,
+      "type": "label:applied"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 151.7500000000129,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 325,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "transfer-merge-1",
+      "occurredAt": 153.46666666668094,
+      "payload": {
+        "height": 0.13,
+        "lift": 1,
+        "parcelId": "divert-cargo-1"
+      },
+      "sequence": 326,
+      "type": "transfer:divert"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 153.51666666668098,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 327,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 153.51666666668098,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 328,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 153.81666666668121,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 329,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 154.51666666668177,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 330,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 156.28333333334984,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 331,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 156.33333333334988,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 332,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0027",
+      "occurredAt": 156.33333333334988,
+      "payload": {
+        "seq": 27,
+        "source": "source-1"
+      },
+      "sequence": 333,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0027",
+      "occurredAt": 156.35000000001656,
+      "sequence": 334,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "divert-cargo-1",
+      "occurredAt": 156.41666666668328,
+      "sequence": 335,
+      "type": "parcel:exit"
+    },
+    {
+      "entityId": "divert-cargo-1",
+      "occurredAt": 156.41666666668328,
+      "sequence": 336,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 156.75000000001688,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 337,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "pack-a",
+      "occurredAt": 156.900000000017,
+      "payload": {
+        "carrier": "stacker-a",
+        "count": 2,
+        "inputs": "source-1-goods-0023,source-1-goods-0024",
+        "pallet": "pack-a-pallet-0012",
+        "seq": 12
+      },
+      "sequence": 338,
+      "type": "goods:packed"
+    },
+    {
+      "entityId": "pack-a",
+      "occurredAt": 156.91666666668368,
+      "payload": {
+        "held": 0,
+        "status": "idle"
+      },
+      "sequence": 339,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 157.75000000001768,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 340,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 158.8000000000185,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 341,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 159.51666666668575,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 342,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "transfer-1",
+      "occurredAt": 159.6500000000192,
+      "payload": {
+        "height": 0.13,
+        "lift": 1,
+        "parcelId": "divert-cargo-1"
+      },
+      "sequence": 343,
+      "type": "transfer:divert"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 159.816666666686,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 344,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 160.51666666668655,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 345,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "stacker-a",
+      "occurredAt": 161.56666666668738,
+      "payload": {
+        "column": 0,
+        "dwell": 112.00000000002225,
+        "height": 1.35,
+        "lap": 11,
+        "level": 1,
+        "pallet": "pack-a-pallet-0001",
+        "seq": 1,
+        "side": "near",
+        "slot": "0:0:0"
+      },
+      "sequence": 346,
+      "type": "asrs:retrieve"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 162.28333333335462,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 347,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0028",
+      "occurredAt": 162.33333333335466,
+      "payload": {
+        "seq": 28,
+        "source": "source-1"
+      },
+      "sequence": 348,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0028",
+      "occurredAt": 162.35000000002134,
+      "sequence": 349,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 162.75000000002166,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 350,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 163.0500000000219,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 351,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "labeler-a",
+      "occurredAt": 163.58333333335565,
+      "payload": {
+        "cargo": "pack-a-pallet-0012"
+      },
+      "sequence": 352,
+      "type": "label:applied"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 163.75000000002245,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 353,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 165.51666666669053,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 354,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 165.81666666669076,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 355,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 166.51666666669132,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 356,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 166.71666666669148,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 357,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 168.2833333333594,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 358,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0029",
+      "occurredAt": 168.33333333335943,
+      "payload": {
+        "seq": 29,
+        "source": "source-1"
+      },
+      "sequence": 359,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0029",
+      "occurredAt": 168.3500000000261,
+      "sequence": 360,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 168.75000000002643,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 361,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "pack-a",
+      "occurredAt": 168.90000000002655,
+      "payload": {
+        "carrier": "stacker-a",
+        "count": 2,
+        "inputs": "source-1-goods-0025,source-1-goods-0026",
+        "pallet": "pack-a-pallet-0013",
+        "seq": 13
+      },
+      "sequence": 362,
+      "type": "goods:packed"
+    },
+    {
+      "entityId": "pack-a",
+      "occurredAt": 168.91666666669323,
+      "payload": {
+        "held": 0,
+        "status": "idle"
+      },
+      "sequence": 363,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 169.75000000002723,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 364,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "transfer-merge-1",
+      "occurredAt": 170.8500000000281,
+      "payload": {
+        "height": 0.13,
+        "lift": 1,
+        "parcelId": "divert-cargo-1"
+      },
+      "sequence": 365,
+      "type": "transfer:divert"
+    },
+    {
+      "entityId": "truck-a",
+      "occurredAt": 171.50000000002862,
+      "payload": {
+        "cargo": "pack-a-pallet-0001",
+        "load": 1
+      },
+      "sequence": 366,
+      "type": "goods:shipped"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 171.5166666666953,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 367,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 171.81666666669554,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 368,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 172.5166666666961,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 369,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 173.71666666669705,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 370,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "divert-cargo-1",
+      "occurredAt": 173.80000000003045,
+      "sequence": 371,
+      "type": "parcel:exit"
+    },
+    {
+      "entityId": "divert-cargo-1",
+      "occurredAt": 173.80000000003045,
+      "sequence": 372,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 174.28333333336417,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 373,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0030",
+      "occurredAt": 174.3333333333642,
+      "payload": {
+        "seq": 30,
+        "source": "source-1"
+      },
+      "sequence": 374,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0030",
+      "occurredAt": 174.3500000000309,
+      "sequence": 375,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 174.7500000000312,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 376,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "stacker-a",
+      "occurredAt": 175.56666666669852,
+      "payload": {
+        "column": 0,
+        "height": 1.35,
+        "lap": 12,
+        "level": 1,
+        "pallet": "pack-a-pallet-0009",
+        "seq": 9,
+        "side": "near",
+        "slot": "0:0:0"
+      },
+      "sequence": 377,
+      "type": "asrs:store"
+    },
+    {
+      "entityId": "labeler-a",
+      "occurredAt": 175.5833333333652,
+      "payload": {
+        "cargo": "pack-a-pallet-0013"
+      },
+      "sequence": 378,
+      "type": "label:applied"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 175.750000000032,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 379,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "transfer-1",
+      "occurredAt": 177.03333333336636,
+      "payload": {
+        "height": 0.13,
+        "lift": 1,
+        "parcelId": "divert-cargo-1"
+      },
+      "sequence": 380,
+      "type": "transfer:divert"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 177.51666666670008,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 381,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 177.51666666670008,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 382,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 177.8166666667003,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 383,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 178.51666666670087,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 384,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 180.28333333336894,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 385,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0031",
+      "occurredAt": 180.33333333336898,
+      "payload": {
+        "seq": 31,
+        "source": "source-1"
+      },
+      "sequence": 386,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0031",
+      "occurredAt": 180.35000000003566,
+      "sequence": 387,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 180.75000000003598,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 388,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "pack-a",
+      "occurredAt": 180.9000000000361,
+      "payload": {
+        "carrier": "stacker-a",
+        "count": 2,
+        "inputs": "source-1-goods-0027,source-1-goods-0028",
+        "pallet": "pack-a-pallet-0014",
+        "seq": 14
+      },
+      "sequence": 389,
+      "type": "goods:packed"
+    },
+    {
+      "entityId": "pack-a",
+      "occurredAt": 180.91666666670278,
+      "payload": {
+        "held": 0,
+        "status": "idle"
+      },
+      "sequence": 390,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 181.63333333337002,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 391,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 181.75000000003678,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 392,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 183.51666666670485,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 393,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 183.8166666667051,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 394,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 184.10000000003865,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 395,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 184.51666666670565,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 396,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 186.28333333337372,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 397,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0032",
+      "occurredAt": 186.33333333337376,
+      "payload": {
+        "seq": 32,
+        "source": "source-1"
+      },
+      "sequence": 398,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0032",
+      "occurredAt": 186.35000000004044,
+      "sequence": 399,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 186.75000000004076,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 400,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 187.050000000041,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 401,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "labeler-a",
+      "occurredAt": 187.58333333337475,
+      "payload": {
+        "cargo": "pack-a-pallet-0014"
+      },
+      "sequence": 402,
+      "type": "label:applied"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 187.75000000004155,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 403,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "transfer-merge-1",
+      "occurredAt": 188.2166666667086,
+      "payload": {
+        "height": 0.13,
+        "lift": 1,
+        "parcelId": "divert-cargo-1"
+      },
+      "sequence": 404,
+      "type": "transfer:divert"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 189.51666666670963,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 405,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 189.51666666670963,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 406,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "stacker-a",
+      "occurredAt": 189.56666666670966,
+      "payload": {
+        "column": 0,
+        "dwell": 126.00000000004533,
+        "height": 2.5,
+        "lap": 13,
+        "level": 2,
+        "pallet": "pack-a-pallet-0002",
+        "seq": 2,
+        "side": "near",
+        "slot": "0:1:0"
+      },
+      "sequence": 407,
+      "type": "asrs:retrieve"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 189.81666666670986,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 408,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 190.51666666671042,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 409,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 191.08333333337754,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 410,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "divert-cargo-1",
+      "occurredAt": 191.16666666671094,
+      "sequence": 411,
+      "type": "parcel:exit"
+    },
+    {
+      "entityId": "divert-cargo-1",
+      "occurredAt": 191.16666666671094,
+      "sequence": 412,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 192.2833333333785,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 413,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0033",
+      "occurredAt": 192.33333333337853,
+      "payload": {
+        "seq": 33,
+        "source": "source-1"
+      },
+      "sequence": 414,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0033",
+      "occurredAt": 192.3500000000452,
+      "sequence": 415,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 192.75000000004553,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 416,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "pack-a",
+      "occurredAt": 192.90000000004565,
+      "payload": {
+        "carrier": "stacker-a",
+        "count": 2,
+        "inputs": "source-1-goods-0029,source-1-goods-0030",
+        "pallet": "pack-a-pallet-0015",
+        "seq": 15
+      },
+      "sequence": 417,
+      "type": "goods:packed"
+    },
+    {
+      "entityId": "pack-a",
+      "occurredAt": 192.91666666671233,
+      "payload": {
+        "reason": "queue-full",
+        "status": "idle"
+      },
+      "sequence": 418,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 193.55000000004617,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 419,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 193.75000000004633,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 420,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "transfer-1",
+      "occurredAt": 194.41666666671352,
+      "payload": {
+        "height": 0.13,
+        "lift": 1,
+        "parcelId": "divert-cargo-1"
+      },
+      "sequence": 421,
+      "type": "transfer:divert"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 195.5166666667144,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 422,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 195.81666666671464,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 423,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 196.5166666667152,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 424,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 198.28333333338327,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 425,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0034",
+      "occurredAt": 198.3333333333833,
+      "payload": {
+        "seq": 34,
+        "source": "source-1"
+      },
+      "sequence": 426,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0034",
+      "occurredAt": 198.35000000005,
+      "sequence": 427,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 198.7500000000503,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 428,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 199.01666666671719,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 429,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "truck-a",
+      "occurredAt": 199.5000000000509,
+      "payload": {
+        "cargo": "pack-a-pallet-0002",
+        "load": 2
+      },
+      "sequence": 430,
+      "type": "goods:shipped"
+    },
+    {
+      "entityId": "labeler-a",
+      "occurredAt": 199.5833333333843,
+      "payload": {
+        "cargo": "pack-a-pallet-0015"
+      },
+      "sequence": 431,
+      "type": "label:applied"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 199.7500000000511,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 432,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 201.51666666671917,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 433,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 201.51666666671917,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 434,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 201.8166666667194,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 435,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 202.51666666671997,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 436,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "stacker-a",
+      "occurredAt": 203.5666666667208,
+      "payload": {
+        "column": 0,
+        "height": 2.5,
+        "lap": 14,
+        "level": 2,
+        "pallet": "pack-a-pallet-0010",
+        "seq": 10,
+        "side": "near",
+        "slot": "0:1:0"
+      },
+      "sequence": 437,
+      "type": "asrs:store"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 204.28333333338804,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 438,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0035",
+      "occurredAt": 204.33333333338808,
+      "payload": {
+        "seq": 35,
+        "source": "source-1"
+      },
+      "sequence": 439,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0035",
+      "occurredAt": 204.35000000005476,
+      "sequence": 440,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 204.75000000005508,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 441,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "pack-a",
+      "occurredAt": 204.9000000000552,
+      "payload": {
+        "carrier": "stacker-a",
+        "count": 2,
+        "inputs": "source-1-goods-0031,source-1-goods-0032",
+        "pallet": "pack-a-pallet-0016",
+        "seq": 16
+      },
+      "sequence": 442,
+      "type": "goods:packed"
+    },
+    {
+      "entityId": "pack-a",
+      "occurredAt": 204.91666666672188,
+      "payload": {
+        "reason": "queue-full",
+        "status": "idle"
+      },
+      "sequence": 443,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "transfer-merge-1",
+      "occurredAt": 205.60000000005576,
+      "payload": {
+        "height": 0.13,
+        "lift": 1,
+        "parcelId": "divert-cargo-1"
+      },
+      "sequence": 444,
+      "type": "transfer:divert"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 205.75000000005588,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 445,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 207.51666666672395,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 446,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 207.8166666667242,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 447,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 208.4666666667247,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 448,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 208.51666666672475,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 449,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "divert-cargo-1",
+      "occurredAt": 208.5500000000581,
+      "sequence": 450,
+      "type": "parcel:exit"
+    },
+    {
+      "entityId": "divert-cargo-1",
+      "occurredAt": 208.5500000000581,
+      "sequence": 451,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 210.28333333339282,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 452,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0036",
+      "occurredAt": 210.33333333339286,
+      "payload": {
+        "seq": 36,
+        "source": "source-1"
+      },
+      "sequence": 453,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0036",
+      "occurredAt": 210.35000000005954,
+      "sequence": 454,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 210.75000000005986,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 455,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 210.93333333339334,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 456,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 211.0500000000601,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 457,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "labeler-a",
+      "occurredAt": 211.58333333339385,
+      "payload": {
+        "cargo": "pack-a-pallet-0016"
+      },
+      "sequence": 458,
+      "type": "label:applied"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 211.75000000006065,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 459,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "transfer-1",
+      "occurredAt": 211.783333333394,
+      "payload": {
+        "height": 0.13,
+        "lift": 1,
+        "parcelId": "divert-cargo-1"
+      },
+      "sequence": 460,
+      "type": "transfer:divert"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 213.51666666672872,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 461,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 213.51666666672872,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 462,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 213.81666666672896,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 463,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 214.51666666672952,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 464,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 216.2833333333976,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 465,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0037",
+      "occurredAt": 216.33333333339763,
+      "payload": {
+        "seq": 37,
+        "source": "source-1"
+      },
+      "sequence": 466,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0037",
+      "occurredAt": 216.3500000000643,
+      "sequence": 467,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 216.38333333339767,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 468,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 216.75000000006463,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 469,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "stacker-a",
+      "occurredAt": 217.56666666673195,
+      "payload": {
+        "column": 0,
+        "dwell": 140.00000000006838,
+        "height": 3.65,
+        "lap": 15,
+        "level": 3,
+        "pallet": "pack-a-pallet-0003",
+        "seq": 3,
+        "side": "near",
+        "slot": "0:2:0"
+      },
+      "sequence": 470,
+      "type": "asrs:retrieve"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 217.75000000006543,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 471,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 219.5166666667335,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 472,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 219.5166666667335,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 473,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 219.81666666673374,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 474,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 220.5166666667343,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 475,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 222.28333333340237,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 476,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0038",
+      "occurredAt": 222.3333333334024,
+      "payload": {
+        "seq": 38,
+        "source": "source-1"
+      },
+      "sequence": 477,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0038",
+      "occurredAt": 222.3500000000691,
+      "sequence": 478,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 222.7500000000694,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 479,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "transfer-merge-1",
+      "occurredAt": 222.96666666673624,
+      "payload": {
+        "height": 0.13,
+        "lift": 1,
+        "parcelId": "divert-cargo-1"
+      },
+      "sequence": 480,
+      "type": "transfer:divert"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 223.05000000006964,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 481,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "pack-b",
+      "occurredAt": 223.05000000006964,
+      "payload": {
+        "carrier": "stacker-b",
+        "count": 2,
+        "inputs": "source-1-goods-0033,source-1-goods-0034",
+        "pallet": "pack-b-pallet-0001",
+        "seq": 1
+      },
+      "sequence": 482,
+      "type": "goods:packed"
+    },
+    {
+      "entityId": "pack-b",
+      "occurredAt": 223.06666666673632,
+      "payload": {
+        "held": 0,
+        "status": "idle"
+      },
+      "sequence": 483,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 223.7500000000702,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 484,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 225.51666666673827,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 485,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 225.51666666673827,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 486,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 225.8166666667385,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 487,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 225.85000000007187,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 488,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "divert-cargo-1",
+      "occurredAt": 225.9166666667386,
+      "sequence": 489,
+      "type": "parcel:exit"
+    },
+    {
+      "entityId": "divert-cargo-1",
+      "occurredAt": 225.9166666667386,
+      "sequence": 490,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 226.51666666673907,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 491,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "truck-a",
+      "occurredAt": 227.5000000000732,
+      "payload": {
+        "cargo": "pack-a-pallet-0003",
+        "load": 3
+      },
+      "sequence": 492,
+      "type": "goods:shipped"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 228.28333333340714,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 493,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 228.30000000007382,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 494,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0039",
+      "occurredAt": 228.33333333340718,
+      "payload": {
+        "seq": 39,
+        "source": "source-1"
+      },
+      "sequence": 495,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0039",
+      "occurredAt": 228.35000000007386,
+      "sequence": 496,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 228.75000000007418,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 497,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "pack-a",
+      "occurredAt": 228.9000000000743,
+      "payload": {
+        "carrier": "stacker-a",
+        "count": 2,
+        "inputs": "source-1-goods-0035,source-1-goods-0036",
+        "pallet": "pack-a-pallet-0017",
+        "seq": 17
+      },
+      "sequence": 498,
+      "type": "goods:packed"
+    },
+    {
+      "entityId": "pack-a",
+      "occurredAt": 228.91666666674098,
+      "payload": {
+        "reason": "queue-full",
+        "status": "idle"
+      },
+      "sequence": 499,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "transfer-1",
+      "occurredAt": 229.16666666674118,
+      "payload": {
+        "height": 0.13,
+        "lift": 1,
+        "parcelId": "divert-cargo-1"
+      },
+      "sequence": 500,
+      "type": "transfer:divert"
+    },
+    {
+      "entityId": "labeler-b",
+      "occurredAt": 229.7333333334083,
+      "payload": {
+        "cargo": "pack-b-pallet-0001"
+      },
+      "sequence": 501,
+      "type": "label:applied"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 229.75000000007498,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 502,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 231.51666666674305,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 503,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "stacker-a",
+      "occurredAt": 231.5666666667431,
+      "payload": {
+        "column": 0,
+        "height": 3.65,
+        "lap": 16,
+        "level": 3,
+        "pallet": "pack-a-pallet-0011",
+        "seq": 11,
+        "side": "near",
+        "slot": "0:2:0"
+      },
+      "sequence": 504,
+      "type": "asrs:store"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 231.8166666667433,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 505,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 232.51666666674384,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 506,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 233.76666666674484,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 507,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 234.28333333341192,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 508,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0040",
+      "occurredAt": 234.33333333341196,
+      "payload": {
+        "seq": 40,
+        "source": "source-1"
+      },
+      "sequence": 509,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0040",
+      "occurredAt": 234.35000000007864,
+      "sequence": 510,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 234.75000000007896,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 511,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "labeler-a",
+      "occurredAt": 235.58333333341295,
+      "payload": {
+        "cargo": "pack-a-pallet-0017"
+      },
+      "sequence": 512,
+      "type": "label:applied"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 235.75000000007975,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 513,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 237.51666666674782,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 514,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 237.51666666674782,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 515,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 237.81666666674806,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 516,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 238.51666666674862,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 517,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 240.2833333334167,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 518,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0041",
+      "occurredAt": 240.33333333341673,
+      "payload": {
+        "seq": 41,
+        "source": "source-1"
+      },
+      "sequence": 519,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0041",
+      "occurredAt": 240.3500000000834,
+      "sequence": 520,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "transfer-merge-1",
+      "occurredAt": 240.3500000000834,
+      "payload": {
+        "height": 0.13,
+        "lift": 1,
+        "parcelId": "divert-cargo-1"
+      },
+      "sequence": 521,
+      "type": "transfer:divert"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 240.75000000008373,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 522,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 241.05000000008397,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 523,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 241.75000000008453,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 524,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "divert-cargo-1",
+      "occurredAt": 243.30000000008576,
+      "sequence": 525,
+      "type": "parcel:exit"
+    },
+    {
+      "entityId": "divert-cargo-1",
+      "occurredAt": 243.30000000008576,
+      "sequence": 526,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 243.5166666667526,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 527,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 243.81666666675284,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 528,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 244.5166666667534,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 529,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "stacker-a",
+      "occurredAt": 245.56666666675423,
+      "payload": {
+        "column": 0,
+        "dwell": 154.00000000009146,
+        "height": 1.35,
+        "lap": 17,
+        "level": 1,
+        "pallet": "pack-a-pallet-0004",
+        "seq": 4,
+        "side": "far",
+        "slot": "1:0:0"
+      },
+      "sequence": 530,
+      "type": "asrs:retrieve"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 245.683333333421,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 531,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 246.28333333342147,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 532,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0042",
+      "occurredAt": 246.3333333334215,
+      "payload": {
+        "seq": 42,
+        "source": "source-1"
+      },
+      "sequence": 533,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0042",
+      "occurredAt": 246.3500000000882,
+      "sequence": 534,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "transfer-1",
+      "occurredAt": 246.53333333342167,
+      "payload": {
+        "height": 0.13,
+        "lift": 1,
+        "parcelId": "divert-cargo-1"
+      },
+      "sequence": 535,
+      "type": "transfer:divert"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 246.7500000000885,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 536,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 247.05000000008874,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 537,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "pack-b",
+      "occurredAt": 247.05000000008874,
+      "payload": {
+        "carrier": "stacker-b",
+        "count": 2,
+        "inputs": "source-1-goods-0037,source-1-goods-0038",
+        "pallet": "pack-b-pallet-0002",
+        "seq": 2
+      },
+      "sequence": 538,
+      "type": "goods:packed"
+    },
+    {
+      "entityId": "pack-b",
+      "occurredAt": 247.06666666675542,
+      "payload": {
+        "held": 0,
+        "status": "idle"
+      },
+      "sequence": 539,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 247.7500000000893,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 540,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 249.51666666675737,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 541,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 249.51666666675737,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 542,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 249.8166666667576,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 543,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "stacker-b",
+      "occurredAt": 250.1500000000912,
+      "payload": {
+        "column": 0,
+        "height": 1.35,
+        "lap": 15,
+        "level": 1,
+        "pallet": "pack-b-pallet-0001",
+        "seq": 1,
+        "side": "near",
+        "slot": "0:0:0"
+      },
+      "sequence": 544,
+      "type": "asrs:store"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 250.51666666675817,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 545,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 251.13333333342533,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 546,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 252.28333333342624,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 547,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0043",
+      "occurredAt": 252.33333333342628,
+      "payload": {
+        "seq": 43,
+        "source": "source-1"
+      },
+      "sequence": 548,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0043",
+      "occurredAt": 252.35000000009296,
+      "sequence": 549,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 252.75000000009328,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 550,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "labeler-b",
+      "occurredAt": 253.7333333334274,
+      "payload": {
+        "cargo": "pack-b-pallet-0002"
+      },
+      "sequence": 551,
+      "type": "label:applied"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 253.75000000009408,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 552,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "truck-a",
+      "occurredAt": 255.50000000009547,
+      "payload": {
+        "cargo": "pack-a-pallet-0004",
+        "load": 4
+      },
+      "sequence": 553,
+      "type": "goods:shipped"
+    },
+    {
+      "entityId": "truck-a",
+      "occurredAt": 255.50000000009547,
+      "payload": {
+        "load": 4
+      },
+      "sequence": 554,
+      "type": "truck:departed"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 255.51666666676215,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 555,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 255.51666666676215,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 556,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 255.8166666667624,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 557,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 256.51666666676203,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 558,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "transfer-merge-1",
+      "occurredAt": 257.7333333334276,
+      "payload": {
+        "height": 0.13,
+        "lift": 1,
+        "parcelId": "divert-cargo-1"
+      },
+      "sequence": 559,
+      "type": "transfer:divert"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 258.2833333334271,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 560,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0044",
+      "occurredAt": 258.33333333342705,
+      "payload": {
+        "seq": 44,
+        "source": "source-1"
+      },
+      "sequence": 561,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0044",
+      "occurredAt": 258.3500000000937,
+      "sequence": 562,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 258.75000000009334,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 563,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "pack-a",
+      "occurredAt": 258.9000000000932,
+      "payload": {
+        "carrier": "stacker-a",
+        "count": 2,
+        "inputs": "source-1-goods-0040,source-1-goods-0041",
+        "pallet": "pack-a-pallet-0018",
+        "seq": 18
+      },
+      "sequence": 564,
+      "type": "goods:packed"
+    },
+    {
+      "entityId": "pack-a",
+      "occurredAt": 258.91666666675985,
+      "payload": {
+        "reason": "queue-full",
+        "status": "idle"
+      },
+      "sequence": 565,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "stacker-a",
+      "occurredAt": 259.56666666675926,
+      "payload": {
+        "column": 0,
+        "height": 1.35,
+        "lap": 18,
+        "level": 1,
+        "pallet": "pack-a-pallet-0012",
+        "seq": 12,
+        "side": "far",
+        "slot": "1:0:0"
+      },
+      "sequence": 566,
+      "type": "asrs:store"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 259.7500000000924,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 567,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 260.60000000009165,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 568,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "divert-cargo-1",
+      "occurredAt": 260.6833333334249,
+      "sequence": 569,
+      "type": "parcel:exit"
+    },
+    {
+      "entityId": "divert-cargo-1",
+      "occurredAt": 260.6833333334249,
+      "sequence": 570,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 261.5166666667575,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 571,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 261.8166666667572,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 572,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 262.5166666667566,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 573,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 263.0666666667561,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 574,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "transfer-1",
+      "occurredAt": 263.9166666667553,
+      "payload": {
+        "height": 0.13,
+        "lift": 1,
+        "parcelId": "divert-cargo-1"
+      },
+      "sequence": 575,
+      "type": "transfer:divert"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 264.28333333342164,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 576,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0045",
+      "occurredAt": 264.35000000008824,
+      "payload": {
+        "seq": 45,
+        "source": "source-1"
+      },
+      "sequence": 577,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0045",
+      "occurredAt": 264.3666666667549,
+      "sequence": 578,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 264.7500000000879,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 579,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 265.0500000000876,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 580,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "labeler-a",
+      "occurredAt": 265.58333333342046,
+      "payload": {
+        "cargo": "pack-a-pallet-0018"
+      },
+      "sequence": 581,
+      "type": "label:applied"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 265.75000000008697,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 582,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "stacker-b",
+      "occurredAt": 266.65000000008615,
+      "payload": {
+        "column": 0,
+        "height": 2.5,
+        "lap": 16,
+        "level": 2,
+        "pallet": "pack-b-pallet-0002",
+        "seq": 2,
+        "side": "near",
+        "slot": "0:1:0"
+      },
+      "sequence": 583,
+      "type": "asrs:store"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 267.51666666675203,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 584,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 267.51666666675203,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 585,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 267.81666666675176,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 586,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 268.5166666667511,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 587,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 268.5166666667511,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 588,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 270.2833333334162,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 589,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0046",
+      "occurredAt": 270.36666666674944,
+      "payload": {
+        "seq": 46,
+        "source": "source-1"
+      },
+      "sequence": 590,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0046",
+      "occurredAt": 270.3833333334161,
+      "sequence": 591,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 270.7500000000824,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 592,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 270.98333333341554,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 593,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 271.05000000008215,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 594,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "pack-b",
+      "occurredAt": 271.05000000008215,
+      "payload": {
+        "carrier": "stacker-b",
+        "count": 2,
+        "inputs": "source-1-goods-0039,source-1-goods-0042",
+        "pallet": "pack-b-pallet-0003",
+        "seq": 3
+      },
+      "sequence": 595,
+      "type": "goods:packed"
+    },
+    {
+      "entityId": "pack-b",
+      "occurredAt": 271.0666666667488,
+      "payload": {
+        "held": 0,
+        "status": "idle"
+      },
+      "sequence": 596,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 271.76666666674816,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 597,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 273.5166666667466,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 598,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 273.5166666667466,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 599,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "stacker-a",
+      "occurredAt": 273.5666666667465,
+      "payload": {
+        "column": 0,
+        "dwell": 168.00000000008458,
+        "height": 2.5,
+        "lap": 19,
+        "level": 2,
+        "pallet": "pack-a-pallet-0005",
+        "seq": 5,
+        "side": "far",
+        "slot": "1:1:0"
+      },
+      "sequence": 600,
+      "type": "asrs:retrieve"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 273.83333333341295,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 601,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 274.5333333334123,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 602,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "transfer-merge-1",
+      "occurredAt": 275.10000000007847,
+      "payload": {
+        "height": 0.13,
+        "lift": 1,
+        "parcelId": "divert-cargo-1"
+      },
+      "sequence": 603,
+      "type": "transfer:divert"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 276.3000000000774,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 604,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0047",
+      "occurredAt": 276.38333333341063,
+      "payload": {
+        "seq": 47,
+        "source": "source-1"
+      },
+      "sequence": 605,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0047",
+      "occurredAt": 276.4000000000773,
+      "sequence": 606,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 276.7666666667436,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 607,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 277.0500000000767,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 608,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "labeler-b",
+      "occurredAt": 277.7333333334094,
+      "payload": {
+        "cargo": "pack-b-pallet-0003"
+      },
+      "sequence": 609,
+      "type": "label:applied"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 277.78333333340936,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 610,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "divert-cargo-1",
+      "occurredAt": 278.0500000000758,
+      "sequence": 611,
+      "type": "parcel:exit"
+    },
+    {
+      "entityId": "divert-cargo-1",
+      "occurredAt": 278.0500000000758,
+      "sequence": 612,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 279.53333333340777,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 613,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 279.85000000007415,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 614,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 280.43333333340695,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 615,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 280.5500000000735,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 616,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "transfer-1",
+      "occurredAt": 281.3000000000728,
+      "payload": {
+        "height": 0.13,
+        "lift": 1,
+        "parcelId": "divert-cargo-1"
+      },
+      "sequence": 617,
+      "type": "transfer:divert"
+    },
+    {
+      "entityId": "truck-a",
+      "occurredAt": 282.18333333340536,
+      "sequence": 618,
+      "type": "truck:arrived"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 282.31666666673857,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 619,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0048",
+      "occurredAt": 282.4000000000718,
+      "payload": {
+        "seq": 48,
+        "source": "source-1"
+      },
+      "sequence": 620,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0048",
+      "occurredAt": 282.4166666667385,
+      "sequence": 621,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 282.7833333334048,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 622,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "pack-b",
+      "occurredAt": 283.05000000007124,
+      "payload": {
+        "carrier": "stacker-b",
+        "count": 2,
+        "inputs": "source-1-goods-0043,source-1-goods-0044",
+        "pallet": "pack-b-pallet-0004",
+        "seq": 4
+      },
+      "sequence": 623,
+      "type": "goods:packed"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 283.0666666667379,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 624,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "pack-b",
+      "occurredAt": 283.0666666667379,
+      "payload": {
+        "held": 0,
+        "status": "idle"
+      },
+      "sequence": 625,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "stacker-b",
+      "occurredAt": 283.15000000007115,
+      "payload": {
+        "column": 0,
+        "dwell": 32.999999999979934,
+        "height": 1.35,
+        "lap": 17,
+        "level": 1,
+        "pallet": "pack-b-pallet-0001",
+        "seq": 1,
+        "side": "near",
+        "slot": "0:0:0"
+      },
+      "sequence": 626,
+      "type": "asrs:retrieve"
+    },
+    {
+      "entityId": "truck-a",
+      "occurredAt": 283.5000000000708,
+      "payload": {
+        "cargo": "pack-a-pallet-0005",
+        "load": 1
+      },
+      "sequence": 627,
+      "type": "goods:shipped"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 283.80000000007055,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 628,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 285.5333333334023,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 629,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 285.55000000006896,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 630,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 285.86666666673534,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 631,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 285.90000000006864,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 632,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 286.5666666667347,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 633,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "stacker-a",
+      "occurredAt": 287.5666666667338,
+      "payload": {
+        "column": 0,
+        "height": 2.5,
+        "lap": 20,
+        "level": 2,
+        "pallet": "pack-a-pallet-0013",
+        "seq": 13,
+        "side": "far",
+        "slot": "1:1:0"
+      },
+      "sequence": 634,
+      "type": "asrs:store"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 288.33333333339976,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 635,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 288.3500000000664,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 636,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0049",
+      "occurredAt": 288.416666666733,
+      "payload": {
+        "seq": 49,
+        "source": "source-1"
+      },
+      "sequence": 637,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0049",
+      "occurredAt": 288.4333333333997,
+      "sequence": 638,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 288.800000000066,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 639,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "pack-a",
+      "occurredAt": 288.9333333333992,
+      "payload": {
+        "carrier": "stacker-a",
+        "count": 2,
+        "inputs": "source-1-goods-0045,source-1-goods-0046",
+        "pallet": "pack-a-pallet-0019",
+        "seq": 19
+      },
+      "sequence": 640,
+      "type": "goods:packed"
+    },
+    {
+      "entityId": "pack-a",
+      "occurredAt": 288.95000000006587,
+      "payload": {
+        "reason": "queue-full",
+        "status": "idle"
+      },
+      "sequence": 641,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "labeler-b",
+      "occurredAt": 289.7333333333985,
+      "payload": {
+        "cargo": "pack-b-pallet-0004"
+      },
+      "sequence": 642,
+      "type": "label:applied"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 289.81666666673175,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 643,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 291.56666666673016,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 644,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 291.88333333339654,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 645,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "transfer-merge-1",
+      "occurredAt": 292.483333333396,
+      "payload": {
+        "height": 0.13,
+        "lift": 1,
+        "parcelId": "divert-cargo-1"
+      },
+      "sequence": 646,
+      "type": "transfer:divert"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 292.5833333333959,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 647,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "truck-b",
+      "occurredAt": 294.2333333333944,
+      "payload": {
+        "cargo": "pack-b-pallet-0001",
+        "load": 1
+      },
+      "sequence": 648,
+      "type": "goods:shipped"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 294.35000000006096,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 649,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "source-1-goods-0050",
+      "occurredAt": 294.4333333333942,
+      "payload": {
+        "seq": 50,
+        "source": "source-1"
+      },
+      "sequence": 650,
+      "type": "goods:produced"
+    },
+    {
+      "entityId": "source-1-goods-0050",
+      "occurredAt": 294.45000000006087,
+      "sequence": 651,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 294.8166666667272,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 652,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 295.1000000000603,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 653,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "divert-cargo-1",
+      "occurredAt": 295.4333333333933,
+      "sequence": 654,
+      "type": "parcel:exit"
+    },
+    {
+      "entityId": "divert-cargo-1",
+      "occurredAt": 295.4333333333933,
+      "sequence": 655,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "labeler-a",
+      "occurredAt": 295.6166666667265,
+      "payload": {
+        "cargo": "pack-a-pallet-0019"
+      },
+      "sequence": 656,
+      "type": "label:applied"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 295.83333333339294,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 657,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-02",
+      "occurredAt": 297.58333333339135,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 658,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-2",
+      "occurredAt": 297.8166666667245,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 659,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "reject-rack-1",
+      "occurredAt": 297.90000000005773,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 660,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 298.6000000000571,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 661,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "transfer-1",
+      "occurredAt": 298.6666666667237,
+      "payload": {
+        "height": 0.13,
+        "lift": 1,
+        "parcelId": "divert-cargo-1"
+      },
+      "sequence": 662,
+      "type": "transfer:divert"
+    },
+    {
+      "entityId": "stacker-b",
+      "occurredAt": 299.65000000005614,
+      "payload": {
+        "column": 0,
+        "height": 1.35,
+        "lap": 18,
+        "level": 1,
+        "pallet": "pack-b-pallet-0003",
+        "seq": 3,
+        "side": "near",
+        "slot": "0:0:0"
+      },
+      "sequence": 663,
+      "type": "asrs:store"
+    }
+  ],
+  "finalState": {
+    "entities": [
+      {
+        "attrs": {},
+        "dataSource": "sim",
+        "id": "belt-join-main",
+        "kind": "transport",
+        "transform": {
+          "position": [
+            -12,
+            0.6,
+            2.3
+          ]
+        }
+      },
+      {
+        "attrs": {},
+        "dataSource": "sim",
+        "id": "sorter-1",
+        "kind": "transport",
+        "transform": {
+          "position": [
+            2.5,
+            0.6,
+            0
+          ]
+        }
+      },
+      {
+        "attrs": {},
+        "dataSource": "sim",
+        "id": "belt-io-a-join",
+        "kind": "transport",
+        "transform": {
+          "position": [
+            6.800000000000001,
+            0.6,
+            0
+          ]
+        }
+      },
+      {
+        "attrs": {},
+        "dataSource": "sim",
+        "id": "belt-io-b-join",
+        "kind": "transport",
+        "transform": {
+          "position": [
+            14.8,
+            0.6,
+            0
+          ]
+        }
+      },
+      {
+        "attrs": {},
+        "dataSource": "sim",
+        "id": "belt-outfeed-turn-back",
+        "kind": "transport",
+        "transform": {
+          "position": [
+            16.8,
+            0.6,
+            0
+          ]
+        }
+      },
+      {
+        "attrs": {},
+        "dataSource": "sim",
+        "id": "belt-back-turn-left",
+        "kind": "transport",
+        "transform": {
+          "position": [
+            -2,
+            0.6,
+            -6
+          ]
+        }
+      },
+      {
+        "attrs": {},
+        "dataSource": "sim",
+        "id": "belt-main-link-1",
+        "kind": "transport",
+        "transform": {
+          "position": [
+            9,
+            0.6,
+            0
+          ]
+        }
+      },
+      {
+        "attrs": {},
+        "dataSource": "sim",
+        "id": "belt-main-link-2",
+        "kind": "transport",
+        "transform": {
+          "position": [
+            11,
+            0.6,
+            0
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "nextAt": 300.4333333333942,
+          "produced": 50
+        },
+        "dataSource": "sim",
+        "id": "source-1",
+        "kind": "source",
+        "transform": {
+          "position": [
+            -17.6,
+            0,
+            1.5
+          ]
+        }
+      },
+      {
+        "attrs": {},
+        "dataSource": "sim",
+        "id": "belt-branch",
+        "kind": "transport",
+        "transform": {
+          "position": [
+            10,
+            0.6,
+            -0.7
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "__armed": false,
+          "__job": "divert-cargo-1",
+          "__jobSign": -1,
+          "__lift": 1
+        },
+        "dataSource": "sim",
+        "id": "transfer-1",
+        "kind": "transfer",
+        "status": "busy",
+        "transform": {
+          "position": [
+            10,
+            0.6,
+            0
+          ]
+        }
+      },
+      {
+        "attrs": {},
+        "dataSource": "sim",
+        "id": "transfer-1-cassette",
+        "kind": "cassette",
+        "transform": {
+          "position": [
+            10,
+            0.73,
+            0
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "__cum": 389.97833333329345,
+          "__init": 1,
+          "__raw": 5.974504222207173
+        },
+        "dataSource": "sim",
+        "id": "divert-cargo-1",
+        "kind": "parcel",
+        "motionDistance": 5.974504222207173,
+        "transform": {
+          "position": [
+            10,
+            1.33,
+            -0.6070704607686159
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "__armed": true,
+          "__job": "",
+          "__jobSign": 1,
+          "__lift": 0
+        },
+        "dataSource": "sim",
+        "id": "transfer-merge-1",
+        "kind": "transfer",
+        "status": "idle",
+        "transform": {
+          "position": [
+            1,
+            0.6,
+            0
+          ]
+        }
+      },
+      {
+        "attrs": {},
+        "dataSource": "sim",
+        "id": "transfer-merge-1-cassette",
+        "kind": "cassette",
+        "transform": {
+          "position": [
+            1,
+            0.6,
+            0
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "__status": "idle"
+        },
+        "dataSource": "sim",
+        "id": "scan-01",
+        "kind": "inspect",
+        "transform": {
+          "position": [
+            -8.5,
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "__status": "idle"
+        },
+        "dataSource": "sim",
+        "id": "scan-02",
+        "kind": "inspect",
+        "transform": {
+          "position": [
+            -2,
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "__fill": 0,
+          "__status": "busy",
+          "fill": 0
+        },
+        "dataSource": "sim",
+        "id": "reject-rack-1",
+        "kind": "buffer",
+        "transform": {
+          "position": [
+            -6,
+            1,
+            -4.3
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "__fill": 0,
+          "__status": "idle",
+          "fill": 0
+        },
+        "dataSource": "sim",
+        "id": "reject-rack-2",
+        "kind": "buffer",
+        "transform": {
+          "position": [
+            6,
+            1,
+            -4.3
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "capacity": 15,
+          "used": 5
+        },
+        "dataSource": "sim",
+        "id": "rack-a1",
+        "kind": "asrs",
+        "transform": {
+          "position": [
+            6,
+            2.25,
+            10.5
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "capacity": 15,
+          "used": 3
+        },
+        "dataSource": "sim",
+        "id": "rack-a2",
+        "kind": "asrs",
+        "transform": {
+          "position": [
+            10,
+            2.25,
+            10.5
+          ]
+        }
+      },
+      {
+        "attrs": {},
+        "dataSource": "sim",
+        "id": "belt-io-a-station",
+        "kind": "transport",
+        "transform": {
+          "position": [
+            4,
+            0.6,
+            3.3
+          ]
+        }
+      },
+      {
+        "attrs": {},
+        "dataSource": "sim",
+        "id": "transfer-io-8-4",
+        "kind": "transfer",
+        "transform": {
+          "position": [
+            4,
+            0.6,
+            0
+          ]
+        }
+      },
+      {
+        "attrs": {},
+        "dataSource": "sim",
+        "id": "transfer-io-8-4-cassette",
+        "kind": "cassette",
+        "transform": {
+          "position": [
+            4,
+            0.6,
+            0
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "packed": 19
+        },
+        "dataSource": "sim",
+        "id": "pack-a",
+        "kind": "pack",
+        "status": "idle",
+        "transform": {
+          "position": [
+            6,
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "attrs": {},
+        "dataSource": "sim",
+        "id": "belt-pack-out-a",
+        "kind": "transport",
+        "transform": {
+          "position": [
+            6,
+            0.6,
+            1.4
+          ]
+        }
+      },
+      {
+        "attrs": {},
+        "dataSource": "sim",
+        "id": "labeler-a",
+        "kind": "labeler",
+        "transform": {
+          "position": [
+            6,
+            0,
+            3.6
+          ]
+        }
+      },
+      {
+        "attrs": {},
+        "dataSource": "sim",
+        "id": "dock-a",
+        "kind": "transport",
+        "transform": {
+          "position": [
+            11.4,
+            0.6,
+            16
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "__lap": 21,
+          "__order": 19,
+          "__outOrder": 5,
+          "__pickLap": 19,
+          "__seq": 13,
+          "__storeLap": 20,
+          "__task": "retrieve",
+          "__taskPallet": "pack-a-pallet-0006",
+          "__taskSlot": "1:2:0",
+          "nextOut": "pack-a-pallet-0006",
+          "queueFree": 0,
+          "stock": 8,
+          "task": "retrieve"
+        },
+        "dataSource": "sim",
+        "id": "stacker-a",
+        "kind": "stacker",
+        "transform": {
+          "position": [
+            8,
+            0,
+            6.4
+          ]
+        }
+      },
+      {
+        "attrs": {},
+        "dataSource": "sim",
+        "id": "stacker-a-carriage",
+        "kind": "carriage",
+        "transform": {
+          "position": [
+            8,
+            3.6500000000000004,
+            6.4
+          ]
+        }
+      },
+      {
+        "attrs": {},
+        "dataSource": "sim",
+        "id": "stacker-a-fork",
+        "kind": "fork",
+        "transform": {
+          "position": [
+            8,
+            3.6500000000000004,
+            6.4
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "load": 1,
+          "since": 283.5000000000708,
+          "tpos": 0,
+          "truckState": "docked"
+        },
+        "dataSource": "sim",
+        "id": "truck-a",
+        "kind": "truck",
+        "transform": {
+          "position": [
+            13.2,
+            0,
+            20
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "capacity": 15,
+          "used": 2
+        },
+        "dataSource": "sim",
+        "id": "rack-b1",
+        "kind": "asrs",
+        "transform": {
+          "position": [
+            14,
+            2.25,
+            10.5
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "capacity": 15,
+          "used": 0
+        },
+        "dataSource": "sim",
+        "id": "rack-b2",
+        "kind": "asrs",
+        "transform": {
+          "position": [
+            18,
+            2.25,
+            10.5
+          ]
+        }
+      },
+      {
+        "attrs": {},
+        "dataSource": "sim",
+        "id": "belt-io-b-station",
+        "kind": "transport",
+        "transform": {
+          "position": [
+            12,
+            0.6,
+            3.3
+          ]
+        }
+      },
+      {
+        "attrs": {},
+        "dataSource": "sim",
+        "id": "transfer-io-16-4",
+        "kind": "transfer",
+        "transform": {
+          "position": [
+            12,
+            0.6,
+            0
+          ]
+        }
+      },
+      {
+        "attrs": {},
+        "dataSource": "sim",
+        "id": "transfer-io-16-4-cassette",
+        "kind": "cassette",
+        "transform": {
+          "position": [
+            12,
+            0.6,
+            0
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "packed": 4
+        },
+        "dataSource": "sim",
+        "id": "pack-b",
+        "kind": "pack",
+        "status": "idle",
+        "transform": {
+          "position": [
+            14,
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "attrs": {},
+        "dataSource": "sim",
+        "id": "belt-pack-out-b",
+        "kind": "transport",
+        "transform": {
+          "position": [
+            14,
+            0.6,
+            1.4
+          ]
+        }
+      },
+      {
+        "attrs": {},
+        "dataSource": "sim",
+        "id": "labeler-b",
+        "kind": "labeler",
+        "transform": {
+          "position": [
+            14,
+            0,
+            3.6
+          ]
+        }
+      },
+      {
+        "attrs": {},
+        "dataSource": "sim",
+        "id": "dock-b",
+        "kind": "transport",
+        "transform": {
+          "position": [
+            19.400000000000002,
+            0.6,
+            16
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "__lap": 18,
+          "__order": 4,
+          "__outOrder": 1,
+          "__pickLap": 17,
+          "__seq": 3,
+          "__storeLap": 18,
+          "__task": "store",
+          "__taskPallet": "pack-b-pallet-0003",
+          "__taskSlot": "0:0:0",
+          "nextOut": "pack-b-pallet-0002",
+          "queueFree": 5,
+          "stock": 2,
+          "task": "store"
+        },
+        "dataSource": "sim",
+        "id": "stacker-b",
+        "kind": "stacker",
+        "transform": {
+          "position": [
+            16,
+            0,
+            6.4
+          ]
+        }
+      },
+      {
+        "attrs": {},
+        "dataSource": "sim",
+        "id": "stacker-b-carriage",
+        "kind": "carriage",
+        "transform": {
+          "position": [
+            16,
+            1.35,
+            6.4
+          ]
+        }
+      },
+      {
+        "attrs": {},
+        "dataSource": "sim",
+        "id": "stacker-b-fork",
+        "kind": "fork",
+        "transform": {
+          "position": [
+            14.502289162292449,
+            1.35,
+            6.4
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "load": 1,
+          "since": 294.2333333333944,
+          "tpos": 0,
+          "truckState": "docked"
+        },
+        "dataSource": "sim",
+        "id": "truck-b",
+        "kind": "truck",
+        "transform": {
+          "position": [
+            21.200000000000003,
+            0,
+            20
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "__qrank": 0,
+          "born": 84.73333333332981,
+          "inpos": 8.5,
+          "inputs": "source-1-goods-0011,source-1-goods-0012",
+          "labelBy": "labeler-a",
+          "labeled": true,
+          "order": 5,
+          "qpos": 0,
+          "seq": 6,
+          "slot": "1:2:0",
+          "state": "stored",
+          "storedAt": 119.56666666666116
+        },
+        "dataSource": "sim",
+        "declaration": {
+          "attrs": {
+            "born": 84.73333333332981,
+            "inputs": "source-1-goods-0011,source-1-goods-0012",
+            "seq": 6,
+            "state": "conveying"
+          },
+          "capabilities": [
+            "pallet"
+          ],
+          "config": {
+            "carrier": "stacker-a",
+            "label": "打包站 A 托盘 #6",
+            "path": [
+              [
+                6,
+                1.2,
+                1.4
+              ],
+              [
+                8.5,
+                1.2,
+                1.4
+              ],
+              [
+                8.5,
+                1.2,
+                3.6
+              ],
+              [
+                4.7,
+                1.2,
+                3.6
+              ]
+            ],
+            "source": "pack-a",
+            "speed": 0.9
+          },
+          "id": "pack-a-pallet-0006",
+          "kind": "pallet",
+          "transform": {
+            "position": [
+              6,
+              1.2,
+              1.4
+            ]
+          },
+          "visual": {
+            "color": "#F4A261",
+            "kind": "box",
+            "size": [
+              0.8,
+              0.56,
+              1
+            ]
+          }
+        },
+        "id": "pack-a-pallet-0006",
+        "kind": "pallet",
+        "transform": {
+          "position": [
+            9.5,
+            3.9499999999999997,
+            6.4
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "__qrank": 0,
+          "born": 96.76666666666246,
+          "inpos": 8.5,
+          "inputs": "source-1-goods-0013,source-1-goods-0014",
+          "labelBy": "labeler-a",
+          "labeled": true,
+          "order": 6,
+          "qpos": 0,
+          "seq": 7,
+          "slot": "0:0:1",
+          "state": "stored",
+          "storedAt": 133.5666666666651
+        },
+        "dataSource": "sim",
+        "declaration": {
+          "attrs": {
+            "born": 96.76666666666246,
+            "inputs": "source-1-goods-0013,source-1-goods-0014",
+            "seq": 7,
+            "state": "conveying"
+          },
+          "capabilities": [
+            "pallet"
+          ],
+          "config": {
+            "carrier": "stacker-a",
+            "label": "打包站 A 托盘 #7",
+            "path": [
+              [
+                6,
+                1.2,
+                1.4
+              ],
+              [
+                8.5,
+                1.2,
+                1.4
+              ],
+              [
+                8.5,
+                1.2,
+                3.6
+              ],
+              [
+                4.7,
+                1.2,
+                3.6
+              ]
+            ],
+            "source": "pack-a",
+            "speed": 0.9
+          },
+          "id": "pack-a-pallet-0007",
+          "kind": "pallet",
+          "transform": {
+            "position": [
+              6,
+              1.2,
+              1.4
+            ]
+          },
+          "visual": {
+            "color": "#F4A261",
+            "kind": "box",
+            "size": [
+              0.8,
+              0.56,
+              1
+            ]
+          }
+        },
+        "id": "pack-a-pallet-0007",
+        "kind": "pallet",
+        "transform": {
+          "position": [
+            6.5,
+            1.6500000000000001,
+            8.45
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "__qrank": 0,
+          "born": 108.79999999999511,
+          "inpos": 8.5,
+          "inputs": "source-1-goods-0015,source-1-goods-0016",
+          "labelBy": "labeler-a",
+          "labeled": true,
+          "order": 7,
+          "qpos": 0,
+          "seq": 8,
+          "slot": "0:1:1",
+          "state": "stored",
+          "storedAt": 147.56666666667624
+        },
+        "dataSource": "sim",
+        "declaration": {
+          "attrs": {
+            "born": 108.79999999999511,
+            "inputs": "source-1-goods-0015,source-1-goods-0016",
+            "seq": 8,
+            "state": "conveying"
+          },
+          "capabilities": [
+            "pallet"
+          ],
+          "config": {
+            "carrier": "stacker-a",
+            "label": "打包站 A 托盘 #8",
+            "path": [
+              [
+                6,
+                1.2,
+                1.4
+              ],
+              [
+                8.5,
+                1.2,
+                1.4
+              ],
+              [
+                8.5,
+                1.2,
+                3.6
+              ],
+              [
+                4.7,
+                1.2,
+                3.6
+              ]
+            ],
+            "source": "pack-a",
+            "speed": 0.9
+          },
+          "id": "pack-a-pallet-0008",
+          "kind": "pallet",
+          "transform": {
+            "position": [
+              6,
+              1.2,
+              1.4
+            ]
+          },
+          "visual": {
+            "color": "#F4A261",
+            "kind": "box",
+            "size": [
+              0.8,
+              0.56,
+              1
+            ]
+          }
+        },
+        "id": "pack-a-pallet-0008",
+        "kind": "pallet",
+        "transform": {
+          "position": [
+            6.5,
+            2.8,
+            8.45
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "__qrank": 0,
+          "born": 120.83333333332776,
+          "inpos": 8.5,
+          "inputs": "source-1-goods-0017,source-1-goods-0018",
+          "labelBy": "labeler-a",
+          "labeled": true,
+          "order": 8,
+          "qpos": 0,
+          "seq": 9,
+          "slot": "0:0:0",
+          "state": "stored",
+          "storedAt": 175.56666666669852
+        },
+        "dataSource": "sim",
+        "declaration": {
+          "attrs": {
+            "born": 120.83333333332776,
+            "inputs": "source-1-goods-0017,source-1-goods-0018",
+            "seq": 9,
+            "state": "conveying"
+          },
+          "capabilities": [
+            "pallet"
+          ],
+          "config": {
+            "carrier": "stacker-a",
+            "label": "打包站 A 托盘 #9",
+            "path": [
+              [
+                6,
+                1.2,
+                1.4
+              ],
+              [
+                8.5,
+                1.2,
+                1.4
+              ],
+              [
+                8.5,
+                1.2,
+                3.6
+              ],
+              [
+                4.7,
+                1.2,
+                3.6
+              ]
+            ],
+            "source": "pack-a",
+            "speed": 0.9
+          },
+          "id": "pack-a-pallet-0009",
+          "kind": "pallet",
+          "transform": {
+            "position": [
+              6,
+              1.2,
+              1.4
+            ]
+          },
+          "visual": {
+            "color": "#F4A261",
+            "kind": "box",
+            "size": [
+              0.8,
+              0.56,
+              1
+            ]
+          }
+        },
+        "id": "pack-a-pallet-0009",
+        "kind": "pallet",
+        "transform": {
+          "position": [
+            6.5,
+            1.6500000000000001,
+            6.4
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "__qrank": 0,
+          "born": 132.86666666666454,
+          "inpos": 8.5,
+          "inputs": "source-1-goods-0019,source-1-goods-0020",
+          "labelBy": "labeler-a",
+          "labeled": true,
+          "order": 9,
+          "qpos": 0,
+          "seq": 10,
+          "slot": "0:1:0",
+          "state": "stored",
+          "storedAt": 203.5666666667208
+        },
+        "dataSource": "sim",
+        "declaration": {
+          "attrs": {
+            "born": 132.86666666666454,
+            "inputs": "source-1-goods-0019,source-1-goods-0020",
+            "seq": 10,
+            "state": "conveying"
+          },
+          "capabilities": [
+            "pallet"
+          ],
+          "config": {
+            "carrier": "stacker-a",
+            "label": "打包站 A 托盘 #10",
+            "path": [
+              [
+                6,
+                1.2,
+                1.4
+              ],
+              [
+                8.5,
+                1.2,
+                1.4
+              ],
+              [
+                8.5,
+                1.2,
+                3.6
+              ],
+              [
+                4.7,
+                1.2,
+                3.6
+              ]
+            ],
+            "source": "pack-a",
+            "speed": 0.9
+          },
+          "id": "pack-a-pallet-0010",
+          "kind": "pallet",
+          "transform": {
+            "position": [
+              6,
+              1.2,
+              1.4
+            ]
+          },
+          "visual": {
+            "color": "#F4A261",
+            "kind": "box",
+            "size": [
+              0.8,
+              0.56,
+              1
+            ]
+          }
+        },
+        "id": "pack-a-pallet-0010",
+        "kind": "pallet",
+        "transform": {
+          "position": [
+            6.5,
+            2.8,
+            6.4
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "__qrank": 0,
+          "born": 144.90000000000745,
+          "inpos": 8.5,
+          "inputs": "source-1-goods-0021,source-1-goods-0022",
+          "labelBy": "labeler-a",
+          "labeled": true,
+          "order": 10,
+          "qpos": 0,
+          "seq": 11,
+          "slot": "0:2:0",
+          "state": "stored",
+          "storedAt": 231.5666666667431
+        },
+        "dataSource": "sim",
+        "declaration": {
+          "attrs": {
+            "born": 144.90000000000745,
+            "inputs": "source-1-goods-0021,source-1-goods-0022",
+            "seq": 11,
+            "state": "conveying"
+          },
+          "capabilities": [
+            "pallet"
+          ],
+          "config": {
+            "carrier": "stacker-a",
+            "label": "打包站 A 托盘 #11",
+            "path": [
+              [
+                6,
+                1.2,
+                1.4
+              ],
+              [
+                8.5,
+                1.2,
+                1.4
+              ],
+              [
+                8.5,
+                1.2,
+                3.6
+              ],
+              [
+                4.7,
+                1.2,
+                3.6
+              ]
+            ],
+            "source": "pack-a",
+            "speed": 0.9
+          },
+          "id": "pack-a-pallet-0011",
+          "kind": "pallet",
+          "transform": {
+            "position": [
+              6,
+              1.2,
+              1.4
+            ]
+          },
+          "visual": {
+            "color": "#F4A261",
+            "kind": "box",
+            "size": [
+              0.8,
+              0.56,
+              1
+            ]
+          }
+        },
+        "id": "pack-a-pallet-0011",
+        "kind": "pallet",
+        "transform": {
+          "position": [
+            6.5,
+            3.9499999999999997,
+            6.4
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "__qrank": 0,
+          "born": 156.900000000017,
+          "inpos": 8.5,
+          "inputs": "source-1-goods-0023,source-1-goods-0024",
+          "labelBy": "labeler-a",
+          "labeled": true,
+          "order": 11,
+          "qpos": 0,
+          "seq": 12,
+          "slot": "1:0:0",
+          "state": "stored",
+          "storedAt": 259.56666666675926
+        },
+        "dataSource": "sim",
+        "declaration": {
+          "attrs": {
+            "born": 156.900000000017,
+            "inputs": "source-1-goods-0023,source-1-goods-0024",
+            "seq": 12,
+            "state": "conveying"
+          },
+          "capabilities": [
+            "pallet"
+          ],
+          "config": {
+            "carrier": "stacker-a",
+            "label": "打包站 A 托盘 #12",
+            "path": [
+              [
+                6,
+                1.2,
+                1.4
+              ],
+              [
+                8.5,
+                1.2,
+                1.4
+              ],
+              [
+                8.5,
+                1.2,
+                3.6
+              ],
+              [
+                4.7,
+                1.2,
+                3.6
+              ]
+            ],
+            "source": "pack-a",
+            "speed": 0.9
+          },
+          "id": "pack-a-pallet-0012",
+          "kind": "pallet",
+          "transform": {
+            "position": [
+              6,
+              1.2,
+              1.4
+            ]
+          },
+          "visual": {
+            "color": "#F4A261",
+            "kind": "box",
+            "size": [
+              0.8,
+              0.56,
+              1
+            ]
+          }
+        },
+        "id": "pack-a-pallet-0012",
+        "kind": "pallet",
+        "transform": {
+          "position": [
+            9.5,
+            1.6500000000000001,
+            6.4
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "__qrank": 0,
+          "born": 168.90000000002655,
+          "inpos": 8.5,
+          "inputs": "source-1-goods-0025,source-1-goods-0026",
+          "labelBy": "labeler-a",
+          "labeled": true,
+          "order": 12,
+          "qpos": 0,
+          "seq": 13,
+          "slot": "1:1:0",
+          "state": "stored",
+          "storedAt": 287.5666666667338
+        },
+        "dataSource": "sim",
+        "declaration": {
+          "attrs": {
+            "born": 168.90000000002655,
+            "inputs": "source-1-goods-0025,source-1-goods-0026",
+            "seq": 13,
+            "state": "conveying"
+          },
+          "capabilities": [
+            "pallet"
+          ],
+          "config": {
+            "carrier": "stacker-a",
+            "label": "打包站 A 托盘 #13",
+            "path": [
+              [
+                6,
+                1.2,
+                1.4
+              ],
+              [
+                8.5,
+                1.2,
+                1.4
+              ],
+              [
+                8.5,
+                1.2,
+                3.6
+              ],
+              [
+                4.7,
+                1.2,
+                3.6
+              ]
+            ],
+            "source": "pack-a",
+            "speed": 0.9
+          },
+          "id": "pack-a-pallet-0013",
+          "kind": "pallet",
+          "transform": {
+            "position": [
+              6,
+              1.2,
+              1.4
+            ]
+          },
+          "visual": {
+            "color": "#F4A261",
+            "kind": "box",
+            "size": [
+              0.8,
+              0.56,
+              1
+            ]
+          }
+        },
+        "id": "pack-a-pallet-0013",
+        "kind": "pallet",
+        "transform": {
+          "position": [
+            9.5,
+            2.8,
+            6.4
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "__qrank": 0,
+          "born": 180.9000000000361,
+          "inpos": 8.5,
+          "inputs": "source-1-goods-0027,source-1-goods-0028",
+          "labelBy": "labeler-a",
+          "labeled": true,
+          "order": 13,
+          "qpos": 0,
+          "seq": 14,
+          "state": "queued"
+        },
+        "dataSource": "sim",
+        "declaration": {
+          "attrs": {
+            "born": 180.9000000000361,
+            "inputs": "source-1-goods-0027,source-1-goods-0028",
+            "seq": 14,
+            "state": "conveying"
+          },
+          "capabilities": [
+            "pallet"
+          ],
+          "config": {
+            "carrier": "stacker-a",
+            "label": "打包站 A 托盘 #14",
+            "path": [
+              [
+                6,
+                1.2,
+                1.4
+              ],
+              [
+                8.5,
+                1.2,
+                1.4
+              ],
+              [
+                8.5,
+                1.2,
+                3.6
+              ],
+              [
+                4.7,
+                1.2,
+                3.6
+              ]
+            ],
+            "source": "pack-a",
+            "speed": 0.9
+          },
+          "id": "pack-a-pallet-0014",
+          "kind": "pallet",
+          "transform": {
+            "position": [
+              6,
+              1.2,
+              1.4
+            ]
+          },
+          "visual": {
+            "color": "#F4A261",
+            "kind": "box",
+            "size": [
+              0.8,
+              0.56,
+              1
+            ]
+          }
+        },
+        "id": "pack-a-pallet-0014",
+        "kind": "pallet",
+        "transform": {
+          "position": [
+            7.5,
+            1.5,
+            5
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "__qrank": 1,
+          "born": 192.90000000004565,
+          "inpos": 8.5,
+          "inputs": "source-1-goods-0029,source-1-goods-0030",
+          "labelBy": "labeler-a",
+          "labeled": true,
+          "order": 14,
+          "qpos": 0.9,
+          "seq": 15,
+          "state": "queued"
+        },
+        "dataSource": "sim",
+        "declaration": {
+          "attrs": {
+            "born": 192.90000000004565,
+            "inputs": "source-1-goods-0029,source-1-goods-0030",
+            "seq": 15,
+            "state": "conveying"
+          },
+          "capabilities": [
+            "pallet"
+          ],
+          "config": {
+            "carrier": "stacker-a",
+            "label": "打包站 A 托盘 #15",
+            "path": [
+              [
+                6,
+                1.2,
+                1.4
+              ],
+              [
+                8.5,
+                1.2,
+                1.4
+              ],
+              [
+                8.5,
+                1.2,
+                3.6
+              ],
+              [
+                4.7,
+                1.2,
+                3.6
+              ]
+            ],
+            "source": "pack-a",
+            "speed": 0.9
+          },
+          "id": "pack-a-pallet-0015",
+          "kind": "pallet",
+          "transform": {
+            "position": [
+              6,
+              1.2,
+              1.4
+            ]
+          },
+          "visual": {
+            "color": "#F4A261",
+            "kind": "box",
+            "size": [
+              0.8,
+              0.56,
+              1
+            ]
+          }
+        },
+        "id": "pack-a-pallet-0015",
+        "kind": "pallet",
+        "transform": {
+          "position": [
+            6.6,
+            1.5,
+            5
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "__qrank": 2,
+          "born": 204.9000000000552,
+          "inpos": 8.5,
+          "inputs": "source-1-goods-0031,source-1-goods-0032",
+          "labelBy": "labeler-a",
+          "labeled": true,
+          "order": 15,
+          "qpos": 1.8,
+          "seq": 16,
+          "state": "queued"
+        },
+        "dataSource": "sim",
+        "declaration": {
+          "attrs": {
+            "born": 204.9000000000552,
+            "inputs": "source-1-goods-0031,source-1-goods-0032",
+            "seq": 16,
+            "state": "conveying"
+          },
+          "capabilities": [
+            "pallet"
+          ],
+          "config": {
+            "carrier": "stacker-a",
+            "label": "打包站 A 托盘 #16",
+            "path": [
+              [
+                6,
+                1.2,
+                1.4
+              ],
+              [
+                8.5,
+                1.2,
+                1.4
+              ],
+              [
+                8.5,
+                1.2,
+                3.6
+              ],
+              [
+                4.7,
+                1.2,
+                3.6
+              ]
+            ],
+            "source": "pack-a",
+            "speed": 0.9
+          },
+          "id": "pack-a-pallet-0016",
+          "kind": "pallet",
+          "transform": {
+            "position": [
+              6,
+              1.2,
+              1.4
+            ]
+          },
+          "visual": {
+            "color": "#F4A261",
+            "kind": "box",
+            "size": [
+              0.8,
+              0.56,
+              1
+            ]
+          }
+        },
+        "id": "pack-a-pallet-0016",
+        "kind": "pallet",
+        "transform": {
+          "position": [
+            5.7,
+            1.5,
+            5
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "__qrank": 3,
+          "born": 228.9000000000743,
+          "inpos": 8.5,
+          "inputs": "source-1-goods-0035,source-1-goods-0036",
+          "labelBy": "labeler-a",
+          "labeled": true,
+          "order": 16,
+          "qpos": 2.7,
+          "seq": 17,
+          "state": "queued"
+        },
+        "dataSource": "sim",
+        "declaration": {
+          "attrs": {
+            "born": 228.9000000000743,
+            "inputs": "source-1-goods-0035,source-1-goods-0036",
+            "seq": 17,
+            "state": "conveying"
+          },
+          "capabilities": [
+            "pallet"
+          ],
+          "config": {
+            "carrier": "stacker-a",
+            "label": "打包站 A 托盘 #17",
+            "path": [
+              [
+                6,
+                1.2,
+                1.4
+              ],
+              [
+                8.5,
+                1.2,
+                1.4
+              ],
+              [
+                8.5,
+                1.2,
+                3.6
+              ],
+              [
+                4.7,
+                1.2,
+                3.6
+              ]
+            ],
+            "source": "pack-a",
+            "speed": 0.9
+          },
+          "id": "pack-a-pallet-0017",
+          "kind": "pallet",
+          "transform": {
+            "position": [
+              6,
+              1.2,
+              1.4
+            ]
+          },
+          "visual": {
+            "color": "#F4A261",
+            "kind": "box",
+            "size": [
+              0.8,
+              0.56,
+              1
+            ]
+          }
+        },
+        "id": "pack-a-pallet-0017",
+        "kind": "pallet",
+        "transform": {
+          "position": [
+            4.8,
+            1.5,
+            5
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "__qrank": 0,
+          "born": 247.05000000008874,
+          "inpos": 8.5,
+          "inputs": "source-1-goods-0037,source-1-goods-0038",
+          "labelBy": "labeler-b",
+          "labeled": true,
+          "order": 1,
+          "qpos": 3.67901875828256,
+          "seq": 2,
+          "slot": "0:1:0",
+          "state": "stored",
+          "storedAt": 266.65000000008615
+        },
+        "dataSource": "sim",
+        "declaration": {
+          "attrs": {
+            "born": 247.05000000008874,
+            "inputs": "source-1-goods-0037,source-1-goods-0038",
+            "seq": 2,
+            "state": "conveying"
+          },
+          "capabilities": [
+            "pallet"
+          ],
+          "config": {
+            "carrier": "stacker-b",
+            "label": "打包站 B 托盘 #2",
+            "path": [
+              [
+                14,
+                1.2,
+                1.4
+              ],
+              [
+                16.5,
+                1.2,
+                1.4
+              ],
+              [
+                16.5,
+                1.2,
+                3.6
+              ],
+              [
+                12.7,
+                1.2,
+                3.6
+              ]
+            ],
+            "source": "pack-b",
+            "speed": 0.9
+          },
+          "id": "pack-b-pallet-0002",
+          "kind": "pallet",
+          "transform": {
+            "position": [
+              14,
+              1.2,
+              1.4
+            ]
+          },
+          "visual": {
+            "color": "#F4A261",
+            "kind": "box",
+            "size": [
+              0.8,
+              0.56,
+              1
+            ]
+          }
+        },
+        "id": "pack-b-pallet-0002",
+        "kind": "pallet",
+        "transform": {
+          "position": [
+            14.5,
+            2.8,
+            6.4
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "__qrank": 4,
+          "born": 258.9000000000932,
+          "inpos": 8.5,
+          "inputs": "source-1-goods-0040,source-1-goods-0041",
+          "labelBy": "labeler-a",
+          "labeled": true,
+          "order": 17,
+          "qpos": 3.6,
+          "seq": 18,
+          "state": "queued"
+        },
+        "dataSource": "sim",
+        "declaration": {
+          "attrs": {
+            "born": 258.9000000000932,
+            "inputs": "source-1-goods-0040,source-1-goods-0041",
+            "seq": 18,
+            "state": "conveying"
+          },
+          "capabilities": [
+            "pallet"
+          ],
+          "config": {
+            "carrier": "stacker-a",
+            "label": "打包站 A 托盘 #18",
+            "path": [
+              [
+                6,
+                1.2,
+                1.4
+              ],
+              [
+                8.5,
+                1.2,
+                1.4
+              ],
+              [
+                8.5,
+                1.2,
+                3.6
+              ],
+              [
+                4.7,
+                1.2,
+                3.6
+              ]
+            ],
+            "source": "pack-a",
+            "speed": 0.9
+          },
+          "id": "pack-a-pallet-0018",
+          "kind": "pallet",
+          "transform": {
+            "position": [
+              6,
+              1.2,
+              1.4
+            ]
+          },
+          "visual": {
+            "color": "#F4A261",
+            "kind": "box",
+            "size": [
+              0.8,
+              0.56,
+              1
+            ]
+          }
+        },
+        "id": "pack-a-pallet-0018",
+        "kind": "pallet",
+        "transform": {
+          "position": [
+            4.046446609406726,
+            1.5,
+            4.646446609406726
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "__qrank": 0,
+          "born": 271.05000000008215,
+          "inpos": 8.5,
+          "inputs": "source-1-goods-0039,source-1-goods-0042",
+          "labelBy": "labeler-b",
+          "labeled": true,
+          "order": 2,
+          "qpos": 0,
+          "seq": 3,
+          "slot": "0:0:0",
+          "state": "stored",
+          "storedAt": 299.65000000005614
+        },
+        "dataSource": "sim",
+        "declaration": {
+          "attrs": {
+            "born": 271.05000000008215,
+            "inputs": "source-1-goods-0039,source-1-goods-0042",
+            "seq": 3,
+            "state": "conveying"
+          },
+          "capabilities": [
+            "pallet"
+          ],
+          "config": {
+            "carrier": "stacker-b",
+            "label": "打包站 B 托盘 #3",
+            "path": [
+              [
+                14,
+                1.2,
+                1.4
+              ],
+              [
+                16.5,
+                1.2,
+                1.4
+              ],
+              [
+                16.5,
+                1.2,
+                3.6
+              ],
+              [
+                12.7,
+                1.2,
+                3.6
+              ]
+            ],
+            "source": "pack-b",
+            "speed": 0.9
+          },
+          "id": "pack-b-pallet-0003",
+          "kind": "pallet",
+          "transform": {
+            "position": [
+              14,
+              1.2,
+              1.4
+            ]
+          },
+          "visual": {
+            "color": "#F4A261",
+            "kind": "box",
+            "size": [
+              0.8,
+              0.56,
+              1
+            ]
+          }
+        },
+        "id": "pack-b-pallet-0003",
+        "kind": "pallet",
+        "transform": {
+          "position": [
+            14.5,
+            1.6500000000000001,
+            6.4
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "__cum": 30.680000000001854,
+          "__init": 1,
+          "__raw": 30.701666666668515,
+          "born": 276.38333333341063,
+          "seq": 47
+        },
+        "dataSource": "sim",
+        "declaration": {
+          "attrs": {
+            "born": 276.38333333341063,
+            "seq": 47
+          },
+          "capabilities": [
+            "parcel"
+          ],
+          "config": {
+            "label": "小货物发生器 #47",
+            "source": "source-1"
+          },
+          "id": "source-1-goods-0047",
+          "kind": "parcel",
+          "motion": {
+            "cornerRadius": 0.5,
+            "loop": "repeat",
+            "points": [
+              [
+                -16,
+                1.2,
+                1.5
+              ],
+              [
+                -16,
+                1.2,
+                3
+              ],
+              [
+                -12,
+                1.2,
+                3
+              ],
+              [
+                -12,
+                1.2,
+                0
+              ],
+              [
+                19,
+                1.2,
+                0
+              ],
+              [
+                19,
+                1.2,
+                -6
+              ],
+              [
+                -16,
+                1.2,
+                -6
+              ],
+              [
+                -16,
+                1.2,
+                1.5
+              ]
+            ],
+            "speed": 1.3
+          },
+          "transform": {
+            "position": [
+              -16,
+              1.2,
+              1.5
+            ]
+          },
+          "visual": {
+            "color": "#FFB7B2",
+            "kind": "box",
+            "size": [
+              0.6,
+              0.6,
+              0.6
+            ]
+          }
+        },
+        "id": "source-1-goods-0047",
+        "kind": "parcel",
+        "motionDistance": 30.701666666668515,
+        "transform": {
+          "position": [
+            10.773790061273928,
+            1.2,
+            0
+          ],
+          "rotation": [
+            0,
+            1.5707963267948966,
+            0
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "__cum": 22.85833333333204,
+          "__init": 1,
+          "__raw": 22.879999999998702,
+          "born": 282.4000000000718,
+          "seq": 48
+        },
+        "dataSource": "sim",
+        "declaration": {
+          "attrs": {
+            "born": 282.4000000000718,
+            "seq": 48
+          },
+          "capabilities": [
+            "parcel"
+          ],
+          "config": {
+            "label": "小货物发生器 #48",
+            "source": "source-1"
+          },
+          "id": "source-1-goods-0048",
+          "kind": "parcel",
+          "motion": {
+            "cornerRadius": 0.5,
+            "loop": "repeat",
+            "points": [
+              [
+                -16,
+                1.2,
+                1.5
+              ],
+              [
+                -16,
+                1.2,
+                3
+              ],
+              [
+                -12,
+                1.2,
+                3
+              ],
+              [
+                -12,
+                1.2,
+                0
+              ],
+              [
+                19,
+                1.2,
+                0
+              ],
+              [
+                19,
+                1.2,
+                -6
+              ],
+              [
+                -16,
+                1.2,
+                -6
+              ],
+              [
+                -16,
+                1.2,
+                1.5
+              ]
+            ],
+            "speed": 1.3
+          },
+          "transform": {
+            "position": [
+              -16,
+              1.2,
+              1.5
+            ]
+          },
+          "visual": {
+            "color": "#FFB7B2",
+            "kind": "box",
+            "size": [
+              0.6,
+              0.6,
+              0.6
+            ]
+          }
+        },
+        "id": "source-1-goods-0048",
+        "kind": "parcel",
+        "motionDistance": 22.879999999998702,
+        "transform": {
+          "position": [
+            2.952123394604115,
+            1.2,
+            0
+          ],
+          "rotation": [
+            0,
+            1.5707963267948966,
+            0
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "__qrank": 0,
+          "born": 283.05000000007124,
+          "inpos": 8.5,
+          "inputs": "source-1-goods-0043,source-1-goods-0044",
+          "labelBy": "labeler-b",
+          "labeled": true,
+          "order": 3,
+          "qpos": 0,
+          "seq": 4,
+          "state": "queued"
+        },
+        "dataSource": "sim",
+        "declaration": {
+          "attrs": {
+            "born": 283.05000000007124,
+            "inputs": "source-1-goods-0043,source-1-goods-0044",
+            "seq": 4,
+            "state": "conveying"
+          },
+          "capabilities": [
+            "pallet"
+          ],
+          "config": {
+            "carrier": "stacker-b",
+            "label": "打包站 B 托盘 #4",
+            "path": [
+              [
+                14,
+                1.2,
+                1.4
+              ],
+              [
+                16.5,
+                1.2,
+                1.4
+              ],
+              [
+                16.5,
+                1.2,
+                3.6
+              ],
+              [
+                12.7,
+                1.2,
+                3.6
+              ]
+            ],
+            "source": "pack-b",
+            "speed": 0.9
+          },
+          "id": "pack-b-pallet-0004",
+          "kind": "pallet",
+          "transform": {
+            "position": [
+              14,
+              1.2,
+              1.4
+            ]
+          },
+          "visual": {
+            "color": "#F4A261",
+            "kind": "box",
+            "size": [
+              0.8,
+              0.56,
+              1
+            ]
+          }
+        },
+        "id": "pack-b-pallet-0004",
+        "kind": "pallet",
+        "transform": {
+          "position": [
+            15.5,
+            1.5,
+            5
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "__cum": 15.036666666662853,
+          "__init": 1,
+          "__raw": 15.058333333329514,
+          "born": 288.416666666733,
+          "seq": 49
+        },
+        "dataSource": "sim",
+        "declaration": {
+          "attrs": {
+            "born": 288.416666666733,
+            "seq": 49
+          },
+          "capabilities": [
+            "parcel"
+          ],
+          "config": {
+            "label": "小货物发生器 #49",
+            "source": "source-1"
+          },
+          "id": "source-1-goods-0049",
+          "kind": "parcel",
+          "motion": {
+            "cornerRadius": 0.5,
+            "loop": "repeat",
+            "points": [
+              [
+                -16,
+                1.2,
+                1.5
+              ],
+              [
+                -16,
+                1.2,
+                3
+              ],
+              [
+                -12,
+                1.2,
+                3
+              ],
+              [
+                -12,
+                1.2,
+                0
+              ],
+              [
+                19,
+                1.2,
+                0
+              ],
+              [
+                19,
+                1.2,
+                -6
+              ],
+              [
+                -16,
+                1.2,
+                -6
+              ],
+              [
+                -16,
+                1.2,
+                1.5
+              ]
+            ],
+            "speed": 1.3
+          },
+          "transform": {
+            "position": [
+              -16,
+              1.2,
+              1.5
+            ]
+          },
+          "visual": {
+            "color": "#FFB7B2",
+            "kind": "box",
+            "size": [
+              0.6,
+              0.6,
+              0.6
+            ]
+          }
+        },
+        "id": "source-1-goods-0049",
+        "kind": "parcel",
+        "motionDistance": 15.058333333329514,
+        "transform": {
+          "position": [
+            -4.869543272065073,
+            1.2,
+            0
+          ],
+          "rotation": [
+            0,
+            1.5707963267948966,
+            0
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "__qrank": 5,
+          "born": 288.9333333333992,
+          "inpos": 8.5,
+          "inputs": "source-1-goods-0045,source-1-goods-0046",
+          "labelBy": "labeler-a",
+          "labeled": true,
+          "order": 18,
+          "qpos": 4.5,
+          "seq": 19,
+          "state": "queued"
+        },
+        "dataSource": "sim",
+        "declaration": {
+          "attrs": {
+            "born": 288.9333333333992,
+            "inputs": "source-1-goods-0045,source-1-goods-0046",
+            "seq": 19,
+            "state": "conveying"
+          },
+          "capabilities": [
+            "pallet"
+          ],
+          "config": {
+            "carrier": "stacker-a",
+            "label": "打包站 A 托盘 #19",
+            "path": [
+              [
+                6,
+                1.2,
+                1.4
+              ],
+              [
+                8.5,
+                1.2,
+                1.4
+              ],
+              [
+                8.5,
+                1.2,
+                3.6
+              ],
+              [
+                4.7,
+                1.2,
+                3.6
+              ]
+            ],
+            "source": "pack-a",
+            "speed": 0.9
+          },
+          "id": "pack-a-pallet-0019",
+          "kind": "pallet",
+          "transform": {
+            "position": [
+              6,
+              1.2,
+              1.4
+            ]
+          },
+          "visual": {
+            "color": "#F4A261",
+            "kind": "box",
+            "size": [
+              0.8,
+              0.56,
+              1
+            ]
+          }
+        },
+        "id": "pack-a-pallet-0019",
+        "kind": "pallet",
+        "transform": {
+          "position": [
+            4,
+            1.5,
+            3.765685424949238
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "__cum": 7.21499999999817,
+          "__init": 1,
+          "__raw": 7.236666666664831,
+          "born": 294.4333333333942,
+          "seq": 50
+        },
+        "dataSource": "sim",
+        "declaration": {
+          "attrs": {
+            "born": 294.4333333333942,
+            "seq": 50
+          },
+          "capabilities": [
+            "parcel"
+          ],
+          "config": {
+            "label": "小货物发生器 #50",
+            "source": "source-1"
+          },
+          "id": "source-1-goods-0050",
+          "kind": "parcel",
+          "motion": {
+            "cornerRadius": 0.5,
+            "loop": "repeat",
+            "points": [
+              [
+                -16,
+                1.2,
+                1.5
+              ],
+              [
+                -16,
+                1.2,
+                3
+              ],
+              [
+                -12,
+                1.2,
+                3
+              ],
+              [
+                -12,
+                1.2,
+                0
+              ],
+              [
+                19,
+                1.2,
+                0
+              ],
+              [
+                19,
+                1.2,
+                -6
+              ],
+              [
+                -16,
+                1.2,
+                -6
+              ],
+              [
+                -16,
+                1.2,
+                1.5
+              ]
+            ],
+            "speed": 1.3
+          },
+          "transform": {
+            "position": [
+              -16,
+              1.2,
+              1.5
+            ]
+          },
+          "visual": {
+            "color": "#FFB7B2",
+            "kind": "box",
+            "size": [
+              0.6,
+              0.6,
+              0.6
+            ]
+          }
+        },
+        "id": "source-1-goods-0050",
+        "kind": "parcel",
+        "motionDistance": 7.236666666664831,
+        "transform": {
+          "position": [
+            -12,
+            1.2,
+            0.881917736931559
+          ],
+          "rotation": [
+            0,
+            3.141592653589793,
+            0
+          ]
+        }
+      }
+    ],
+    "mode": "sim",
+    "rngState": 7,
+    "sceneId": "logistics-center",
+    "seed": 7,
+    "sequence": 664,
+    "step": 0.016666666666666666,
+    "time": 300.0000000000558
+  },
+  "formatVersion": 1,
+  "plugins": [
+    {
+      "id": "logistics",
+      "version": "0.4.0"
+    }
+  ],
+  "sceneHash": "35bf2019",
+  "sceneId": "logistics-center",
+  "seed": 7,
+  "stateHash": "fa1543eb",
+  "step": 0.016666666666666666,
+  "steps": 18000
+}

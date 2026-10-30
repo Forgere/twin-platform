@@ -1,0 +1,1719 @@
+{
+  "version": 1,
+  "id": "logistics-center",
+  "name": "智能物流中心",
+  "entities": [
+    {
+      "id": "belt-join-main",
+      "kind": "transport",
+      "transform": {
+        "position": [
+          -12,
+          0.6,
+          2.3
+        ]
+      },
+      "capabilities": [
+        "move"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#8BD3C7",
+        "size": [
+          1.4,
+          0.6,
+          1.4
+        ]
+      },
+      "config": {
+        "label": "汇入段—主输送段",
+        "beltPath": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            -2.3
+          ],
+          [
+            12.2,
+            -2.3
+          ]
+        ],
+        "beltWidth": 1.4,
+        "beltDirection": 1,
+        "beltRadius": 0.7
+      }
+    },
+    {
+      "id": "sorter-1",
+      "kind": "transport",
+      "transform": {
+        "position": [
+          2.5,
+          0.6,
+          0
+        ]
+      },
+      "capabilities": [
+        "move"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#8BD3C7",
+        "size": [
+          1.4000000000000001,
+          0.6,
+          1.4
+        ]
+      },
+      "config": {
+        "label": "分拣台",
+        "beltAxis": "x",
+        "beltDirection": 1
+      }
+    },
+    {
+      "id": "belt-io-a-join",
+      "kind": "transport",
+      "transform": {
+        "position": [
+          6.800000000000001,
+          0.6,
+          0
+        ]
+      },
+      "capabilities": [
+        "move"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#8BD3C7",
+        "size": [
+          4.000000000000001,
+          0.6,
+          1.4
+        ]
+      },
+      "config": {
+        "label": "主线接驳 A",
+        "beltAxis": "x",
+        "beltDirection": 1
+      }
+    },
+    {
+      "id": "belt-io-b-join",
+      "kind": "transport",
+      "transform": {
+        "position": [
+          14.8,
+          0.6,
+          0
+        ]
+      },
+      "capabilities": [
+        "move"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#8BD3C7",
+        "size": [
+          4,
+          0.6,
+          1.4
+        ]
+      },
+      "config": {
+        "label": "主线接驳 B",
+        "beltAxis": "x",
+        "beltDirection": 1
+      }
+    },
+    {
+      "id": "belt-outfeed-turn-back",
+      "kind": "transport",
+      "transform": {
+        "position": [
+          16.8,
+          0.6,
+          0
+        ]
+      },
+      "capabilities": [
+        "move"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#8BD3C7",
+        "size": [
+          1.4,
+          0.6,
+          1.4
+        ]
+      },
+      "config": {
+        "label": "出库段—右转载—回程段 1",
+        "beltPath": [
+          [
+            0,
+            0
+          ],
+          [
+            2.1999999999999993,
+            0
+          ],
+          [
+            2.1999999999999993,
+            -6
+          ],
+          [
+            -18.8,
+            -6
+          ]
+        ],
+        "beltWidth": 1.4,
+        "beltDirection": 1,
+        "beltRadius": 0.7
+      }
+    },
+    {
+      "id": "belt-back-turn-left",
+      "kind": "transport",
+      "transform": {
+        "position": [
+          -2,
+          0.6,
+          -6
+        ]
+      },
+      "capabilities": [
+        "move"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#8BD3C7",
+        "size": [
+          1.4,
+          0.6,
+          1.4
+        ]
+      },
+      "config": {
+        "label": "回程段 2—左转载—入料线 1",
+        "beltPath": [
+          [
+            0,
+            0
+          ],
+          [
+            -14,
+            0
+          ],
+          [
+            -14,
+            9
+          ],
+          [
+            -10,
+            9
+          ],
+          [
+            -10,
+            8.3
+          ]
+        ],
+        "beltWidth": 1.4,
+        "beltDirection": 1,
+        "beltRadius": 0.7
+      }
+    },
+    {
+      "id": "belt-main-link-1",
+      "kind": "transport",
+      "transform": {
+        "position": [
+          9,
+          0.6,
+          0
+        ]
+      },
+      "capabilities": [
+        "move"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#8BD3C7",
+        "size": [
+          0.3999999999999986,
+          0.6,
+          1.4
+        ]
+      },
+      "config": {
+        "label": "主线接驳（8.8→9.2）",
+        "beltAxis": "x",
+        "beltDirection": 1
+      }
+    },
+    {
+      "id": "belt-main-link-2",
+      "kind": "transport",
+      "transform": {
+        "position": [
+          11,
+          0.6,
+          0
+        ]
+      },
+      "capabilities": [
+        "move"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#8BD3C7",
+        "size": [
+          0.3999999999999986,
+          0.6,
+          1.4
+        ]
+      },
+      "config": {
+        "label": "主线接驳（10.8→11.2）",
+        "beltAxis": "x",
+        "beltDirection": 1
+      }
+    },
+    {
+      "id": "source-1",
+      "kind": "source",
+      "transform": {
+        "position": [
+          -17.6,
+          0,
+          1.5
+        ]
+      },
+      "capabilities": [
+        "source"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#A7D8F0",
+        "size": [
+          1.4,
+          1.6,
+          1.4
+        ]
+      },
+      "config": {
+        "label": "小货物发生器",
+        "interval": 6,
+        "maxWip": 10,
+        "goodsPath": [
+          [
+            -16,
+            1.2,
+            1.5
+          ],
+          [
+            -16,
+            1.2,
+            3
+          ],
+          [
+            -12,
+            1.2,
+            3
+          ],
+          [
+            -12,
+            1.2,
+            0
+          ],
+          [
+            19,
+            1.2,
+            0
+          ],
+          [
+            19,
+            1.2,
+            -6
+          ],
+          [
+            -16,
+            1.2,
+            -6
+          ],
+          [
+            -16,
+            1.2,
+            1.5
+          ]
+        ],
+        "goodsSpeed": 1.3,
+        "goodsColor": "#FFB7B2",
+        "goodsSize": [
+          0.6,
+          0.6,
+          0.6
+        ],
+        "goodsCornerRadius": 0.5,
+        "goodsCapability": "parcel"
+      }
+    },
+    {
+      "id": "belt-branch",
+      "kind": "transport",
+      "transform": {
+        "position": [
+          10,
+          0.6,
+          -0.7
+        ]
+      },
+      "capabilities": [
+        "move"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#8BD3C7",
+        "size": [
+          1.4,
+          0.6,
+          1.4
+        ]
+      },
+      "config": {
+        "label": "分流支线（南—西—北）",
+        "beltPath": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            -1.9000000000000001
+          ],
+          [
+            -9,
+            -1.9000000000000001
+          ],
+          [
+            -9,
+            0
+          ]
+        ],
+        "beltWidth": 1.4,
+        "beltDirection": 1,
+        "beltRadius": 0.7
+      }
+    },
+    {
+      "id": "transfer-1",
+      "kind": "transfer",
+      "transform": {
+        "position": [
+          10,
+          0.6,
+          0
+        ]
+      },
+      "capabilities": [
+        "transfer",
+        "lift"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#8BD3C7",
+        "size": [
+          1.6,
+          0.6,
+          1.4
+        ]
+      },
+      "config": {
+        "label": "顶升移栽机 1",
+        "liftHeight": 0.13,
+        "divertIds": [
+          "divert-cargo-1"
+        ],
+        "upTime": 0.18,
+        "downTime": 0.18,
+        "beltDirection": 1,
+        "divertSign": -1,
+        "transferMode": "divert",
+        "bidirectional": false
+      }
+    },
+    {
+      "id": "transfer-1-cassette",
+      "kind": "cassette",
+      "transform": {
+        "position": [
+          10,
+          0.6,
+          0
+        ]
+      },
+      "capabilities": [
+        "cassette"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#F4A261",
+        "size": [
+          1.6,
+          0.14,
+          1.4
+        ]
+      },
+      "config": {
+        "label": "移栽托举座",
+        "divertSign": -1
+      }
+    },
+    {
+      "id": "divert-cargo-1",
+      "kind": "parcel",
+      "transform": {
+        "position": [
+          4.479999999999999,
+          1.2,
+          0
+        ]
+      },
+      "capabilities": [
+        "parcel"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#C7CEEA",
+        "size": [
+          0.6,
+          0.6,
+          0.6
+        ]
+      },
+      "motion": {
+        "points": [
+          [
+            4.479999999999999,
+            1.2,
+            0
+          ],
+          [
+            10,
+            1.2,
+            0
+          ],
+          [
+            10,
+            1.2,
+            -2.6
+          ],
+          [
+            1,
+            1.2,
+            -2.6
+          ],
+          [
+            1,
+            1.2,
+            0
+          ],
+          [
+            4.479999999999999,
+            1.2,
+            0
+          ]
+        ],
+        "speed": 1.3,
+        "loop": "repeat",
+        "cornerRadius": 0.4
+      },
+      "config": {
+        "label": "分流物料 1"
+      }
+    },
+    {
+      "id": "transfer-merge-1",
+      "kind": "transfer",
+      "transform": {
+        "position": [
+          1,
+          0.6,
+          0
+        ]
+      },
+      "capabilities": [
+        "transfer",
+        "lift"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#8BD3C7",
+        "size": [
+          1.6,
+          0.6,
+          1.4
+        ]
+      },
+      "config": {
+        "label": "合流移栽机 1",
+        "liftHeight": 0.13,
+        "divertIds": [
+          "divert-cargo-1"
+        ],
+        "upTime": 0.18,
+        "downTime": 0.18,
+        "beltDirection": 1,
+        "divertSign": 1,
+        "transferMode": "merge",
+        "bidirectional": false
+      }
+    },
+    {
+      "id": "transfer-merge-1-cassette",
+      "kind": "cassette",
+      "transform": {
+        "position": [
+          1,
+          0.6,
+          0
+        ]
+      },
+      "capabilities": [
+        "cassette"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#F4A261",
+        "size": [
+          1.6,
+          0.14,
+          1.4
+        ]
+      },
+      "config": {
+        "label": "合流托举座",
+        "divertSign": 1
+      }
+    },
+    {
+      "id": "scan-01",
+      "kind": "inspect",
+      "transform": {
+        "position": [
+          -8.5,
+          0,
+          0
+        ]
+      },
+      "capabilities": [
+        "inspect"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#38bdf8",
+        "size": [
+          1.6,
+          1.6,
+          1.6
+        ]
+      },
+      "config": {
+        "label": "scan-01",
+        "zoneHalfWidth": 1.8
+      }
+    },
+    {
+      "id": "scan-02",
+      "kind": "inspect",
+      "transform": {
+        "position": [
+          -2,
+          0,
+          0
+        ]
+      },
+      "capabilities": [
+        "inspect"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#38bdf8",
+        "size": [
+          1.6,
+          1.6,
+          1.6
+        ]
+      },
+      "config": {
+        "label": "scan-02",
+        "zoneHalfWidth": 1.8
+      }
+    },
+    {
+      "id": "reject-rack-1",
+      "kind": "buffer",
+      "transform": {
+        "position": [
+          -6,
+          1,
+          -4.3
+        ]
+      },
+      "capabilities": [
+        "store",
+        "buffer"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#F7E3A4",
+        "size": [
+          2.2,
+          2,
+          1.8
+        ]
+      },
+      "config": {
+        "label": "reject-rack-1"
+      }
+    },
+    {
+      "id": "reject-rack-2",
+      "kind": "buffer",
+      "transform": {
+        "position": [
+          6,
+          1,
+          -4.3
+        ]
+      },
+      "capabilities": [
+        "store",
+        "buffer"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#F7E3A4",
+        "size": [
+          2.2,
+          2,
+          1.8
+        ]
+      },
+      "config": {
+        "label": "reject-rack-2"
+      }
+    },
+    {
+      "id": "rack-a1",
+      "kind": "asrs",
+      "transform": {
+        "position": [
+          6,
+          2.25,
+          10.5
+        ]
+      },
+      "capabilities": [
+        "rack"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#B5EAD7",
+        "size": [
+          1.8,
+          4.5,
+          9
+        ]
+      },
+      "config": {
+        "label": "货架 A1",
+        "levels": 3,
+        "levelHeights": [
+          1.35,
+          2.5,
+          3.65
+        ],
+        "bays": 5,
+        "craneId": "stacker-a",
+        "side": 0
+      }
+    },
+    {
+      "id": "rack-a2",
+      "kind": "asrs",
+      "transform": {
+        "position": [
+          10,
+          2.25,
+          10.5
+        ]
+      },
+      "capabilities": [
+        "rack"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#B5EAD7",
+        "size": [
+          1.8,
+          4.5,
+          9
+        ]
+      },
+      "config": {
+        "label": "货架 A2",
+        "levels": 3,
+        "levelHeights": [
+          1.35,
+          2.5,
+          3.65
+        ],
+        "bays": 5,
+        "craneId": "stacker-a",
+        "side": 1
+      }
+    },
+    {
+      "id": "belt-io-a-station",
+      "kind": "transport",
+      "transform": {
+        "position": [
+          4,
+          0.6,
+          3.3
+        ]
+      },
+      "capabilities": [
+        "move"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#F4A261",
+        "size": [
+          1.4,
+          0.6,
+          1.4
+        ]
+      },
+      "config": {
+        "label": "载货站台 A",
+        "beltPath": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            1.7000000000000002
+          ],
+          [
+            4,
+            1.7000000000000002
+          ]
+        ],
+        "beltWidth": 1.4,
+        "beltDirection": 1,
+        "beltRadius": 0.7
+      }
+    },
+    {
+      "id": "transfer-io-8-4",
+      "kind": "transfer",
+      "transform": {
+        "position": [
+          4,
+          0.6,
+          0
+        ]
+      },
+      "capabilities": [
+        "transfer",
+        "lift"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#8BD3C7",
+        "size": [
+          1.6,
+          0.6,
+          1.4
+        ]
+      },
+      "config": {
+        "label": "主线接驳移栽机 A",
+        "liftHeight": 0.13,
+        "divertIds": [],
+        "upTime": 0.18,
+        "downTime": 0.18,
+        "beltDirection": 1,
+        "divertSign": -1,
+        "transferMode": "merge",
+        "bidirectional": false
+      }
+    },
+    {
+      "id": "transfer-io-8-4-cassette",
+      "kind": "cassette",
+      "transform": {
+        "position": [
+          4,
+          0.6,
+          0
+        ]
+      },
+      "capabilities": [
+        "cassette"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#F4A261",
+        "size": [
+          1.6,
+          0.14,
+          1.4
+        ]
+      },
+      "config": {
+        "label": "主线托举座 A",
+        "divertSign": -1
+      }
+    },
+    {
+      "id": "pack-a",
+      "kind": "pack",
+      "transform": {
+        "position": [
+          6,
+          0,
+          0
+        ]
+      },
+      "capabilities": [
+        "pack"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#F4A261",
+        "size": [
+          2,
+          1.7,
+          2
+        ]
+      },
+      "config": {
+        "label": "打包站 A",
+        "batch": 2,
+        "radius": 1.8,
+        "palletPath": [
+          [
+            6,
+            1.2,
+            1.4
+          ],
+          [
+            8.5,
+            1.2,
+            1.4
+          ],
+          [
+            8.5,
+            1.2,
+            3.6
+          ],
+          [
+            4.7,
+            1.2,
+            3.6
+          ]
+        ],
+        "palletSpeed": 0.9,
+        "palletSize": [
+          0.8,
+          0.56,
+          1
+        ],
+        "palletColor": "#F4A261",
+        "carrier": "stacker-a",
+        "palletCapability": "pallet"
+      }
+    },
+    {
+      "id": "belt-pack-out-a",
+      "kind": "transport",
+      "transform": {
+        "position": [
+          6,
+          0.6,
+          1.4
+        ]
+      },
+      "capabilities": [
+        "move"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#F4A261",
+        "size": [
+          1.4,
+          0.6,
+          1.4
+        ]
+      },
+      "config": {
+        "label": "打包出料带 A",
+        "beltPath": [
+          [
+            0,
+            0
+          ],
+          [
+            2.5,
+            0
+          ],
+          [
+            2.5,
+            2.2
+          ],
+          [
+            -1.2999999999999998,
+            2.2
+          ]
+        ],
+        "beltWidth": 1.4,
+        "beltDirection": 1,
+        "beltRadius": 0.7
+      }
+    },
+    {
+      "id": "labeler-a",
+      "kind": "labeler",
+      "transform": {
+        "position": [
+          6,
+          0,
+          3.6
+        ]
+      },
+      "capabilities": [
+        "labeler"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#A5D8F3",
+        "size": [
+          1.8,
+          2.2,
+          1.4
+        ]
+      },
+      "config": {
+        "label": "打标机 A",
+        "radius": 1.2,
+        "cargoCapability": "pallet"
+      }
+    },
+    {
+      "id": "dock-a",
+      "kind": "transport",
+      "transform": {
+        "position": [
+          11.4,
+          0.6,
+          16
+        ]
+      },
+      "capabilities": [
+        "move"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#F7E3A4",
+        "size": [
+          4.8,
+          0.6,
+          1.6
+        ]
+      },
+      "config": {
+        "label": "出库缓存台 A",
+        "beltAxis": "x",
+        "beltDirection": 1
+      }
+    },
+    {
+      "id": "stacker-a",
+      "kind": "stacker",
+      "transform": {
+        "position": [
+          8,
+          0,
+          5
+        ]
+      },
+      "capabilities": [
+        "stacker"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#C4B5E0",
+        "size": [
+          1,
+          5.4,
+          1.6
+        ]
+      },
+      "config": {
+        "label": "堆垛机 A",
+        "aisleX": 8,
+        "ioZ": 5,
+        "ioY": 1.2,
+        "zMin": 6.4,
+        "zMax": 14.6,
+        "levels": [
+          1.35,
+          2.5,
+          3.65
+        ],
+        "columns": 5,
+        "cycle": 14,
+        "phase": 0,
+        "reach": 1.5,
+        "forkX": [
+          6.5,
+          9.5
+        ],
+        "stationX": 4,
+        "outfeedX": 9.6,
+        "outfeedZ": [
+          16
+        ],
+        "outfeedTravelZ": 16,
+        "outfeedDir": 1,
+        "outboundPath": [
+          [
+            9.6,
+            0,
+            16
+          ],
+          [
+            13.2,
+            0,
+            16
+          ]
+        ],
+        "outboundMode": "shipped",
+        "highWater": 8
+      }
+    },
+    {
+      "id": "stacker-a-carriage",
+      "kind": "carriage",
+      "transform": {
+        "position": [
+          8,
+          1.2,
+          5
+        ]
+      },
+      "capabilities": [
+        "carriage"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#C4B5E0",
+        "size": [
+          0.92,
+          0.34,
+          1.2
+        ]
+      },
+      "config": {
+        "label": "载货台 A"
+      }
+    },
+    {
+      "id": "stacker-a-fork",
+      "kind": "fork",
+      "transform": {
+        "position": [
+          8,
+          1.2,
+          5
+        ]
+      },
+      "capabilities": [
+        "fork"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#8BD3C7",
+        "size": [
+          1.1,
+          0.14,
+          0.9
+        ]
+      },
+      "config": {
+        "label": "货叉 A"
+      }
+    },
+    {
+      "id": "truck-a",
+      "kind": "truck",
+      "transform": {
+        "position": [
+          13.2,
+          0,
+          20
+        ]
+      },
+      "capabilities": [
+        "truck"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#C4B5E0",
+        "size": [
+          2.2,
+          2.4,
+          6
+        ]
+      },
+      "config": {
+        "label": "出库卡车 A",
+        "dock": [
+          13.2,
+          0,
+          16
+        ],
+        "route": [
+          [
+            13.2,
+            0,
+            20
+          ],
+          [
+            13.2,
+            0,
+            28
+          ]
+        ],
+        "speed": 2.4,
+        "capacity": 4,
+        "dwell": 120,
+        "awayTime": 20,
+        "loadRadius": 0.8,
+        "cargoCapability": "pallet"
+      }
+    },
+    {
+      "id": "rack-b1",
+      "kind": "asrs",
+      "transform": {
+        "position": [
+          14,
+          2.25,
+          10.5
+        ]
+      },
+      "capabilities": [
+        "rack"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#B5EAD7",
+        "size": [
+          1.8,
+          4.5,
+          9
+        ]
+      },
+      "config": {
+        "label": "货架 B1",
+        "levels": 3,
+        "levelHeights": [
+          1.35,
+          2.5,
+          3.65
+        ],
+        "bays": 5,
+        "craneId": "stacker-b",
+        "side": 0
+      }
+    },
+    {
+      "id": "rack-b2",
+      "kind": "asrs",
+      "transform": {
+        "position": [
+          18,
+          2.25,
+          10.5
+        ]
+      },
+      "capabilities": [
+        "rack"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#B5EAD7",
+        "size": [
+          1.8,
+          4.5,
+          9
+        ]
+      },
+      "config": {
+        "label": "货架 B2",
+        "levels": 3,
+        "levelHeights": [
+          1.35,
+          2.5,
+          3.65
+        ],
+        "bays": 5,
+        "craneId": "stacker-b",
+        "side": 1
+      }
+    },
+    {
+      "id": "belt-io-b-station",
+      "kind": "transport",
+      "transform": {
+        "position": [
+          12,
+          0.6,
+          3.3
+        ]
+      },
+      "capabilities": [
+        "move"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#F4A261",
+        "size": [
+          1.4,
+          0.6,
+          1.4
+        ]
+      },
+      "config": {
+        "label": "载货站台 B",
+        "beltPath": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            1.7000000000000002
+          ],
+          [
+            4,
+            1.7000000000000002
+          ]
+        ],
+        "beltWidth": 1.4,
+        "beltDirection": 1,
+        "beltRadius": 0.7
+      }
+    },
+    {
+      "id": "transfer-io-16-4",
+      "kind": "transfer",
+      "transform": {
+        "position": [
+          12,
+          0.6,
+          0
+        ]
+      },
+      "capabilities": [
+        "transfer",
+        "lift"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#8BD3C7",
+        "size": [
+          1.6,
+          0.6,
+          1.4
+        ]
+      },
+      "config": {
+        "label": "主线接驳移栽机 B",
+        "liftHeight": 0.13,
+        "divertIds": [],
+        "upTime": 0.18,
+        "downTime": 0.18,
+        "beltDirection": 1,
+        "divertSign": -1,
+        "transferMode": "merge",
+        "bidirectional": false
+      }
+    },
+    {
+      "id": "transfer-io-16-4-cassette",
+      "kind": "cassette",
+      "transform": {
+        "position": [
+          12,
+          0.6,
+          0
+        ]
+      },
+      "capabilities": [
+        "cassette"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#F4A261",
+        "size": [
+          1.6,
+          0.14,
+          1.4
+        ]
+      },
+      "config": {
+        "label": "主线托举座 B",
+        "divertSign": -1
+      }
+    },
+    {
+      "id": "pack-b",
+      "kind": "pack",
+      "transform": {
+        "position": [
+          14,
+          0,
+          0
+        ]
+      },
+      "capabilities": [
+        "pack"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#F4A261",
+        "size": [
+          2,
+          1.7,
+          2
+        ]
+      },
+      "config": {
+        "label": "打包站 B",
+        "batch": 2,
+        "radius": 1.8,
+        "palletPath": [
+          [
+            14,
+            1.2,
+            1.4
+          ],
+          [
+            16.5,
+            1.2,
+            1.4
+          ],
+          [
+            16.5,
+            1.2,
+            3.6
+          ],
+          [
+            12.7,
+            1.2,
+            3.6
+          ]
+        ],
+        "palletSpeed": 0.9,
+        "palletSize": [
+          0.8,
+          0.56,
+          1
+        ],
+        "palletColor": "#F4A261",
+        "carrier": "stacker-b",
+        "palletCapability": "pallet"
+      }
+    },
+    {
+      "id": "belt-pack-out-b",
+      "kind": "transport",
+      "transform": {
+        "position": [
+          14,
+          0.6,
+          1.4
+        ]
+      },
+      "capabilities": [
+        "move"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#F4A261",
+        "size": [
+          1.4,
+          0.6,
+          1.4
+        ]
+      },
+      "config": {
+        "label": "打包出料带 B",
+        "beltPath": [
+          [
+            0,
+            0
+          ],
+          [
+            2.5,
+            0
+          ],
+          [
+            2.5,
+            2.2
+          ],
+          [
+            -1.3000000000000007,
+            2.2
+          ]
+        ],
+        "beltWidth": 1.4,
+        "beltDirection": 1,
+        "beltRadius": 0.7
+      }
+    },
+    {
+      "id": "labeler-b",
+      "kind": "labeler",
+      "transform": {
+        "position": [
+          14,
+          0,
+          3.6
+        ]
+      },
+      "capabilities": [
+        "labeler"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#A5D8F3",
+        "size": [
+          1.8,
+          2.2,
+          1.4
+        ]
+      },
+      "config": {
+        "label": "打标机 B",
+        "radius": 1.2,
+        "cargoCapability": "pallet"
+      }
+    },
+    {
+      "id": "dock-b",
+      "kind": "transport",
+      "transform": {
+        "position": [
+          19.400000000000002,
+          0.6,
+          16
+        ]
+      },
+      "capabilities": [
+        "move"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#F7E3A4",
+        "size": [
+          4.8,
+          0.6,
+          1.6
+        ]
+      },
+      "config": {
+        "label": "出库缓存台 B",
+        "beltAxis": "x",
+        "beltDirection": 1
+      }
+    },
+    {
+      "id": "stacker-b",
+      "kind": "stacker",
+      "transform": {
+        "position": [
+          16,
+          0,
+          5
+        ]
+      },
+      "capabilities": [
+        "stacker"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#C4B5E0",
+        "size": [
+          1,
+          5.4,
+          1.6
+        ]
+      },
+      "config": {
+        "label": "堆垛机 B",
+        "aisleX": 16,
+        "ioZ": 5,
+        "ioY": 1.2,
+        "zMin": 6.4,
+        "zMax": 14.6,
+        "levels": [
+          1.35,
+          2.5,
+          3.65
+        ],
+        "columns": 5,
+        "cycle": 16.5,
+        "phase": 0.38,
+        "reach": 1.5,
+        "forkX": [
+          14.5,
+          17.5
+        ],
+        "stationX": 12,
+        "outfeedX": 17.6,
+        "outfeedZ": [
+          16
+        ],
+        "outfeedTravelZ": 16,
+        "outfeedDir": 1,
+        "outboundPath": [
+          [
+            17.6,
+            0,
+            16
+          ],
+          [
+            21.200000000000003,
+            0,
+            16
+          ]
+        ],
+        "outboundMode": "shipped",
+        "highWater": 8
+      }
+    },
+    {
+      "id": "stacker-b-carriage",
+      "kind": "carriage",
+      "transform": {
+        "position": [
+          16,
+          1.2,
+          5
+        ]
+      },
+      "capabilities": [
+        "carriage"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#C4B5E0",
+        "size": [
+          0.92,
+          0.34,
+          1.2
+        ]
+      },
+      "config": {
+        "label": "载货台 B"
+      }
+    },
+    {
+      "id": "stacker-b-fork",
+      "kind": "fork",
+      "transform": {
+        "position": [
+          16,
+          1.2,
+          5
+        ]
+      },
+      "capabilities": [
+        "fork"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#8BD3C7",
+        "size": [
+          1.1,
+          0.14,
+          0.9
+        ]
+      },
+      "config": {
+        "label": "货叉 B"
+      }
+    },
+    {
+      "id": "truck-b",
+      "kind": "truck",
+      "transform": {
+        "position": [
+          21.200000000000003,
+          0,
+          20
+        ]
+      },
+      "capabilities": [
+        "truck"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#C4B5E0",
+        "size": [
+          2.2,
+          2.4,
+          6
+        ]
+      },
+      "config": {
+        "label": "出库卡车 B",
+        "dock": [
+          21.200000000000003,
+          0,
+          16
+        ],
+        "route": [
+          [
+            21.200000000000003,
+            0,
+            20
+          ],
+          [
+            21.200000000000003,
+            0,
+            28
+          ]
+        ],
+        "speed": 2.4,
+        "capacity": 4,
+        "dwell": 120,
+        "awayTime": 20,
+        "loadRadius": 0.8,
+        "cargoCapability": "pallet"
+      }
+    }
+  ]
+}

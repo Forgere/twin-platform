@@ -16,6 +16,9 @@ import type { TwinVector3 } from '@twin-platform/world-kernel';
  */
 
 const STUCK_COLOR = new THREE.Color('#EF4444');
+/** 审计违例色：闪烁脉冲在它与浅色之间插值，所以两色都要留着。 */
+const FLAG_LOW = new THREE.Color('#B3261E');
+const FLAG_HIGH = new THREE.Color('#FF8A80');
 const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 
 export class CargoPool {
@@ -30,6 +33,11 @@ export class CargoPool {
   /** 本帧真正移动过的货物 id，供控制器做背压判定。 */
   readonly movedThisFrame = new Set<string>();
   private readonly lastMatrix = new Map<string, THREE.Matrix4>();
+  /** 每个货物的常规色（身份色），摘掉审计标记后按它还原。 */
+  private readonly lastColor = new Map<string, THREE.Color>();
+  /** 被审计点名的货物：颜色由脉冲接管，不走身份色与背压色。 */
+  private readonly flagged = new Set<string>();
+  private readonly flagMix = new THREE.Color();
 
   constructor(capacity = 2048, baseColor = '#F4A07A') {
     this.capacity = capacity;
@@ -85,12 +93,39 @@ export class CargoPool {
     this.mesh.instanceMatrix.needsUpdate = true;
     this.lastMatrix.set(id, this.dummy.matrix.clone());
 
-    const target = stuck ? STUCK_COLOR : color;
+    this.lastColor.set(id, color);
+    // 审计标记压过背压色：违例比堵住了更该被看见。
+    const target = this.flagged.has(id) ? FLAG_LOW : stuck ? STUCK_COLOR : color;
     this.mesh.setColorAt(slot, target);
     if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
     if (stuck) this.stuck.add(id);
     else this.stuck.delete(id);
     this.movedThisFrame.add(id);
+  }
+
+  /**
+   * 审计标记：把一批货物交给脉冲色接管，不在名单上的立刻还原。
+   *
+   * 只认池里真有的 id——对着一个还没出生或已被运走的货物插旗没有意义，
+   * 那是拿审计的名字去点一个画面上不存在的东西。
+   */
+  setFlagged(ids: readonly string[]): void {
+    const next = new Set<string>();
+    for (const id of ids) if (this.idToSlot.has(id)) next.add(id);
+    let touched = false;
+    for (const id of [...this.flagged]) {
+      if (next.has(id)) continue;
+      this.flagged.delete(id);
+      this.recolor(id);
+      touched = true;
+    }
+    for (const id of next) {
+      if (this.flagged.has(id)) continue;
+      this.flagged.add(id);
+      this.recolor(id);
+      touched = true;
+    }
+    if (touched && this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
   }
 
   /** 回收槽位：零缩放 + 归还空闲栈。 */
@@ -102,8 +137,38 @@ export class CargoPool {
     this.slotToId[slot] = undefined;
     this.idToSlot.delete(id);
     this.stuck.delete(id);
+    this.flagged.delete(id);
+    this.lastColor.delete(id);
     this.lastMatrix.delete(id);
     this.freeSlots.push(slot);
+  }
+
+  /** 按当前标记状态重写一个实例的颜色（退标记后回到身份色 / 背压色）。 */
+  private recolor(id: string): void {
+    const slot = this.idToSlot.get(id);
+    if (slot === undefined) return;
+    const color = this.flagged.has(id)
+      ? FLAG_LOW
+      : this.stuck.has(id)
+        ? STUCK_COLOR
+        : (this.lastColor.get(id) ?? this.baseColor);
+    this.mesh.setColorAt(slot, color);
+  }
+
+  /**
+   * 每帧脉冲：k = 0..1，在暗红与警示红之间插值。
+   *
+   * 只碰被标记的槽位；数量由违例数决定，不随场景规模增长。
+   */
+  pulseFlagged(k: number): void {
+    if (this.flagged.size === 0) return;
+    this.flagMix.copy(FLAG_LOW).lerp(FLAG_HIGH, k);
+    for (const id of this.flagged) {
+      const slot = this.idToSlot.get(id);
+      if (slot === undefined) continue;
+      this.mesh.setColorAt(slot, this.flagMix);
+    }
+    if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
   }
 
   /** 射线命中 InstancedMesh 后，用 instanceId 反查实体 id。 */

@@ -35,11 +35,6 @@ const activate = (plugin: TwinPlugin): readonly WorldBehavior[] => {
   return host.behaviors;
 };
 
-const isClosedLoopCenter = (scene: TwinScene): boolean => {
-  const kinds = new Set(scene.entities.map((entity) => entity.kind));
-  return ['source', 'pack', 'asrs', 'stacker', 'truck'].every((kind) => kinds.has(kind));
-};
-
 const isFishingPond = (scene: TwinScene): boolean => scene.entities.some((entity) => entity.id === 'rig-01');
 
 export async function loadCliPlugin(id: string): Promise<CliPlugin> {
@@ -53,8 +48,8 @@ export async function loadCliPlugin(id: string): Promise<CliPlugin> {
         version: mod.logisticsPlugin.manifest.version,
         behaviors: () => activate(mod.logisticsPlugin),
         // 闭环不变量只对真的装了"发生器 / 打包站 / 立库 / 卡车"的中心场景成立；
-        // 换到 line / factory 模板时不硬套，否则会把"没有这条链路"报成违例。
-        checksForScene: (scene) => (isClosedLoopCenter(scene) ? mod.centerRuntimeInvariants : noChecks),
+        // 规则只在 plugins-logistics 里写一份，Studio 审计面板用的是同一个函数。
+        checksForScene: (scene) => mod.runtimeInvariantsFor(scene),
         buildScene: (template, params) => {
           const options = (params ?? {}) as never;
           if (template === 'factory') return mod.buildFactoryScene(options);

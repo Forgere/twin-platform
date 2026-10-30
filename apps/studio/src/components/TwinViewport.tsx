@@ -1,4 +1,4 @@
-import { createSignal, flush, For, onCleanup, onSettled, Show, untrack } from 'solid-js';
+import { createEffect, createMemo, createSignal, flush, For, onCleanup, onSettled, Show, untrack } from 'solid-js';
 import { Dynamic } from '@solidjs/web';
 import { presentationFor } from '../plugins/presentations';
 import { createWorkspace, type WorkspaceHandle } from '../plugins/workspace';
@@ -17,11 +17,14 @@ import type { SceneSummary as StoredSceneSummary } from '@twin-platform/storage-
 import ScenePanel, { type SceneExportPayload, type SceneImportOutcome, type ServerState } from './ScenePanel';
 import DataSourcePanel from './DataSourcePanel';
 import EventLogPanel from './EventLogPanel';
-import TimelineBar from './TimelineBar';
+import TimelineBar, { type TimelineAuditMark } from './TimelineBar';
 import PluginsPanel from './PluginsPanel';
 import { defaultTab, inspectorTabs, sceneProfileOf, type SceneProfile } from '../scene/sceneProfile';
 import MetricsPanel from './MetricsPanel';
+import AuditPanel from './AuditPanel';
 import ScenarioComparePanel from './ScenarioComparePanel';
+import { runtimeInvariantsFor } from '@twin-platform/plugins-logistics';
+import { auditScene, auditSpots, type AuditTarget, type SceneAuditView } from '../scene/sceneAudit';
 
 /**
  * Studio 主视口。
@@ -156,6 +159,20 @@ export default function TwinViewport() {
     stored: number;
   }>({ time: 0, duration: 0, playing: true, speed: 1, events: [], stored: 0 });
   const [metrics, setMetrics] = createSignal<LineMetrics>(untrack(() => session().metrics()));
+  /**
+   * 审计结论：和 CLI 同一个执行器算出来的报告，每 5 拍（~600ms）重算一次。
+   * 不跟 60Hz、也不跟 8Hz 采样拍：不变量要扫事件日志，没必要每帧都扫一遍。
+   */
+  const [audit, setAudit] = createSignal<SceneAuditView>(
+    untrack(() => auditScene(session().world, runtimeInvariantsFor(session().world.scene))),
+  );
+  /** 审计重算的节拍计数（不参与渲染）。 */
+  let auditBeat = 0;
+  /**
+   * 正在从审计面板定位：此时选中实体**不**把检视区翻到实体页。
+   * 否则一点定位，审计证据就从眼前消失了——飞相机跟看证据必须能同时发生。
+   */
+  let locating = false;
   const [telemetry, setTelemetry] = createSignal<StudioTelemetry>(untrack(() => session().telemetry()));
   /** 采样节拍：实体详情里的实时状态（货位、库存、当前任务）按它刷新。 */
   const [tick, setTick] = createSignal(0, { name: 'studio.tick' });
@@ -208,7 +225,8 @@ export default function TwinViewport() {
       (entity) => {
         setSelected(entity);
         // 点中场景里的东西就把实体页翻出来，不然选中了也看不见。
-        if (entity) {
+        // 但从审计面板定位过来的例外：证据面板得留在原地，只有相机飞过去。
+        if (entity && !locating) {
           setTab('entity');
           setMobileInspector(true);
         }
@@ -224,6 +242,9 @@ export default function TwinViewport() {
     controller.setCameraPreset('overview');
     setEntities(controller.entities);
     setTheme(controller.themeName);
+    // 新建的控制器是一张白纸：把当前审计结论立刻画上去，不等下一次面板重算。
+    stopTour();
+    controller.setAuditSpots(untrack(spots));
   };
 
   const mountViewport = (host: HTMLDivElement) => {
@@ -250,6 +271,10 @@ export default function TwinViewport() {
     setTab(defaultTab(profileFor(next)));
     setMobileInspector(false);
     setWorkspace(workspaceFor(next));
+    // 换会话立刻重算一次：不等下一拍，否则新场景会在旧结论下停最多 600ms。
+    auditBeat = 0;
+    setLocateNote(undefined);
+    setAudit(auditScene(next.world, runtimeInvariantsFor(next.world.scene)));
   };
 
   /**
@@ -457,6 +482,138 @@ export default function TwinViewport() {
     setServer((current) => (current && current.note !== note ? { ...current, note } : current));
   };
 
+  /**
+   * 审计面板的定位提醒。回跳是按契约分叉：旧时间线之后的事件会被截断，
+   * 于是守恒类不变量看上去“突然不守恒了”。那是真结果，但必须说明为什么，
+   * 否则审计会自己吓自己。
+   */
+  const [locateNote, setLocateNote] = createSignal<string>();
+  /** 审计巡演停在第几条违例；-1 表示没在巡演。 */
+  const [tourIndex, setTourIndex] = createSignal(-1, { name: 'studio.auditTour' });
+
+  /**
+   * 审计定位：把"证据"变成画面上的动作——回到那一刻，相机飞到那个实体。
+   *
+   * 两个顺序都是硬的：
+   * - **先暂停再 seek**：位置是那一刻的证据，世界继续跑的话证据立刻就被冲走了；
+   * - **先 seek 再选中**：要选的是**那一刻**的实体，不是现在的它
+   *   （回跳后实体可能已经不在了，`selectEntity` 找不到就不装选中）。
+   *
+   * 回跳按回放规则就是分叉：恢复快照后重算，旧时间线之后的事件会被截断。
+   * 这是"回到现场"的代价，也是它能被复现的原因。
+   */
+  /**
+   * @param quiet 巡演里连续跳点，不再每跳一次都往面板里贴一条分叉提醒。
+   */
+  const locate = async (target: AuditTarget, quiet = false): Promise<void> => {
+    const current = session();
+    const before = current.world.time;
+    current.controller.pause();
+    if (target.at !== undefined) {
+      try {
+        await current.controller.seek(target.at);
+      } catch (error) {
+        setServer((state) =>
+          state ? { ...state, note: `定位失败：${error instanceof Error ? error.message : String(error)}` } : state,
+        );
+        return;
+      }
+      // seek 往回跳 = 分叉：事件游标回掤，旧时间线之后的记录按契约截断。
+      if (!quiet) {
+        setLocateNote(
+          target.at < before - 1e-6
+            ? `已回放到 t=${target.at.toFixed(2)}s（原 t=${before.toFixed(2)}s）：这是分叉回放，之后的事件已按契约截断，审计按新的证据窗口重算。`
+            : undefined,
+        );
+      }
+    }
+    if (target.entityId) {
+      locating = true;
+      try {
+        controller?.selectEntity(target.entityId);
+      } finally {
+        locating = false;
+      }
+      controller?.focusEntity(target.entityId);
+    }
+    setTick((value) => value + 1);
+  };
+
+  // ---------------------------------------------------------------------------
+  // 审计在画面上的那一层：三维插旗 + 时间轴刻度 + 巡演
+  // ---------------------------------------------------------------------------
+
+  /**
+   * 报告里有画面位置的违例。
+   *
+   * 判定还是 scene-audit 的，这里只是把结论翻译成画面位置。
+   * 走不出位置的违例（缺失的那一环）不进这张表——它只属于面板里的文字。
+   */
+  const spots = createMemo(() => auditSpots(audit()), undefined);
+
+  /** 轴上的刻度：只收有时刻的那些；id 里带上 check 与实体，点上去才知道点的是哪一条。 */
+  const auditMarks = createMemo<TimelineAuditMark[]>(
+    () =>
+      spots().flatMap((spot) =>
+        spot.at === undefined
+          ? []
+          : [
+              {
+                id: `${spot.checkId}|${spot.entityId ?? '-'}|${spot.at}`,
+                t: spot.at,
+                status: spot.severity,
+                label: `${spot.check} · ${spot.message}`,
+              },
+            ],
+      ),
+    undefined,
+  );
+  const auditMarkId = createMemo(() => {
+    const spot = spots()[tourIndex()];
+    return spot?.at === undefined ? undefined : `${spot.checkId}|${spot.entityId ?? '-'}|${spot.at}`;
+  }, undefined);
+
+  /** 三维那一层随审计结论更新；换会话时在 buildController 里再推一次。 */
+  createEffect(
+    () => spots(),
+    (list) => controller?.setAuditSpots(list),
+  );
+
+  /**
+   * 审计巡演：把每一处违例按时间顺序演一遍——暂停、回溯到那一刻、相机落到那个实体。
+   *
+   * 手动上/下一个会打断自动播放：人一旦接手，上一轮的定时器就不该再拽镜头。
+   */
+  const DWELL_MS = 2600;
+  let tourToken = 0;
+  const stopTour = (): void => {
+    tourToken += 1;
+    setTourIndex(-1);
+  };
+  const showSpot = async (index: number): Promise<void> => {
+    const list = spots();
+    if (list.length === 0) return;
+    tourToken += 1; // 手动优先：把还在跑的自动巡演停在这一处
+    const clamped = Math.max(0, Math.min(index, list.length - 1));
+    setTourIndex(clamped);
+    const spot = list[clamped];
+    if (spot) await locate(spot, true);
+  };
+  const runTour = async (): Promise<void> => {
+    const list = spots();
+    if (list.length === 0) return;
+    const token = ++tourToken;
+    for (let index = 0; index < list.length; index += 1) {
+      if (token !== tourToken) return;
+      setTourIndex(index);
+      const spot = list[index];
+      if (spot) await locate(spot, true);
+      if (token !== tourToken) return;
+      await new Promise((resolve) => setTimeout(resolve, DWELL_MS));
+    }
+    if (token === tourToken) setTourIndex(-1);
+  };
+
   // 面板按固定频率采样，而不是每帧刷新：UI 不需要 60Hz 的事件流，
   // 每帧写信号只会把渲染循环拖进响应式更新里。
   const refresh = async () => {
@@ -480,6 +637,10 @@ export default function TwinViewport() {
     reportWriteErrors();
     setMetrics(current.metrics());
     setTelemetry(current.telemetry());
+    // 审计每 5 拍（~600ms）重算一次：要扫事件日志，没必要跟 8Hz 采样同频。
+    // 先量后改：只有两条不变量、事件量级几千，600ms 已经足够看清趋势。
+    auditBeat += 1;
+    if (auditBeat % 5 === 0) setAudit(auditScene(current.world, runtimeInvariantsFor(current.world.scene)));
     setTick((value) => value + 1);
   };
   const timer = setInterval(() => void refresh(), 120);
@@ -583,6 +744,24 @@ export default function TwinViewport() {
               >
                 🎨
               </button>
+              {/* 审计是张伟要给的主角：有违例就把入口摆在画布上，点开按时间顺序演一遍。 */}
+              <Show when={spots().length > 0}>
+                <button
+                  type="button"
+                  class={tourIndex() >= 0 ? 'vp-btn vp-btn-on' : 'vp-btn vp-btn-alert'}
+                  aria-pressed={tourIndex() >= 0 ? 'true' : 'false'}
+                  aria-label={tourIndex() >= 0 ? '结束审计巡演' : '播放审计巡演'}
+                  title={
+                    tourIndex() >= 0
+                      ? '结束审计巡演'
+                      : `审计巡演：依次回到 ${spots().length} 处违例的现场（暂停 + 回溯 + 相机落点）`
+                  }
+                  onClick={() => (tourIndex() >= 0 ? stopTour() : void runTour())}
+                >
+                  {tourIndex() >= 0 ? '✖' : '⚖'}
+                  <span class="vp-badge">{spots().length}</span>
+                </button>
+              </Show>
               <button
                 type="button"
                 class={controls() ? 'vp-btn vp-btn-on' : 'vp-btn'}
@@ -748,6 +927,41 @@ export default function TwinViewport() {
 
             {/* 插件浮层保留原有布局插槽；会话切换时整体卸载。 */}
             <Dynamic component={workspace()?.views.Overlay} />
+
+            {/* 巡演卡片：跟着当前这一条违例走，同时永远给出怎么定位到这里的理由。 */}
+            <Show when={tourIndex() >= 0 && spots()[tourIndex()]}>
+              {(spot) => (
+                <div class="audit-tour" aria-label="审计巡演" aria-live="polite">
+                  <div class="audit-tour-head">
+                    <span class="audit-tour-step">
+                      违例 {tourIndex() + 1} / {spots().length}
+                    </span>
+                    <strong>{spot().check}</strong>
+                  </div>
+                  <p class="audit-tour-msg">{spot().message}</p>
+                  <p class="audit-tour-why">{spot().evidence}</p>
+                  <div class="audit-tour-actions">
+                    <button
+                      type="button"
+                      disabled={tourIndex() <= 0}
+                      onClick={() => void showSpot(tourIndex() - 1)}
+                    >
+                      ← 上一处
+                    </button>
+                    <button
+                      type="button"
+                      disabled={tourIndex() >= spots().length - 1}
+                      onClick={() => void showSpot(tourIndex() + 1)}
+                    >
+                      下一处 →
+                    </button>
+                    <button type="button" class="audit-tour-stop" onClick={stopTour}>
+                      结束
+                    </button>
+                  </div>
+                </div>
+              )}
+            </Show>
           </div>
 
           {/* 仿真控制不常用：默认不渲染，明确点开才出现。 */}
@@ -763,6 +977,8 @@ export default function TwinViewport() {
               onSeek={(time) => void session().controller.seek(time)}
               onStep={(steps) => session().controller.stepFrames(steps)}
               onCollapse={() => setControls(false)}
+              marks={auditMarks()}
+              activeMarkId={auditMarkId()}
             />
           </Show>
         </section>
@@ -805,6 +1021,7 @@ export default function TwinViewport() {
                         <span>
                           {card()?.kind ?? entity().kind} · {entity().id}
                         </span>
+                        <span class="part-id">partId：{entity().partId ?? '—'}</span>
                         <Show when={(card()?.stateLines.length ?? 0) > 0}>
                           <dl class="entity-state">
                             <For each={card()?.stateLines}>
@@ -856,6 +1073,10 @@ export default function TwinViewport() {
                   )}
                 </For>
               </div>
+            </Show>
+
+            <Show when={tab() === 'audit'}>
+              <AuditPanel audit={audit()} notice={locateNote()} onLocate={(target) => void locate(target)} />
             </Show>
 
             <Show when={tab() === 'metrics'}>

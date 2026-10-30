@@ -8,6 +8,7 @@ export interface SceneProfile extends InspectorProfile {
 
 const TABS: Readonly<Record<string, InspectorTab>> = {
   entity: { id: 'entity', icon: '🧩', label: '实体' },
+  audit: { id: 'audit', icon: '🛡️', label: '审计' },
   metrics: { id: 'metrics', icon: '📊', label: '指标' },
   compare: { id: 'compare', icon: '⚖️', label: '对比' },
   data: { id: 'data', icon: '📡', label: '数据' },
@@ -17,9 +18,10 @@ const TABS: Readonly<Record<string, InspectorTab>> = {
 };
 
 const tabs = (ids: readonly string[]): InspectorTab[] => ids.map((id) => TABS[id]!);
+/** 物流画像：默认页就是审计——工厂示例打开第一眼看到的是"契约过不过"，不是模型好不好看。 */
 const LOGISTICS: SceneProfile = {
-  id: 'logistics', defaultTab: 'entity',
-  tabs: tabs(['entity', 'metrics', 'compare', 'data', 'events', 'scene', 'plugins']),
+  id: 'logistics', defaultTab: 'audit',
+  tabs: tabs(['entity', 'audit', 'metrics', 'compare', 'data', 'events', 'scene', 'plugins']),
 };
 const GENERIC: SceneProfile = {
   id: 'generic', defaultTab: 'entity',

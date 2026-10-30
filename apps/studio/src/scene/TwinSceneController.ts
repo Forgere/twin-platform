@@ -1,6 +1,7 @@
 import CameraControls from 'camera-controls';
 import type { ScenePresentation, SceneViewContext } from '@twin-platform/studio-sdk';
 import { CanvasTap } from './CanvasTap';
+import { rawPartId } from './partId';
 import type { ReplayController } from '@twin-platform/replay-core';
 import type { TwinScene, TwinVector3, FrameDelta } from '@twin-platform/world-kernel';
 import * as THREE from 'three';
@@ -13,6 +14,7 @@ import {
   type EntityAnim,
 } from './entityMeshes';
 import { CargoPool } from './CargoPool';
+import type { SceneAuditSpot } from './sceneAudit';
 import { getActiveTheme, setActiveTheme, themeByName, cargoColorFor, type ThemeName } from './theme';
 
 CameraControls.install({ THREE });
@@ -31,6 +33,8 @@ export interface TwinEntityView {
   id: string;
   label: string;
   kind: string;
+  /** 画布实际命中部件的原始标识；从列表选实体时没有部件级命中。 */
+  partId?: string;
 }
 
 export interface TwinSceneControllerOptions {
@@ -71,6 +75,11 @@ interface DragState {
 const DEFAULT_SIZE: TwinVector3 = [0.7, 0.7, 0.7];
 /** 选中高亮色（暖橘，和奶油色场景对比足够）。 */
 const HIGHLIGHT = '#F4A261';
+/** 审计违例色：设备描边与货箱脉冲共用，fail ≡ error 一深一浅。 */
+const AUDIT_FAIL = new THREE.Color('#B3261E');
+const AUDIT_ERROR = new THREE.Color('#D97706');
+/** 报警脉冲频率（rad/s）：慢到能读清，快到不会被当成常亮。 */
+const AUDIT_PULSE = 4.2;
 /** 顶升链带链轮角速度（rad/s）。 */
 const CHAIN_SPIN = 7.0;
 /** 顶升链带线速度（m/s），链齿按它循环平移。 */
@@ -110,6 +119,14 @@ export class TwinSceneController {
   private beltTime = 0;
   private selectionHelper: THREE.BoxHelper | THREE.Box3Helper | undefined;
   private selectedId: string | undefined;
+  /** 审计点名的违例。含没有实体的：那种只上时间轴标记，不在三维里插旗。 */
+  private auditSpots: readonly SceneAuditSpot[] = [];
+  /** 每个被点名实体一面旗：旋转齿环 + 光柱，位置每帧跟实体走。 */
+  private readonly auditMarkers = new Map<string, THREE.Group>();
+  /** 正在描边脉冲的设备网格 id。 */
+  private readonly flaggedMeshes = new Set<string>();
+  /** 脉冲相位（秒）：只看已过去的时间，报警不依赖仿真在不在跑。 */
+  private pulseClock = 0;
   /** 进行中的拖拽（预览期间只改网格，不写世界）。 */
   private drag: DragState | undefined;
   /** 进行中的轻点：按下的那根指针与按下位置；抬起时没怎么动才算点选。 */
@@ -221,7 +238,7 @@ export class TwinSceneController {
     this.rebuildEntities();
   }
 
-  selectEntity(id: string): void {
+  selectEntity(id: string, partId?: string): void {
     // 设备：保留自发光高亮（状态灯自发光会被还原到 baseEmissive）。
     for (const [entityId, object] of this.entityMeshes) {
       for (const material of collectMaterials(object)) {
@@ -261,17 +278,75 @@ export class TwinSceneController {
     // 运行时生成的实体不在场景声明表里，退回世界状态里查一次。
     const known = this.entities.find((entity) => entity.id === id);
     if (known) {
-      this.onSelect(known);
+      this.onSelect({ ...known, partId });
       return;
     }
     const state = this.controller.world.getEntity(id);
-    this.onSelect(state ? { id: state.id, kind: state.kind, label: entityLabel(state.config?.label, state.id) } : undefined);
+    this.onSelect(state ? { id: state.id, kind: state.kind, label: entityLabel(state.config?.label, state.id), partId } : undefined);
   }
 
+  /**
+   * 画面上真正插了旗的实体 id。
+   *
+   * 这是**渲染层自己的账**：给面板与测试对一对“看到几面旗”。
+   * 判定不在这里，也不在这里重算定位。
+   */
+  get auditedEntities(): readonly string[] {
+    return [...this.auditMarkers.keys()];
+  }
+
+  /**
+   * 把审计结论画到场景里：违例实体描边脉冲 + 头上插一面报警旗。
+   *
+   * 三条不肯让步的规矩：
+   * 1. **定位不出来就不插旗**。where 对不上实体 id 的违例（例如缺 goods:packed 这一环）
+   *    只在面板里说清，画面上不插旗——硬塞一个位置就是骗人；
+   * 2. **旗跟着实体走**。每帧从当前网格或实例矩阵取锚点，实体不在了就把旗收起来，
+   *    不留在原地假装它还在；
+   * 3. **退出名单必须还原**。红漆交给 emissive 混色，摘标记时把 emissive
+   *    交还给模型默认值与选中态，不留一层洗不掉的红。
+   */
+  setAuditSpots(spots: readonly SceneAuditSpot[]): void {
+    this.auditSpots = spots;
+    const next = new Set<string>();
+    for (const spot of spots) if (spot.entityId) next.add(spot.entityId);
+
+    // 先还原旧的，再上新标记：顺序反了会漏一层红漆。
+    for (const id of [...this.flaggedMeshes]) {
+      if (next.has(id)) continue;
+      this.flaggedMeshes.delete(id);
+      this.restoreEmissive(id);
+    }
+    for (const [id, marker] of [...this.auditMarkers]) {
+      if (next.has(id)) continue;
+      this.disposeMarker(id, marker);
+    }
+    for (const id of next) {
+      if (this.auditMarkers.has(id)) continue;
+      const severity = spots.find((spot) => spot.entityId === id)?.severity ?? 'fail';
+      this.auditMarkers.set(id, this.buildMarker(severity));
+    }
+    for (const id of next) {
+      if (this.entityMeshes.has(id)) this.flaggedMeshes.add(id);
+    }
+    this.cargoPool.setFlagged([...next]);
+  }
+
+  /**
+   * 相机飞到某个实体。
+   *
+   * 设备走实体网格，物料走实例池（小货物/托盘不建 mesh，只占一个实例矩阵）——
+   * 两种都得能取景，否则审计定位到一只物料时相机会默默不动。
+   */
   focusEntity(id: string): void {
     const mesh = this.entityMeshes.get(id);
-    if (!mesh) return;
-    const target = mesh.getWorldPosition(new THREE.Vector3());
+    const target = mesh
+      ? mesh.getWorldPosition(new THREE.Vector3())
+      : (() => {
+          const matrix = this.cargoPool.matrixOf(id);
+          return matrix ? new THREE.Vector3().setFromMatrixPosition(matrix) : undefined;
+        })();
+    if (!target) return;
     void this.controls.setLookAt(target.x + 5.2, target.y + 4.4, target.z + 6.4, target.x, target.y, target.z, true);
   }
 
@@ -338,6 +413,9 @@ export class TwinSceneController {
     this.removeSelectionHelper();
     this.presentation?.dispose();
     for (const object of this.entityMeshes.values()) disposeObject(object);
+    for (const marker of this.auditMarkers.values()) disposeObject(marker);
+    this.auditMarkers.clear();
+    this.flaggedMeshes.clear();
     this.cargoPool.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();
@@ -609,6 +687,128 @@ export class TwinSceneController {
       }
 
     }
+    // 审计报警层放在帧末：此时位置已经是世界最新值，插旗才不会慢一拍。
+    this.updateAuditVisuals(realDelta);
+  }
+
+  // ---------------------------------------------------------------------------
+  // 审计在三维里的样子：违例实体描边脉冲 + 头上一面报警旗
+  // ---------------------------------------------------------------------------
+
+  /**
+   * 造一面旗：地面光圈 + 一道光柱 + 朝下的锥形指针。
+   *
+   * `depthTest = false`：报警是抬显层，被货架挡住就等于没报警。
+   * 位置由 `updateAuditVisuals` 每帧给，这里只管造型。
+   */
+  private buildMarker(severity: 'fail' | 'error'): THREE.Group {
+    const color = severity === 'error' ? AUDIT_ERROR : AUDIT_FAIL;
+    const group = new THREE.Group();
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(0.62, 0.06, 8, 28),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, depthTest: false, depthWrite: false }),
+    );
+    ring.rotation.x = -Math.PI / 2;
+    const beam = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.028, 0.028, 1.5, 6, 1, true),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.55, depthTest: false, depthWrite: false }),
+    );
+    beam.position.y = 0.75;
+    const tip = new THREE.Mesh(
+      new THREE.ConeGeometry(0.17, 0.36, 10),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.95, depthTest: false, depthWrite: false }),
+    );
+    tip.rotation.x = Math.PI; // 尖端朝下：指的就是下面那件东西
+    tip.position.y = 1.62;
+    group.add(ring, beam, tip);
+    group.renderOrder = 998;
+    group.userData.entityMarker = true;
+    this.scene.add(group);
+    return group;
+  }
+
+  /** 收旗：退出名单、换场景、卸载，都走这一条，不留孤儿对象。 */
+  private disposeMarker(id: string, marker: THREE.Group): void {
+    this.auditMarkers.delete(id);
+    this.scene.remove(marker);
+    disposeObject(marker);
+  }
+
+  /** 把某个设备的 emissive 交还给模型默认值（或选中态），消除报警描边。 */
+  private restoreEmissive(id: string): void {
+    const object = this.entityMeshes.get(id);
+    if (!object) return;
+    const selected = this.selectedId === id;
+    for (const material of collectMaterials(object)) {
+      material.emissive.setHex(Number(material.userData.baseEmissive ?? 0));
+      material.emissiveIntensity = Number(material.userData.baseEmissiveIntensity ?? 0);
+      if (selected) {
+        material.emissive.set(HIGHLIGHT);
+        material.emissiveIntensity = 0.55;
+      }
+    }
+  }
+
+  /**
+   * 实体当前的顶锚点：旗就插在它正上方。
+   *
+   * 设备走包围盒顶，物料走实例矩阵 + 声明尺寸。取不到就返回 undefined——
+   * 这一帧这面旗必须收起来，实体已经不在了。
+   */
+  private topAnchor(id: string): THREE.Vector3 | undefined {
+    const mesh = this.entityMeshes.get(id);
+    if (mesh) {
+      const box = new THREE.Box3().setFromObject(mesh);
+      if (box.isEmpty()) return undefined;
+      return new THREE.Vector3((box.min.x + box.max.x) / 2, box.max.y, (box.min.z + box.max.z) / 2);
+    }
+    const matrix = this.cargoPool.matrixOf(id);
+    if (!matrix) return undefined;
+    const size = this.entitySizes.get(id) ?? DEFAULT_SIZE;
+    return new THREE.Vector3().setFromMatrixPosition(matrix).setY(matrix.elements[13] + size[1] / 2);
+  }
+
+  /**
+   * 每帧的报警表现：相位乘出来的脉冲同时驱动旗的缩放/透明与设备描边。
+   *
+   * 只遍历被点名的那几个对象，不由场景规模付费。
+   */
+  private updateAuditVisuals(realDelta: number): void {
+    if (this.auditMarkers.size === 0 && this.flaggedMeshes.size === 0) return;
+    this.pulseClock += realDelta;
+    const k = 0.5 + 0.5 * Math.sin(this.pulseClock * AUDIT_PULSE);
+    this.cargoPool.pulseFlagged(k);
+
+    for (const [id, marker] of this.auditMarkers) {
+      const anchor = this.topAnchor(id);
+      if (!anchor) {
+        marker.visible = false; // 实体不在了：收旗，不留在原地冒充它
+        continue;
+      }
+      marker.visible = true;
+      marker.position.set(anchor.x, anchor.y + 0.16, anchor.z);
+      const spread = 0.92 + 0.18 * k;
+      marker.scale.set(spread, 1 + 0.22 * k, spread);
+      marker.traverse((child) => {
+        const material = (child as THREE.Mesh).material as THREE.MeshBasicMaterial | undefined;
+        if (!material || !('opacity' in material)) return;
+        if (material.userData.baseOpacity === undefined) material.userData.baseOpacity = material.opacity;
+        const base = Number(material.userData.baseOpacity);
+        material.opacity = Math.min(1, Math.max(0.18, base * (0.55 + 0.55 * k)));
+      });
+    }
+
+    for (const id of this.flaggedMeshes) {
+      const object = this.entityMeshes.get(id);
+      if (!object) continue;
+      // 选中的那一个保留橘色高亮：它已经有选中框了，别让两种状态互相覆盖。
+      if (id === this.selectedId) continue;
+      const color = this.auditSpots.find((spot) => spot.entityId === id)?.severity === 'error' ? AUDIT_ERROR : AUDIT_FAIL;
+      for (const material of collectMaterials(object)) {
+        material.emissive.copy(color);
+        material.emissiveIntensity = 0.22 + 0.5 * k;
+      }
+    }
   }
 
   private removeSelectionHelper(): void {
@@ -619,8 +819,8 @@ export class TwinSceneController {
     this.selectionHelper = undefined;
   }
 
-  /** 屏幕点 → 命中的实体（设备网格 + 实例化货池一起拾取）与命中点。 */
-  private hitTest(event: PointerEvent): { id: string; point: THREE.Vector3 } | undefined {
+  /** 屏幕点 → 命中的实体、原始 partId（设备网格 + 实例化货池一起拾取）与命中点。 */
+  private hitTest(event: PointerEvent): { id: string; partId?: string; point: THREE.Vector3 } | undefined {
     const bounds = this.renderer.domElement.getBoundingClientRect();
     this.pointer.x = ((event.clientX - bounds.left) / bounds.width) * 2 - 1;
     this.pointer.y = -((event.clientY - bounds.top) / bounds.height) * 2 + 1;
@@ -631,7 +831,7 @@ export class TwinSceneController {
       hit.object === this.cargoPool.mesh && hit.instanceId !== undefined
         ? this.cargoPool.entityIdAt(hit.instanceId)
         : this.entityIdOf(hit.object);
-    return id ? { id, point: hit.point } : undefined;
+    return id ? { id, partId: rawPartId(hit), point: hit.point } : undefined;
   }
 
   /**
@@ -653,7 +853,7 @@ export class TwinSceneController {
     const bounds = this.renderer.domElement.getBoundingClientRect();
     if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) return;
     const hit = this.hitTest(event);
-    if (hit) this.selectEntity(hit.id);
+    if (hit) this.selectEntity(hit.id, hit.partId);
   };
 
   private readonly onTapCancel = (event: PointerEvent): void => {
@@ -665,7 +865,7 @@ export class TwinSceneController {
     if (!this.onDragCommit || event.button !== 0) return;
     const hit = this.hitTest(event);
     if (!hit) return;
-    this.selectEntity(hit.id);
+    this.selectEntity(hit.id, hit.partId);
     // 可编辑性由内核回答，路径 / 行为接管的实体根本起不来。
     this.beginDrag(hit.id, hit.point);
   };

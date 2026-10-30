@@ -1,0 +1,12 @@
+[
+  {
+    "id": "logistics.center.flow",
+    "description": "产出 → 打包 → 入库 → 出库 → 运走全链路都有事件",
+    "where": "runtimeInvariantsFor(scene)：与 CLI audit、Studio 审计面板同一个执行器"
+  },
+  {
+    "id": "logistics.center.conservation",
+    "description": "小货物与托盘在全链路中守恒",
+    "where": "runtimeInvariantsFor(scene)：与 CLI audit、Studio 审计面板同一个执行器"
+  }
+]
