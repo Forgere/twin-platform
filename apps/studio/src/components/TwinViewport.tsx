@@ -492,6 +492,25 @@ export default function TwinViewport() {
   const [tourIndex, setTourIndex] = createSignal(-1, { name: 'studio.auditTour' });
 
   /**
+   * 时间轴定位的**唯一入口**。
+   *
+   * 两件事必须一起做，缺一件就出 bug：
+   * 1. `seek()` 返回的帧差量要交给渲染层（`applyFrame`）。回跳是靠恢复快照 + 截断
+   *    + 重算实现的，差量只在这一帧里；渲染循环的 `advance()` 事后问世界，
+   *    拿到的 `removed` 已经是空的——不交回来，画面上就留着上一条时间线的货物。
+   * 2. 定位完立刻重算一次审计：旧时间线被截断了，证据窗口已经变了，
+   *    再等采样节拍（最多 600ms）就会把"上一窗口的结论"当成当前结论。
+   */
+  const seekTo = async (time: number): Promise<void> => {
+    const frame = await session().controller.seek(time);
+    controller?.applyFrame(frame);
+    auditBeat = 0;
+    const current = session();
+    setAudit(auditScene(current.world, runtimeInvariantsFor(current.world.scene)));
+    setTick((value) => value + 1);
+  };
+
+  /**
    * 审计定位：把"证据"变成画面上的动作——回到那一刻，相机飞到那个实体。
    *
    * 两个顺序都是硬的：
@@ -511,7 +530,7 @@ export default function TwinViewport() {
     current.controller.pause();
     if (target.at !== undefined) {
       try {
-        await current.controller.seek(target.at);
+        await seekTo(target.at);
       } catch (error) {
         setServer((state) =>
           state ? { ...state, note: `定位失败：${error instanceof Error ? error.message : String(error)}` } : state,
@@ -974,7 +993,7 @@ export default function TwinViewport() {
               onPlay={() => session().controller.play()}
               onPause={() => session().controller.pause()}
               onSpeed={(speed) => session().controller.setSpeed(speed)}
-              onSeek={(time) => void session().controller.seek(time)}
+              onSeek={(time) => void seekTo(time)}
               onStep={(steps) => session().controller.stepFrames(steps)}
               onCollapse={() => setControls(false)}
               marks={auditMarks()}
@@ -1091,13 +1110,12 @@ export default function TwinViewport() {
               <DataSourcePanel
                 onLoad={(text) => {
                   const loaded = session().loadCsv(text);
-                  void session().controller.seek(0);
-                  session().controller.play();
+                  void seekTo(0).then(() => session().controller.play());
                   return loaded;
                 }}
                 onReset={() => {
                   session().useSimulation();
-                  void session().controller.seek(0);
+                  void seekTo(0);
                 }}
               />
             </Show>

@@ -107,16 +107,26 @@ export class EventLog {
   }
 
   /**
-   * 把游标直接挪到 `sequence`，后续事件从这里继续编号。
+   * 把游标直接挪到 `sequence`，后续事件从这里继续编号；**只丢快照之后的事件**。
    *
    * 回放分叉用：世界恢复到某个快照后，事件流必须回到快照当时的 sequence，
    * 否则重算产生的事件会带着"未来"的编号写库，破坏严格单调。
+   *
+   * 关键：**快照之前的历史不能被清掉**。那条旧历史仍然属于新时间线（仓储侧对应
+   * `truncateAfter(sequence - 1)`，保留的就是这一段）。以前这里 `events.length = 0`，
+   * 于是内存日志只剩回跳之后重算出来的几条——累计口径的不变量（守恒 / 全链路）
+   * 拿它去比"此刻还活着的物料"，必然算出"不守恒"的假红灯。
+   *
+   * 丢头（容量上限丢掉的最旧事件）不会因回跳而回来：`droppedCount` 保留，
+   * 只有真的清空日志（回到起点）才归零——窗口不完整这件事必须继续如实报告。
    */
   resetTo(sequence: number): void {
     if (!Number.isInteger(sequence) || sequence < 1) throw new Error('sequence 必须是不小于 1 的整数。');
-    this.events.length = 0;
+    let cut = this.events.length;
+    while (cut > 0 && (this.events[cut - 1]?.sequence ?? 0) >= sequence) cut -= 1;
+    this.events.length = cut;
     this.next = sequence;
     this.flushed = sequence - 1;
-    this.droppedCount = 0;
+    if (cut === 0) this.droppedCount = 0;
   }
 }

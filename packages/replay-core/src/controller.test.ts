@@ -30,6 +30,15 @@ const emitter: WorldBehavior = {
 
 const makeWorld = (): TwinWorld => new TwinWorld(scene, { seed: 20260907, behaviors: [emitter], maxStepsPerAdvance: 600 });
 
+/** 运行时生成一个实体：回跳后它必须出现在差量的 removed 里，否则画面上就是幽灵。 */
+const ghostSpawner: WorldBehavior = {
+  id: 'test:ghost',
+  step(ctx) {
+    if (Math.round(ctx.time * 60) !== 60) return;
+    ctx.spawn({ id: 'ghost-1', kind: 'parcel', transform: { position: [1, 1, 0] }, capabilities: ['parcel'] });
+  },
+};
+
 /** 确定性外部帧源：按时间升序喂世界位姿，可 rewind 重放。 */
 class FakePoseSource implements ExternalFrameSource {
   private cursor = 0;
@@ -178,6 +187,45 @@ describe('ReplayController / 定位靠重算', () => {
     expect(sequences).toEqual([...sequences].sort((a, b) => a - b));
     expect(new Set(sequences).size).toBe(sequences.length);
     expect(sequences[0]).toBe(1);
+  });
+
+  test('回跳只截断快照之后的事件：快照之前的历史仍在内存日志里', async () => {
+    const storage = createMemoryStorage();
+    const world = makeWorld();
+    const controller = new ReplayController({ world, storage });
+    await storage.snapshots.put('replay-line', world.snapshot());
+
+    controller.play(1);
+    for (let i = 0; i < 300; i += 1) controller.advance(STEP); // t=5
+    await controller.snapshot(); // t=5 的分叉基线
+    for (let i = 0; i < 300; i += 1) controller.advance(STEP); // t=10
+    const before = world.getEventLog().length;
+
+    await controller.seek(5);
+    const log = world.getEventLog();
+    // 累计口径（守恒 / 全链路）看的是内存日志：回跳不能把它清空，
+    // 否则“窗口内没看到”会被读成“不守恒”。
+    expect(log.length).toBeGreaterThan(0);
+    expect(log.length).toBeLessThan(before);
+    expect(log.some((event) => event.occurredAt > 5 + STEP)).toBe(false);
+  });
+
+  test('回跳时 seek 返回的差量里带着消失的实体（渲染层必须消费这一帧）', async () => {
+    const storage = createMemoryStorage();
+    const world = new TwinWorld(scene, { seed: 7, behaviors: [emitter, ghostSpawner], maxStepsPerAdvance: 600 });
+    const controller = new ReplayController({ world, storage });
+    await storage.snapshots.put('replay-line', world.snapshot()); // t=0：世界里没有 ghost
+
+    controller.play(1);
+    for (let i = 0; i < 120; i += 1) controller.advance(STEP);
+    expect(world.getEntity('ghost-1')).toBeDefined();
+
+    controller.pause();
+    const frame = await controller.seek(0);
+    expect(world.getEntity('ghost-1')).toBeUndefined();
+    expect(frame.removed).toContain('ghost-1');
+    // 差量只在这一帧里：渲染循环事后自己问世界拿不到它（这就是为什么 UI 必须消费它）。
+    expect(controller.advance(0).removed).not.toContain('ghost-1');
   });
 });
 

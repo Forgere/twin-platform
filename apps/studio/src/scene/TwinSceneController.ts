@@ -587,8 +587,15 @@ export class TwinSceneController {
     return new THREE.Color(cargoColorFor(getActiveTheme(), id));
   }
 
-  /** 渲染层只消费帧差量：内核算什么这里就画什么，绝不自己推演状态。 */
-  private applyFrame(delta: FrameDelta): void {
+  /**
+   * 渲染层只消费帧差量：内核算什么这里就画什么，绝不自己推演状态。
+   *
+   * 公开给 UI 的原因：`seek()` 是**唯一一个会一次性改变世界**的入口（恢复快照 +
+   * 截断 + 重算），它返回的差量（回跳时消失的实体、又回来的实体）如果没人消费，
+   * 场景里就会留着上一条时间线的幽灵货物。渲染循环自己的 `advance()` 拿不到它——
+   * 差量已经在 `seek()` 里被刷走并清空了。所以定位结束必须显式把这一帧交回来。
+   */
+  applyFrame(delta: FrameDelta): void {
     for (const id of delta.added) this.ensureMesh(id);
 
     for (const change of delta.changed) {
