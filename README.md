@@ -2,6 +2,15 @@
 
 面向低成本、可插拔数字孪生场景的平台，三个 app + 一组包：
 
+## 开源定位
+
+Twin Platform 的长期目标是成为**可验证仿真场景（Verifiable Simulation Scenes）的基础设施**——
+让数字孪生与仿真场景像代码一样**可测试、可回放、可审计、可进 CI**（类比 Playwright for simulation scenes）。
+
+当前仓库已包含参考运行时 `world-kernel`、版本化场景格式 `scene-schema`、插件契约 `plugin-sdk`，
+以及两套跨领域参考实现：**物流工厂插件**（证明工业不变量）与**钓鱼场景插件**（证明随机行为也能被验证）。
+战略与落地路线见 [开源方向与行动计划](./docs/开源方向与行动计划.md)。
+
 | | |
 |---|---|
 | `apps/studio` | SolidJS 2 工作台（三维视口 + 回放 + 指标 + 方案对比） |
@@ -9,7 +18,7 @@
 | `apps/worker` | Cloudflare Worker：静态资产 + `/api/*` 反代并**注入** token |
 | `packages/*` | `world-kernel` / `scene-schema` / `storage-*` / `replay-core` / `analytics-core` / `plugins-*` … |
 
-架构与路线见 [行动计划](./docs/行动计划.md)，数据契约见 [服务端与持久化](./docs/服务端与持久化.md)，上云方案见 [云端部署](./docs/云端部署.md)，场景 JSON 见 [场景文件格式](./docs/场景文件格式.md)。
+架构与路线见 [行动计划](./docs/行动计划.md) 与 [开源方向与行动计划](./docs/开源方向与行动计划.md)，数据契约见 [服务端与持久化](./docs/服务端与持久化.md)，上云方案见 [云端部署](./docs/云端部署.md)，场景 JSON 见 [场景文件格式](./docs/场景文件格式.md)。
 
 ## 命令
 
