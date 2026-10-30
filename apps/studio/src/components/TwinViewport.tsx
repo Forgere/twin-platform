@@ -504,6 +504,7 @@ export default function TwinViewport() {
   const seekTo = async (time: number): Promise<void> => {
     const frame = await session().controller.seek(time);
     controller?.applyFrame(frame);
+    controller?.syncEntitiesFromWorld();
     auditBeat = 0;
     const current = session();
     setAudit(auditScene(current.world, runtimeInvariantsFor(current.world.scene)));

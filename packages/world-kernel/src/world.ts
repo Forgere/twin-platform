@@ -491,6 +491,11 @@ export class TwinWorld {
 
   /** 回到 t=0。不传 seed 则重放同一集，传了就换一集但依然可复现。 */
   reset(seed?: number): void {
+    // 记下重置前存在的实体：运行时生成的动态货物必须被算进 removed，
+    // 否则在无快照从头重算时，渲染层（尤其 InstancedMesh）拿不到 removed 差量，
+    // 画面上就会留着上一条时间线残留的幽灵物料。
+    const before = new Set(this.entities.keys());
+
     this.seedValue = seed ?? this.seedValue;
     this.rng = createRng(this.seedValue);
     this.currentTime = 0;
@@ -503,6 +508,12 @@ export class TwinWorld {
     this.added.clear();
     this.removed.clear();
     this.rebuild();
+
+    for (const id of before) {
+      if (!this.entities.has(id)) {
+        this.removed.add(id);
+      }
+    }
   }
 
   // ---------------------------------------------------------------------------

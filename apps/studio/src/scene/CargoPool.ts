@@ -186,6 +186,11 @@ export class CargoPool {
     for (const id of [...this.idToSlot.keys()]) this.free(id);
   }
 
+  /** 当前在池内的所有货物 id 列表。 */
+  entityIds(): string[] {
+    return [...this.idToSlot.keys()];
+  }
+
   dispose(): void {
     this.mesh.geometry.dispose();
     (this.mesh.material as THREE.Material).dispose();

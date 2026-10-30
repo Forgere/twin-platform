@@ -588,6 +588,59 @@ export class TwinSceneController {
   }
 
   /**
+   * 权威对齐：让渲染层（Mesh + InstancedMesh CargoPool）与世界真实实体绝对一致。
+   *
+   * 为什么要这个兜底：
+   * 1. 当 seek(0) 命中无快照分支走 `world.reset()` 时，内核把动态生成的物料
+   *    直接从 Map 删掉，未生成 delta.removed 差量。
+   * 2. 如果仅靠差量，InstancedMesh 里的槽位就不会被 zero-scale，画面上就会留着
+   *    已经不存在于世界中的物料。
+   * 3. 对齐会把 CargoPool 中多余的实例清掉（设为 scale 0），并补上漏掉的实体。
+   */
+  syncEntitiesFromWorld(): void {
+    const liveEntities = this.controller.world.listEntities();
+    const liveIds = new Set(liveEntities.map((e) => e.id));
+
+    // 1. 清理 CargoPool 中在世界里已经不存在的物料
+    for (const id of this.cargoPool.entityIds()) {
+      if (!liveIds.has(id)) {
+        this.cargoPool.free(id);
+        if (this.selectedId === id) this.removeSelectionHelper();
+      }
+    }
+
+    // 2. 清理普通网格中在世界里已经不存在的实体
+    for (const [id, object] of this.entityMeshes) {
+      if (!liveIds.has(id)) {
+        this.scene.remove(object);
+        disposeObject(object);
+        this.entityMeshes.delete(id);
+        if (this.selectedId === id) this.removeSelectionHelper();
+      }
+    }
+
+    // 3. 补上世界里存在但渲染层漏掉的实体/物料
+    for (const entity of liveEntities) {
+      if (isCargoKind(entity.kind)) {
+        if (!this.cargoPool.has(entity.id)) {
+          const size = entity.visual?.size ?? DEFAULT_SIZE;
+          this.entitySizes.set(entity.id, size);
+          this.cargoPool.alloc(entity.id, entity.transform.position, size, this.cargoColor(entity.id));
+        } else {
+          // 已经存在，更新其当前位姿与背压状态
+          const size = this.entitySizes.get(entity.id) ?? DEFAULT_SIZE;
+          const stuck = entity.attrs?.stuck === true || entity.attrs?.backpressure === true;
+          this.cargoPool.write(entity.id, entity.transform.position, entity.transform.rotation?.[1] ?? 0, size, this.cargoColor(entity.id), stuck);
+        }
+      } else {
+        if (!this.entityMeshes.has(entity.id)) {
+          this.addEntity(entity);
+        }
+      }
+    }
+  }
+
+  /**
    * 渲染层只消费帧差量：内核算什么这里就画什么，绝不自己推演状态。
    *
    * 公开给 UI 的原因：`seek()` 是**唯一一个会一次性改变世界**的入口（恢复快照 +
