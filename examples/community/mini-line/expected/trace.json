@@ -1,0 +1,304 @@
+{
+  "actions": [],
+  "eventHash": "75856de3",
+  "events": [
+    {
+      "entityId": "parcel-1",
+      "occurredAt": 0.016666666666666666,
+      "sequence": 1,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "parcel-2",
+      "occurredAt": 0.016666666666666666,
+      "sequence": 2,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 0.016666666666666666,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 3,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "buffer-01",
+      "occurredAt": 0.016666666666666666,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 4,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "buffer-01",
+      "occurredAt": 0.08333333333333333,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 5,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 4.583333333333322,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 6,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 6.866666666666648,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 7,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "buffer-01",
+      "occurredAt": 11.366666666666811,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 8,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "buffer-01",
+      "occurredAt": 12.5000000000002,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 9,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 17.000000000000316,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 10,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 19.300000000000185,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 11,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "buffer-01",
+      "occurredAt": 23.79999999999993,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 12,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "parcel-1",
+      "occurredAt": 24.8833333333332,
+      "sequence": 13,
+      "type": "parcel:exit"
+    },
+    {
+      "entityId": "parcel-1",
+      "occurredAt": 24.8833333333332,
+      "sequence": 14,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "parcel-2",
+      "occurredAt": 24.8833333333332,
+      "sequence": 15,
+      "type": "parcel:exit"
+    },
+    {
+      "entityId": "parcel-2",
+      "occurredAt": 24.8833333333332,
+      "sequence": 16,
+      "type": "parcel:enter"
+    },
+    {
+      "entityId": "buffer-01",
+      "occurredAt": 24.9333333333332,
+      "payload": {
+        "status": "idle"
+      },
+      "sequence": 17,
+      "type": "entity:status"
+    },
+    {
+      "entityId": "scan-01",
+      "occurredAt": 29.433333333332943,
+      "payload": {
+        "status": "busy"
+      },
+      "sequence": 18,
+      "type": "entity:status"
+    }
+  ],
+  "finalState": {
+    "entities": [
+      {
+        "attrs": {},
+        "dataSource": "sim",
+        "id": "belt-top",
+        "kind": "transport",
+        "transform": {
+          "position": [
+            0,
+            0.6,
+            0
+          ]
+        }
+      },
+      {
+        "attrs": {},
+        "dataSource": "sim",
+        "id": "belt-bottom",
+        "kind": "transport",
+        "transform": {
+          "position": [
+            0,
+            0.6,
+            1.4
+          ]
+        }
+      },
+      {
+        "attrs": {},
+        "dataSource": "sim",
+        "id": "belt-left",
+        "kind": "transport",
+        "transform": {
+          "position": [
+            -8,
+            0.6,
+            0.7
+          ]
+        }
+      },
+      {
+        "attrs": {},
+        "dataSource": "sim",
+        "id": "belt-right",
+        "kind": "transport",
+        "transform": {
+          "position": [
+            8,
+            0.6,
+            0.7
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "__status": "busy"
+        },
+        "dataSource": "sim",
+        "id": "scan-01",
+        "kind": "inspect",
+        "transform": {
+          "position": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "__fill": 0,
+          "__status": "idle",
+          "fill": 0
+        },
+        "dataSource": "sim",
+        "id": "buffer-01",
+        "kind": "buffer",
+        "transform": {
+          "position": [
+            9.5,
+            1,
+            0
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "__cum": 41.97666666666852,
+          "__init": 1,
+          "__raw": 7.200000000001857
+        },
+        "dataSource": "sim",
+        "id": "parcel-1",
+        "kind": "parcel",
+        "motionDistance": 7.200000000001857,
+        "transform": {
+          "position": [
+            -0.7999999999981426,
+            1.15,
+            0
+          ],
+          "rotation": [
+            0,
+            1.5707963267948966,
+            0
+          ]
+        }
+      },
+      {
+        "attrs": {
+          "__cum": 41.97666666666852,
+          "__init": 1,
+          "__raw": 7.200000000001857
+        },
+        "dataSource": "sim",
+        "id": "parcel-2",
+        "kind": "parcel",
+        "motionDistance": 7.200000000001857,
+        "transform": {
+          "position": [
+            0.7999999999981435,
+            1.15,
+            1.4
+          ],
+          "rotation": [
+            0,
+            -1.5707963267948966,
+            0
+          ]
+        }
+      }
+    ],
+    "mode": "sim",
+    "rngState": 1,
+    "sceneId": "community-mini-line",
+    "seed": 1,
+    "sequence": 19,
+    "step": 0.016666666666666666,
+    "time": 29.999999999999577
+  },
+  "formatVersion": 1,
+  "plugins": [
+    {
+      "id": "logistics",
+      "version": "0.4.0"
+    }
+  ],
+  "sceneHash": "9c00f9f6",
+  "sceneId": "community-mini-line",
+  "seed": 1,
+  "stateHash": "80e4600a",
+  "step": 0.016666666666666666,
+  "steps": 1800
+}

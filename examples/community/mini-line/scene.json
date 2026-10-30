@@ -1,0 +1,299 @@
+{
+  "version": 1,
+  "id": "community-mini-line",
+  "name": "社区示例：迷你输送线（外部贡献场景包）",
+  "entities": [
+    {
+      "id": "belt-top",
+      "kind": "transport",
+      "transform": {
+        "position": [
+          0,
+          0.6,
+          0
+        ]
+      },
+      "capabilities": [
+        "move"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#22c55e",
+        "size": [
+          16,
+          0.6,
+          1.4
+        ]
+      },
+      "config": {
+        "label": "输送线上行",
+        "beltAxis": "x",
+        "beltDirection": 1
+      }
+    },
+    {
+      "id": "belt-bottom",
+      "kind": "transport",
+      "transform": {
+        "position": [
+          0,
+          0.6,
+          1.4
+        ]
+      },
+      "capabilities": [
+        "move"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#22c55e",
+        "size": [
+          16,
+          0.6,
+          1.4
+        ]
+      },
+      "config": {
+        "label": "输送线下行",
+        "beltAxis": "x",
+        "beltDirection": 1
+      }
+    },
+    {
+      "id": "belt-left",
+      "kind": "transport",
+      "transform": {
+        "position": [
+          -8,
+          0.6,
+          0.7
+        ]
+      },
+      "capabilities": [
+        "move"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#22c55e",
+        "size": [
+          1.4,
+          0.6,
+          1.4
+        ]
+      },
+      "config": {
+        "label": "输送线左转",
+        "beltAxis": "z",
+        "beltDirection": 1
+      }
+    },
+    {
+      "id": "belt-right",
+      "kind": "transport",
+      "transform": {
+        "position": [
+          8,
+          0.6,
+          0.7
+        ]
+      },
+      "capabilities": [
+        "move"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#22c55e",
+        "size": [
+          1.4,
+          0.6,
+          1.4
+        ]
+      },
+      "config": {
+        "label": "输送线右转",
+        "beltAxis": "z",
+        "beltDirection": 1
+      }
+    },
+    {
+      "id": "scan-01",
+      "kind": "inspect",
+      "transform": {
+        "position": [
+          0,
+          0.9,
+          0
+        ]
+      },
+      "capabilities": [
+        "inspect"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#38bdf8",
+        "size": [
+          1.6,
+          1.6,
+          1.6
+        ]
+      },
+      "config": {
+        "label": "scan-01",
+        "zoneHalfWidth": 1.6
+      }
+    },
+    {
+      "id": "buffer-01",
+      "kind": "buffer",
+      "transform": {
+        "position": [
+          9.5,
+          1,
+          0
+        ]
+      },
+      "capabilities": [
+        "store",
+        "buffer"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#f59e0b",
+        "size": [
+          2.2,
+          2,
+          1.8
+        ]
+      },
+      "config": {
+        "label": "buffer-01"
+      }
+    },
+    {
+      "id": "parcel-1",
+      "kind": "parcel",
+      "transform": {
+        "position": [
+          -8,
+          1.15,
+          0
+        ]
+      },
+      "capabilities": [
+        "parcel"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#f97316",
+        "size": [
+          0.6,
+          0.6,
+          0.6
+        ]
+      },
+      "motion": {
+        "points": [
+          [
+            -8,
+            1.15,
+            0
+          ],
+          [
+            8,
+            1.15,
+            0
+          ],
+          [
+            8,
+            1.15,
+            1.4
+          ],
+          [
+            -8,
+            1.15,
+            1.4
+          ],
+          [
+            -8,
+            1.15,
+            0
+          ],
+          [
+            -8,
+            1.15,
+            0
+          ]
+        ],
+        "speed": 1.4,
+        "loop": "repeat",
+        "cornerRadius": 0
+      },
+      "config": {
+        "label": "在制物料 1"
+      }
+    },
+    {
+      "id": "parcel-2",
+      "kind": "parcel",
+      "transform": {
+        "position": [
+          8,
+          1.15,
+          1.3999999999999986
+        ]
+      },
+      "capabilities": [
+        "parcel"
+      ],
+      "visual": {
+        "kind": "box",
+        "color": "#f97316",
+        "size": [
+          0.6,
+          0.6,
+          0.6
+        ]
+      },
+      "motion": {
+        "points": [
+          [
+            8,
+            1.15,
+            1.3999999999999986
+          ],
+          [
+            8,
+            1.15,
+            1.4
+          ],
+          [
+            -8,
+            1.15,
+            1.4
+          ],
+          [
+            -8,
+            1.15,
+            0
+          ],
+          [
+            8,
+            1.15,
+            0
+          ],
+          [
+            8,
+            1.15,
+            1.3999999999999986
+          ]
+        ],
+        "speed": 1.4,
+        "loop": "repeat",
+        "cornerRadius": 0
+      },
+      "config": {
+        "label": "在制物料 2"
+      }
+    }
+  ]
+}

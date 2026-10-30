@@ -41,6 +41,8 @@ load scene → lock plugins → run with a fixed seed
 - `packages/scene-runner`: headless run and deterministic replay for the reference kernel
 - `packages/scene-audit`: invariant execution, eval harness, observation checks, and HTML reports
 - `packages/plugin-conformance`: self-check suite every plugin must pass before entering the verification chain
+- `CONTRIBUTING.md`: how to contribute rules, scenes, adapters, and plugins
+- `examples/community/mini-line`: a community-shaped scene package demonstrating the external contribution path
 - `packages/world-kernel`: deterministic reference runtime
 - `packages/plugins-logistics`: industrial reference scene and invariants
 - `packages/plugins-fishing`: stochastic reference scene and executable evals

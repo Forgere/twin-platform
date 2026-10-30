@@ -1,0 +1,4 @@
+[
+  { "id": "parcel.loop.count", "kind": "count", "event": "parcel:exit", "description": "环线出口事件次数（不是实际出货）" },
+  { "id": "parcel.loop.busy", "kind": "duration", "status": "busy", "description": "检测站忙时" }
+]
