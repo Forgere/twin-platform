@@ -226,3 +226,24 @@ describe('ReplayController / 外部数据源回放', () => {
     expect(controller.duration).toBeCloseTo(20, 6);
   });
 });
+
+describe('ReplayController / 暂停时的状态改动也要出帧', () => {
+  test('暂停（含 idle）时 advance 不推进世界，但把 pending 的改动刷成帧并通知 onFrame', () => {
+    const frames: { changed: { id: string }[] }[] = [];
+    const controller = new ReplayController({
+      world: makeWorld(),
+      storage: createMemoryStorage(),
+      onFrame: (frame) => frames.push(frame),
+    });
+
+    controller.world.setTransform('belt-01', { position: [2, 0, 0] }); // 布局编辑走的就是这条路
+    const frame = controller.advance(STEP);
+
+    expect(frame.changed.map((change) => change.id)).toContain('belt-01');
+    expect(controller.world.stepCount).toBe(0); // 没推进
+    expect(frames.at(-1)?.changed.map((change) => change.id)).toContain('belt-01'); // 录制器也收到了
+
+    // 改动刷出去之后，下一帧就干净了（dirty 不会攒着重复上报）
+    expect(controller.advance(STEP).changed).toEqual([]);
+  });
+});

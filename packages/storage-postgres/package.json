@@ -8,9 +8,11 @@
   "dependencies": {
     "@twin-platform/scene-schema": "workspace:*",
     "@twin-platform/storage-contracts": "workspace:*",
-    "@twin-platform/world-kernel": "workspace:*"
+    "@twin-platform/world-kernel": "workspace:*",
+    "pg": "^8.13.0"
   },
   "devDependencies": {
-    "@twin-platform/storage-testkit": "workspace:*"
+    "@twin-platform/storage-testkit": "workspace:*",
+    "@electric-sql/pglite": "^0.5.8"
   }
 }

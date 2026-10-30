@@ -1,4 +1,4 @@
-import { For } from 'solid-js';
+import { For, Show } from 'solid-js';
 
 /**
  * 时间轴条：播放/暂停、倍速、单步、拖拽定位。
@@ -19,6 +19,8 @@ export interface TimelineBarProps {
   onSpeed: (speed: number) => void;
   onSeek: (time: number) => void;
   onStep: (steps: number) => void;
+  /** 收起控制条（仿真操作不常用，用完就收回去）。 */
+  onCollapse?: () => void;
 }
 
 export default function TimelineBar(props: TimelineBarProps) {
@@ -28,10 +30,10 @@ export default function TimelineBar(props: TimelineBarProps) {
     <section class="timeline" aria-label="时间轴">
       <div class="timeline-controls">
         <button type="button" onClick={() => (props.playing ? props.onPause() : props.onPlay())}>
-          {props.playing ? '暂停' : '播放'}
+          {props.playing ? '⏸ 暂停' : '▶ 播放'}
         </button>
         <button type="button" onClick={() => props.onSeek(0)}>
-          回到起点
+          ⏮ 起点
         </button>
         <button type="button" onClick={() => props.onStep(1)}>
           单步
@@ -48,6 +50,11 @@ export default function TimelineBar(props: TimelineBarProps) {
             <For each={SPEEDS}>{(speed) => <option value={String(speed)}>{speed}×</option>}</For>
           </select>
         </label>
+        <Show when={props.onCollapse}>
+          <button type="button" class="timeline-collapse" title="收起控制条" onClick={() => props.onCollapse?.()}>
+            ✕
+          </button>
+        </Show>
       </div>
 
       <input
@@ -62,8 +69,8 @@ export default function TimelineBar(props: TimelineBarProps) {
       />
 
       <p class="timeline-readout">
-        t = {props.time.toFixed(2)}s / {props.duration.toFixed(2)}s · {props.playing ? '播放中' : '已暂停'} · {props.speed}× ·
-        拖动即重算（恢复最近快照后按固定步长推进）
+        t = {props.time.toFixed(2)}s / {props.duration.toFixed(2)}s · {props.playing ? '播放中' : '已暂停'} ·{' '}
+        {props.speed}× · 拖动即重算（恢复最近快照后按固定步长推进）
       </p>
     </section>
   );

@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<OpenSCENARIO>
+  <FileHeader revMajor="1" revMinor="0" date="2026-01-01T00:00:00" description="车辆跨道路行驶（车道级换路样例）" author="twin-platform"/>
+
+  <Entities>
+    <ScenarioObject name="ego">
+      <Vehicle name="ego-car" vehicleCategory="car">
+        <Performance maxSpeed="40" maxAcceleration="4" maxDeceleration="9"/>
+      </Vehicle>
+    </ScenarioObject>
+    <ScenarioObject name="follower">
+      <Vehicle name="follower-car" vehicleCategory="car">
+        <Performance maxSpeed="40" maxAcceleration="3" maxDeceleration="8"/>
+      </Vehicle>
+    </ScenarioObject>
+  </Entities>
+
+  <Storyboard>
+    <Init>
+      <Actions>
+        <Private entityRef="ego">
+          <PrivateAction>
+            <PositionAction>
+              <Position>
+                <LanePosition roadId="0" laneId="-1" s="150" offset="0"/>
+              </Position>
+            </PositionAction>
+          </PrivateAction>
+          <PrivateAction>
+            <LongitudinalAction>
+              <SpeedAction>
+                <SpeedActionDynamics dynamicsShape="step" value="0"/>
+                <SpeedActionTarget>
+                  <AbsoluteTargetSpeed value="5"/>
+                </SpeedActionTarget>
+              </SpeedAction>
+            </LongitudinalAction>
+          </PrivateAction>
+        </Private>
+        <Private entityRef="follower">
+          <PrivateAction>
+            <PositionAction>
+              <Position>
+                <LanePosition roadId="0" laneId="-1" s="20" offset="0"/>
+              </Position>
+            </PositionAction>
+          </PrivateAction>
+          <PrivateAction>
+            <LongitudinalAction>
+              <SpeedAction>
+                <SpeedActionDynamics dynamicsShape="step" value="0"/>
+                <SpeedActionTarget>
+                  <AbsoluteTargetSpeed value="4"/>
+                </SpeedActionTarget>
+              </SpeedAction>
+            </LongitudinalAction>
+          </PrivateAction>
+        </Private>
+      </Actions>
+    </Init>
+
+    <Story name="cross-into-next-road">
+      <Act name="main-act">
+        <ManeuverGroup maximumExecutionCount="1" name="ego-group">
+          <Actors selectTriggeringEntities="false">
+            <EntityRef entityRef="ego"/>
+          </Actors>
+          <Maneuver name="ego-maneuver">
+            <Event name="ego-speed-up" priority="overwrite">
+              <Action name="ego-speed-action">
+                <PrivateAction>
+                  <LongitudinalAction>
+                    <SpeedAction>
+                      <SpeedActionDynamics dynamicsShape="step" value="0"/>
+                      <SpeedActionTarget>
+                        <AbsoluteTargetSpeed value="8"/>
+                      </SpeedActionTarget>
+                    </SpeedAction>
+                  </LongitudinalAction>
+                </PrivateAction>
+              </Action>
+              <StartTrigger>
+                <ConditionGroup>
+                  <Condition name="at-5s" delay="0" conditionEdge="none">
+                    <ByValueCondition>
+                      <SimulationTimeCondition value="5" rule="greaterThan"/>
+                    </ByValueCondition>
+                  </Condition>
+                </ConditionGroup>
+              </StartTrigger>
+            </Event>
+          </Maneuver>
+        </ManeuverGroup>
+      </Act>
+    </Story>
+  </Storyboard>
+</OpenSCENARIO>

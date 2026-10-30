@@ -142,7 +142,9 @@ export class ReplayController {
    * 两个时钟不会同时用，避免余量被吃掉两次。
    */
   advance(realDelta: number): FrameDelta {
-    if (this.stateValue !== 'playing') return this.world.runSteps(0);
+    // 暂停时也要走 runSteps（而不是直接问世界要一帧）：它会把 pending 的 dirty
+    // 刷成帧并通知 onFrame —— 否则暂停期间的布局编辑既到不了渲染层，也进不了录制。
+    if (this.stateValue !== 'playing') return this.runSteps(0);
     if (!Number.isFinite(realDelta) || realDelta < 0) throw new Error('realDelta 必须是非负有限数字。');
 
     const step = this.world.stepSize;

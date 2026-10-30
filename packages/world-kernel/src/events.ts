@@ -43,6 +43,24 @@ export class EventLog {
     return this.droppedCount;
   }
 
+  /**
+   * 把 sequence 游标对到**已经落库**的进度上（续写，而不是从头覆盖）。
+   *
+   * 为什么必须：事件流是 append-only 的真相。一个场景被第二次录制时，
+   * 仓库里已经有上一次的事件；若新会话仍从 sequence 1 开始，写入就会被
+   * "sequence 必须严格单调"挡回来——更糟的是如果放行，新时间线的事件会接在
+   * 旧事件后面，回放出来的是两条时间线拼接的假历史。
+   *
+   * 只推进、不回退，也不动内存里已有的事件：这个方法表达的是
+   * "承认库里已经记到 `sequence` 了，接下来的从它之后开始编号"。
+   */
+  resumeFrom(sequence: number): void {
+    if (!Number.isFinite(sequence) || sequence < 0) return;
+    const base = Math.floor(sequence);
+    if (base > this.flushed) this.flushed = base;
+    if (base + 1 > this.next) this.next = base + 1;
+  }
+
   append(input: WorldEventInput, occurredAt: number): WorldEvent {
     const event: WorldEvent = { sequence: this.next, occurredAt, ...input };
     this.next += 1;

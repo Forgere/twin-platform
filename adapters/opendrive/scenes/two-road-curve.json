@@ -1,0 +1,11 @@
+{
+  "adapter": "opendrive.network.v1",
+  "sceneId": "odr-two-road-curve",
+  "source": "adapters/opendrive/scenes/two-road-curve.xodr",
+  "queries": [
+    { "kind": "position", "roadId": "0", "laneId": -1, "s": 30 },
+    { "kind": "position", "roadId": "0", "laneId": -2, "s": 150 },
+    { "kind": "position", "roadId": "1", "laneId": -1, "s": 10 },
+    { "kind": "route", "from": "0", "to": "1" }
+  ]
+}

@@ -1,0 +1,273 @@
+{
+  "actions": [
+    {
+      "atStep": 0,
+      "id": "fmu:set-input",
+      "params": {
+        "value": 0.6,
+        "variable": "inflow"
+      }
+    },
+    {
+      "atStep": 60,
+      "id": "fmu:set-input",
+      "params": {
+        "value": 1.4,
+        "variable": "inflow"
+      }
+    }
+  ],
+  "eventHash": "8c01a9f3",
+  "events": [
+    {
+      "entityId": "level",
+      "occurredAt": 0.0,
+      "payload": {
+        "fmiVersion": "2.0",
+        "model": "ReferenceTank"
+      },
+      "sequence": 1,
+      "type": "fmu:initialized"
+    },
+    {
+      "entityId": "level",
+      "occurredAt": 0.0,
+      "payload": {
+        "target": "inflow",
+        "value": 0.6
+      },
+      "sequence": 2,
+      "type": "fmu:input:set"
+    },
+    {
+      "entityId": "level",
+      "occurredAt": 10.0,
+      "payload": {
+        "level": 2.2648475646972654
+      },
+      "sequence": 3,
+      "type": "fmu:sample"
+    },
+    {
+      "entityId": "level",
+      "occurredAt": 20.0,
+      "payload": {
+        "level": 2.3923890913465584
+      },
+      "sequence": 4,
+      "type": "fmu:sample"
+    },
+    {
+      "entityId": "level",
+      "occurredAt": 30.0,
+      "payload": {
+        "level": 2.399571402983592
+      },
+      "sequence": 5,
+      "type": "fmu:sample"
+    },
+    {
+      "entityId": "level",
+      "occurredAt": 40.0,
+      "payload": {
+        "level": 2.3999758641956124
+      },
+      "sequence": 6,
+      "type": "fmu:sample"
+    },
+    {
+      "entityId": "level",
+      "occurredAt": 50.0,
+      "payload": {
+        "level": 2.3999986408280245
+      },
+      "sequence": 7,
+      "type": "fmu:sample"
+    },
+    {
+      "entityId": "level",
+      "occurredAt": 60.0,
+      "payload": {
+        "level": 2.399999923460249
+      },
+      "sequence": 8,
+      "type": "fmu:sample"
+    },
+    {
+      "entityId": "level",
+      "occurredAt": 60.0,
+      "payload": {
+        "target": "inflow",
+        "value": 1.4
+      },
+      "sequence": 9,
+      "type": "fmu:input:set"
+    },
+    {
+      "entityId": "level",
+      "occurredAt": 70.0,
+      "payload": {
+        "level": 5.419796748619464
+      },
+      "sequence": 10,
+      "type": "fmu:sample"
+    },
+    {
+      "entityId": "level",
+      "occurredAt": 80.0,
+      "payload": {
+        "level": 5.5898521215526875
+      },
+      "sequence": 11,
+      "type": "fmu:sample"
+    },
+    {
+      "entityId": "level",
+      "occurredAt": 90.0,
+      "payload": {
+        "level": 5.599428537297787
+      },
+      "sequence": 12,
+      "type": "fmu:sample"
+    },
+    {
+      "entityId": "level",
+      "occurredAt": 100.0,
+      "payload": {
+        "level": 5.599967818926713
+      },
+      "sequence": 13,
+      "type": "fmu:sample"
+    },
+    {
+      "entityId": "level",
+      "occurredAt": 110.0,
+      "payload": {
+        "level": 5.599998187770655
+      },
+      "sequence": 14,
+      "type": "fmu:sample"
+    },
+    {
+      "entityId": "level",
+      "occurredAt": 120.0,
+      "payload": {
+        "level": 5.599999897946995
+      },
+      "sequence": 15,
+      "type": "fmu:sample"
+    },
+    {
+      "entityId": "level",
+      "occurredAt": 120.0,
+      "payload": {
+        "level": 5.599999897946995
+      },
+      "sequence": 16,
+      "type": "fmu:completed"
+    }
+  ],
+  "finalState": {
+    "finalLevel": 5.599999897946995,
+    "inputs": [
+      {
+        "at": 0.0,
+        "value": 0.6
+      },
+      {
+        "at": 60.0,
+        "value": 1.4
+      }
+    ],
+    "interval": {
+      "start": 0.0,
+      "step": 1.0,
+      "steps": 120,
+      "stop": 120.0
+    },
+    "limits": {
+      "max": 9.0,
+      "min": 0.0
+    },
+    "model": {
+      "binaryPlatform": "linux",
+      "fmiVersion": "2.0",
+      "guid": "d0f4f1b2-3f7f-4d1d-9f86-6c0e0a5f8a11",
+      "modelIdentifier": "tank",
+      "modelName": "ReferenceTank"
+    },
+    "runtime": "fmi2",
+    "samples": [
+      {
+        "level": 2.2648475646972654,
+        "time": 10.0
+      },
+      {
+        "level": 2.3923890913465584,
+        "time": 20.0
+      },
+      {
+        "level": 2.399571402983592,
+        "time": 30.0
+      },
+      {
+        "level": 2.3999758641956124,
+        "time": 40.0
+      },
+      {
+        "level": 2.3999986408280245,
+        "time": 50.0
+      },
+      {
+        "level": 2.399999923460249,
+        "time": 60.0
+      },
+      {
+        "level": 5.419796748619464,
+        "time": 70.0
+      },
+      {
+        "level": 5.5898521215526875,
+        "time": 80.0
+      },
+      {
+        "level": 5.599428537297787,
+        "time": 90.0
+      },
+      {
+        "level": 5.599967818926713,
+        "time": 100.0
+      },
+      {
+        "level": 5.599998187770655,
+        "time": 110.0
+      },
+      {
+        "level": 5.599999897946995,
+        "time": 120.0
+      }
+    ],
+    "variables": {
+      "input": "inflow",
+      "output": "level"
+    }
+  },
+  "formatVersion": 1,
+  "plugins": [
+    {
+      "id": "fmi2",
+      "version": "2.0"
+    },
+    {
+      "configHash": "4aea249b",
+      "id": "scene-adapter-fmu",
+      "version": "0.1.0"
+    }
+  ],
+  "sceneHash": "4aea249b",
+  "sceneId": "fmi-tank-step",
+  "seed": 0,
+  "stateHash": "1416c736",
+  "step": 1,
+  "steps": 120
+}

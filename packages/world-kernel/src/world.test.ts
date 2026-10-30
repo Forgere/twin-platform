@@ -328,3 +328,272 @@ describe('行为插件', () => {
     expect(() => world.addBehavior({ id: 'plugin-a', step: () => {} })).toThrow(/已注册/);
   });
 });
+
+/**
+ * 生产线的两条基本语义：**一处持续产出**（小货物发生器）与**一处持续消耗**
+ * （打包站吃掉小货物、卡车拉走大货物）。内核只给通用能力，语义在插件里。
+ */
+describe('行为生成 / 销毁实体', () => {
+  /** 每 20 步产出一个货物，id 由步数派生——确定性来自"时间 → id"，不靠随机。 */
+  const spawner: WorldBehavior = {
+    id: 'test:spawner',
+    step(ctx) {
+      const tick = Math.round(ctx.time / ctx.dt);
+      if (tick % 20 !== 0) return;
+      const id = `goods-${String(tick).padStart(4, '0')}`;
+      if (ctx.entity(id)) return;
+      ctx.spawn({
+        id,
+        kind: 'parcel',
+        transform: { position: [tick * 0.1, 1, 0] },
+        capabilities: ['parcel'],
+        visual: { kind: 'box', color: '#ff8800', size: [0.5, 0.5, 0.5] },
+        config: { label: '小货物' },
+        attrs: { born: ctx.time },
+      });
+      ctx.emit('goods:produced', { entityId: id });
+    },
+  };
+
+  /** 每 40 步吃掉最老的一个货物（模拟"2 个小货物打包成 1 个大货物"）。 */
+  const consumer: WorldBehavior = {
+    id: 'test:consumer',
+    step(ctx) {
+      const tick = Math.round(ctx.time / ctx.dt);
+      if (tick % 40 !== 0) return;
+      const oldest = ctx.entities
+        .filter((entity) => entity.capabilities.includes('parcel'))
+        .sort((a, b) => (a.id < b.id ? -1 : 1))[0];
+      if (!oldest) return;
+      ctx.despawn(oldest.id);
+      ctx.emit('goods:consumed', { entityId: oldest.id });
+    },
+  };
+
+  const makeFactory = (): TwinWorld => new TwinWorld(makeScene(), { seed: 3, behaviors: [spawner, consumer] });
+
+  test('spawn 出的实体进世界、发事件，despawn 后从世界消失', () => {
+    const world = makeFactory();
+    // 步内时间先推进再跑行为，所以 tick = 步数：100 步 = tick 100。
+    // 产出在 20/40/60/80/100，消耗在 40/80（每次吃掉最老的一个）。
+    run(world, 100);
+
+    const produced = world.getEventLog().filter((event) => event.type === 'goods:produced');
+    const consumed = world.getEventLog().filter((event) => event.type === 'goods:consumed');
+    expect(produced.length).toBe(5);
+    expect(consumed.length).toBe(2);
+
+    const alive = world.listEntities().filter((entity) => entity.kind === 'parcel');
+    expect(alive.length).toBe(3);
+    // 被消耗掉的那两个确实不在了
+    for (const event of consumed) expect(world.getEntity(event.entityId as string)).toBeUndefined();
+  });
+
+  test('生成出来的实体保留声明（能力 / 外观 / 配置），快照恢复后还在', () => {
+    const world = makeFactory();
+    run(world, 60); // tick 60：活着 goods-0040 / goods-0060
+    const id = 'goods-0060';
+    const before = world.getEntity(id);
+    expect(before?.capabilities).toEqual(['parcel']);
+    expect(before?.visual?.color).toBe('#ff8800');
+    expect(before?.config.label).toBe('小货物');
+
+    const snapshot = world.snapshot();
+    const restored = new TwinWorld(makeScene(), { seed: 3, behaviors: [spawner, consumer] });
+    restored.restore(snapshot);
+
+    const after = restored.getEntity(id);
+    expect(after?.capabilities).toEqual(['parcel']);
+    expect(after?.visual?.size).toEqual([0.5, 0.5, 0.5]);
+    expect(after?.config.label).toBe('小货物');
+    expect(after?.attrs.born).toBeCloseTo(before!.attrs.born as number, 9);
+    expect(after?.transform.position).toEqual(before!.transform.position);
+  });
+
+  test('快照恢复后继续跑，和一路跑到底逐位一致', () => {
+    const straight = makeFactory();
+    run(straight, 90);
+    const snapshot = straight.snapshot();
+    run(straight, 90);
+
+    const restored = makeFactory();
+    run(restored, 90);
+    restored.restore(snapshot);
+    run(restored, 90);
+
+    expect(fingerprint(restored)).toBe(fingerprint(straight));
+  });
+
+  test('往回跳时，消失的实体会出现在差量 removed 里（不留幽灵）', () => {
+    const world = makeFactory();
+    run(world, 60); // tick 60：快照里只有 goods-0040 / goods-0060
+    const early = world.snapshot();
+    run(world, 140); // tick 200：期间又产出 0080..0200
+
+    expect(world.getEntity('goods-0200')).toBeDefined();
+    world.restore(early);
+    expect(world.getEntity('goods-0200')).toBeUndefined();
+
+    const frame = world.step(1 / 60);
+    // 差量必须告诉渲染层"这些实体没了"，否则场景里会留着上一时间线的货物
+    expect(frame.removed).toContain('goods-0200');
+    expect(frame.removed).toContain('goods-0120');
+    // 快照里存在、但恢复前已被消耗的两个，则要作为 added 回来
+    expect(frame.added).toEqual(expect.arrayContaining(['goods-0040', 'goods-0060']));
+  });
+
+  test('spawn 重复 id 抛错（契约违例交给宿主隔离）', () => {
+    const world = new TwinWorld(makeScene(), {
+      behaviors: [{ id: 'bad', step: (ctx) => ctx.spawn({ id: 'belt-01', kind: 'parcel', transform: { position: [0, 0, 0] }, capabilities: [] }) }],
+    });
+    expect(() => world.step(1 / 60)).toThrow(/已存在/);
+  });
+});
+
+describe('resumeFrom / 事件续写', () => {
+  /**
+   * 服务端是持久的：一个场景被第二次录制时，仓库里已经有上一次的事件。
+   * 不对齐 sequence 就会撞上"必须严格单调"，或者更糟——拼出一条由两条
+   * 时间线接起来的假历史。
+   */
+  test('对齐后新事件从库里的最新 sequence 之后开始编号', () => {
+    const world = new TwinWorld(makeScene());
+    world.resumeFrom(100);
+    world.dispatch('goods:produced', { entityId: 'source' });
+    const last = world.getEventLog().at(-1);
+    expect(last?.sequence).toBe(101);
+  });
+
+  test('对齐到 0（空库）时行为与全新会话一致', () => {
+    const world = new TwinWorld(makeScene());
+    expect(world.resumeFrom(0)).toBe(1);
+    world.dispatch('goods:produced', { entityId: 'source' });
+    expect(world.getEventLog().at(-1)?.sequence).toBe(1);
+  });
+
+  test('只推进不回退：往小对齐不会把已有事件重新编号', () => {
+    const world = new TwinWorld(makeScene());
+    world.dispatch('a');
+    world.dispatch('b');
+    expect(world.getEventLog().map((event) => event.sequence)).toEqual([1, 2]);
+
+    world.resumeFrom(0); // 库里其实是空的，但这个调用不该把游标拉回去
+    world.dispatch('c');
+    expect(world.getEventLog().map((event) => event.sequence)).toEqual([1, 2, 3]);
+  });
+
+  test('对齐后 drainEvents 不会重复吐出"已落库"的事件', () => {
+    const world = new TwinWorld(makeScene());
+    world.resumeFrom(50);
+    world.dispatch('goods:produced', { entityId: 'source' });
+    // 50 及以前的被认为已落库，只有 51 是待写的。
+    const pending = world.drainEvents();
+    expect(pending.map((event) => event.sequence)).toEqual([51]);
+    expect(world.drainEvents()).toEqual([]);
+  });
+
+  test('负数与非数字是无效输入，安全忽略', () => {
+    const world = new TwinWorld(makeScene());
+    const before = world.resumeFrom(0);
+    expect(world.resumeFrom(-5)).toBe(before);
+    expect(world.resumeFrom(Number.NaN)).toBe(before);
+  });
+});
+
+describe('TwinWorld / 布局编辑（阶段 J）', () => {
+  /** 只取时间轴事实：布局编辑不产生事件，事件流必须逐位一致。 */
+  const eventsOnly = (world: TwinWorld): string =>
+    JSON.stringify(world.getEventLog().map((event) => [event.sequence, event.type, event.occurredAt, event.entityId ?? null]));
+
+  const moveQc = {
+    type: 'setTransform',
+    entityId: 'qc-01',
+    before: { position: [8, 0.8, 0] },
+    after: { position: [3, 0.8, 5], rotation: [0, 1.5, 0] },
+  } as const;
+
+  test('poseEditability：静态声明设备可编辑，其余四类各有原因', () => {
+    const world = new TwinWorld(makeScene(), { seed: 1 });
+    expect(world.poseEditability('qc-01')).toEqual({ editable: true });
+
+    // ① 运行时生成的实体没有场景声明
+    world.addEntity({ id: 'parcel-x', kind: 'parcel', transform: { position: [0, 1, 0] }, capabilities: [] });
+    expect(world.poseEditability('parcel-x')).toEqual({ editable: false, reason: expect.stringContaining('运行时生成') });
+
+    // ② 声明了 motion：位姿是路径弧长的函数
+    expect(world.poseEditability('belt-01')).toEqual({ editable: false, reason: expect.stringContaining('路径') });
+
+    // ④ 有行为在改写位姿（这里直接模拟行为的写法：只写运行时状态）
+    world.setTransform('qc-01', { position: [1, 0.8, 1] });
+    expect(world.poseEditability('qc-01')).toEqual({ editable: false, reason: expect.stringContaining('行为') });
+  });
+
+  test('applySceneOps：改声明 + 同步运行时位姿与 baseTransform，脏实体进下一帧差量', () => {
+    const world = new TwinWorld(makeScene(), { seed: 1 });
+    world.step(1 / 60);
+    world.applySceneOps([moveQc]);
+
+    expect(world.scene.entities[1].transform.position).toEqual([3, 0.8, 5]);
+    expect(world.scene.entities[1].transform.rotation).toEqual([0, 1.5, 0]);
+
+    const state = world.getEntity('qc-01')!;
+    expect(state.transform.position).toEqual([3, 0.8, 5]); // 单向：声明 → 运行时
+    expect(state.baseTransform.position).toEqual([3, 0.8, 5]); // "以声明为原点"要跟着新布局
+
+    // 暂停（0 步）也必须能把编辑刷出去，否则暂停时拖设备画面不动。
+    const frame = world.runSteps(0);
+    const delta = frame.changed.find((change) => change.id === 'qc-01');
+    expect(delta?.transform?.position).toEqual([3, 0.8, 5]);
+    expect(frame.changed.length).toBeGreaterThan(0);
+
+    // baseTransform 一起更新了，所以编辑完还能再编辑（不会把自己判成"行为驱动"）
+    expect(world.poseEditability('qc-01')).toEqual({ editable: true });
+  });
+
+  test('批次里有一条不可编辑，就一条都不改（不留半截状态）', () => {
+    const world = new TwinWorld(makeScene(), { seed: 1 });
+    expect(() =>
+      world.applySceneOps([
+        { type: 'setTransform', entityId: 'qc-01', before: { position: [8, 0.8, 0] }, after: { position: [1, 1, 1] } },
+        { type: 'setTransform', entityId: 'belt-01', before: { position: [0, 0.8, 0] }, after: { position: [1, 1, 1] } },
+      ]),
+    ).toThrow(/不可编辑/);
+
+    expect(world.scene.entities[1].transform.position).toEqual([8, 0.8, 0]); // 合法的那条也没被改
+    expect(world.getEntity('qc-01')?.transform.position).toEqual([8, 0.8, 0]);
+    expect(world.runSteps(0).changed).toEqual([]); // 也没有留下半截脏标记
+  });
+
+  test('编辑布局不改变同种子的事件流（编辑是输入，不是时间轴事实）', () => {
+    const plain = new TwinWorld(makeScene(), { seed: 7, behaviors: [stampBehavior] });
+    const edited = new TwinWorld(makeScene(), { seed: 7, behaviors: [stampBehavior] });
+    run(plain, 60);
+    run(edited, 60);
+
+    edited.applySceneOps([moveQc]); // 只有 edited 这条时间线上改了布局
+    run(plain, 60);
+    run(edited, 60);
+
+    expect(eventsOnly(edited)).toBe(eventsOnly(plain)); // 事件逐位一致
+    expect(edited.scene.entities[1].transform.position).toEqual([3, 0.8, 5]); // 但位姿确实改了
+    expect(edited.getEntity('qc-01')?.transform.position).toEqual([3, 0.8, 5]);
+  });
+
+  test('同一批 ops 在两个同种子世界各应用一次，结果逐位一致（编辑可复现）', () => {
+    const a = new TwinWorld(makeScene(), { seed: 11, behaviors: [stampBehavior] });
+    const b = new TwinWorld(makeScene(), { seed: 11, behaviors: [stampBehavior] });
+    a.applySceneOps([moveQc]);
+    b.applySceneOps([moveQc]);
+    run(a, 300);
+    run(b, 300);
+    expect(fingerprint(a)).toBe(fingerprint(b));
+  });
+
+  test('before 对不上直接抛，场景保持原样', () => {
+    const world = new TwinWorld(makeScene(), { seed: 1 });
+    expect(() =>
+      world.applySceneOps([{ type: 'setTransform', entityId: 'qc-01', before: { position: [0, 0, 0] }, after: { position: [1, 1, 1] } }]),
+    ).toThrow(/旧状态/);
+    expect(world.scene.entities[1].transform.position).toEqual([8, 0.8, 0]);
+  });
+});

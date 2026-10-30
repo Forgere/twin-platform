@@ -19,14 +19,27 @@ describe('logistics 插件', () => {
     const host = new PluginHost();
     const record = host.install(logisticsPlugin);
     expect(record.state).toBe('active');
-    expect(host.behaviors).toHaveLength(1);
-    expect(host.behaviors[0]?.id).toBe('logistics-flow');
+    // 顺序即契约：流转 → 发生器 → 立库 → 打包 → 卡车 → 移栽 → 缓存填充 → 打标。
+    expect(host.behaviors.map((behavior) => behavior.id)).toEqual([
+      'logistics-flow',
+      'goods-source',
+      'asrs-cycle',
+      'packing',
+      'truck-cycle',
+      'transfer-cycle',
+      'buffer-fill',
+      'labeler-cycle',
+    ]);
     expect(host.metrics.map((metric) => metric.id)).toEqual(['throughput', 'busy-duration']);
-    expect(host.templates.map((template) => template.id)).toEqual(['logistics-line']);
+    expect(host.templates.map((template) => template.id)).toEqual([
+      'logistics-line',
+      'logistics-factory',
+      'logistics-center',
+    ]);
   });
 
   test('行为驱动包裹流转：开局进入 + 绕圈出/进', () => {
-    const world = simulate([logisticsPlugin.activate().behaviors?.[0] as WorldBehavior], 1200);
+    const world = simulate([logisticsPlugin.activate().behaviors?.[0] as WorldBehavior], 2400);
     const events = world.getEventLog();
     const enters = events.filter((event) => event.type === 'parcel:enter');
     const exits = events.filter((event) => event.type === 'parcel:exit');
@@ -37,7 +50,7 @@ describe('logistics 插件', () => {
   });
 
   test('产线指标：吞吐为正、积压稳定为在线包裹数、检测站有忙时', () => {
-    const world = simulate([logisticsPlugin.activate().behaviors?.[0] as WorldBehavior], 1200);
+    const world = simulate([logisticsPlugin.activate().behaviors?.[0] as WorldBehavior], 2400);
     const events = world.getEventLog();
     const metrics = lineMetrics(events, {
       bucketSize: 5,
@@ -57,8 +70,8 @@ describe('logistics 插件', () => {
   });
 
   test('确定性：同种子两次仿真事件流逐条一致', () => {
-    const a = simulate([logisticsPlugin.activate().behaviors?.[0] as WorldBehavior], 1200, 7);
-    const b = simulate([logisticsPlugin.activate().behaviors?.[0] as WorldBehavior], 1200, 7);
+    const a = simulate([logisticsPlugin.activate().behaviors?.[0] as WorldBehavior], 2400, 7);
+    const b = simulate([logisticsPlugin.activate().behaviors?.[0] as WorldBehavior], 2400, 7);
     const signature = (events: { type: string; entityId?: string; occurredAt: number }[]) =>
       events.map((event) => `${event.type}|${event.entityId ?? ''}|${event.occurredAt}`).join(';');
     expect(signature(a.getEventLog())).toBe(signature(b.getEventLog()));

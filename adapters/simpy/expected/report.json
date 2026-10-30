@@ -1,0 +1,46 @@
+{
+  "checks": [
+    {
+      "description": "工件链序与事件序号合法",
+      "id": "simpy.factory.chain",
+      "notes": [
+        "45 个工件逐一核对到料 → 加工 → 检测 → 完成"
+      ],
+      "status": "pass",
+      "violations": []
+    },
+    {
+      "description": "资源并发不超过声明容量",
+      "id": "simpy.factory.capacity",
+      "notes": [
+        "加工 / 检测并发从未超过声明资源数"
+      ],
+      "status": "pass",
+      "violations": []
+    },
+    {
+      "description": "工件不凭空产生或丢失",
+      "id": "simpy.factory.conservation",
+      "notes": [
+        "45 = 42 + 3"
+      ],
+      "status": "pass",
+      "violations": []
+    }
+  ],
+  "formatVersion": 1,
+  "metrics": {
+    "averageFlowTime": 13.647447128652283,
+    "completed": 42,
+    "created": 45,
+    "inspectionQueuePeak": 2,
+    "inspectionUtilization": 0.4433273692325274,
+    "processingQueuePeak": 1,
+    "processingUtilization": 0.6455817023746534,
+    "throughputPerHour": 630.0,
+    "wip": 3
+  },
+  "passed": true,
+  "sceneId": "simpy-two-stage-cell",
+  "warnings": []
+}

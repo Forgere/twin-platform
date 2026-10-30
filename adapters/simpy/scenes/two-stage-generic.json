@@ -1,0 +1,16 @@
+{
+  "adapter": "simpy.generic.v1",
+  "sceneId": "simpy-generic-two-stage",
+  "model": "adapters/simpy/models/two_stage.py",
+  "entrypoint": "run",
+  "seed": 23,
+  "until": 240,
+  "params": {
+    "machineCapacity": 2,
+    "inspectorCapacity": 1,
+    "arrivalMean": 5,
+    "processMean": 7,
+    "inspectMean": 3
+  },
+  "minimumEvents": 50
+}

@@ -1,0 +1,225 @@
+{
+  "actions": [],
+  "eventHash": "ae740e06",
+  "events": [
+    {
+      "occurredAt": 0,
+      "payload": {
+        "junction": "-1",
+        "lanes": 4,
+        "length": 200.0,
+        "roadId": "0"
+      },
+      "sequence": 1,
+      "type": "odr:road:parsed"
+    },
+    {
+      "occurredAt": 0,
+      "payload": {
+        "junction": "-1",
+        "lanes": 2,
+        "length": 150.0,
+        "roadId": "1"
+      },
+      "sequence": 2,
+      "type": "odr:road:parsed"
+    },
+    {
+      "occurredAt": 0,
+      "payload": {
+        "heading": 0.0,
+        "laneId": -1,
+        "roadId": "0",
+        "s": 30.0,
+        "x": 30.0,
+        "y": -1.75
+      },
+      "sequence": 3,
+      "type": "odr:query:position"
+    },
+    {
+      "occurredAt": 0,
+      "payload": {
+        "heading": 0.5,
+        "laneId": -2,
+        "roadId": "0",
+        "s": 150.0,
+        "x": 150.45953793809238,
+        "y": 7.634435361038268
+      },
+      "sequence": 4,
+      "type": "odr:query:position"
+    },
+    {
+      "occurredAt": 0,
+      "payload": {
+        "heading": 1.0,
+        "laneId": -1,
+        "roadId": "1",
+        "s": 10.0,
+        "x": 191.02269576288487,
+        "y": 53.43895022599574
+      },
+      "sequence": 5,
+      "type": "odr:query:position"
+    },
+    {
+      "occurredAt": 0,
+      "payload": {
+        "from": "0",
+        "length": 150.0,
+        "roads": "0,1",
+        "to": "1"
+      },
+      "sequence": 6,
+      "type": "odr:query:route"
+    },
+    {
+      "occurredAt": 0,
+      "payload": {
+        "queries": 4,
+        "roads": 2
+      },
+      "sequence": 7,
+      "type": "odr:completed"
+    }
+  ],
+  "finalState": {
+    "edges": {
+      "0": [
+        "1"
+      ]
+    },
+    "junctions": [],
+    "queries": [
+      {
+        "kind": "position",
+        "query": {
+          "kind": "position",
+          "laneId": -1,
+          "roadId": "0",
+          "s": 30
+        },
+        "result": {
+          "heading": 0.0,
+          "laneId": -1,
+          "roadId": "0",
+          "s": 30.0,
+          "t": -1.75,
+          "x": 30.0,
+          "y": -1.75
+        }
+      },
+      {
+        "kind": "position",
+        "query": {
+          "kind": "position",
+          "laneId": -2,
+          "roadId": "0",
+          "s": 150
+        },
+        "result": {
+          "heading": 0.5,
+          "laneId": -2,
+          "roadId": "0",
+          "s": 150.0,
+          "t": -5.25,
+          "x": 150.45953793809238,
+          "y": 7.634435361038268
+        }
+      },
+      {
+        "kind": "position",
+        "query": {
+          "kind": "position",
+          "laneId": -1,
+          "roadId": "1",
+          "s": 10
+        },
+        "result": {
+          "heading": 1.0,
+          "laneId": -1,
+          "roadId": "1",
+          "s": 10.0,
+          "t": -1.75,
+          "x": 191.02269576288487,
+          "y": 53.43895022599574
+        }
+      },
+      {
+        "kind": "route",
+        "query": {
+          "from": "0",
+          "kind": "route",
+          "to": "1"
+        },
+        "result": {
+          "hops": 1,
+          "length": 150.0,
+          "roads": [
+            "0",
+            "1"
+          ]
+        }
+      }
+    ],
+    "roads": [
+      {
+        "geometries": [
+          "line",
+          "arc"
+        ],
+        "id": "0",
+        "junction": "-1",
+        "laneIds": [
+          -2,
+          -1,
+          0,
+          1
+        ],
+        "length": 200.0,
+        "name": "Road 0",
+        "predecessor": null,
+        "successor": "1"
+      },
+      {
+        "geometries": [
+          "line"
+        ],
+        "id": "1",
+        "junction": "-1",
+        "laneIds": [
+          -1,
+          0
+        ],
+        "length": 150.0,
+        "name": "Road 1",
+        "predecessor": "0",
+        "successor": null
+      }
+    ],
+    "runtime": "opendrive",
+    "source": {
+      "file": "adapters/opendrive/scenes/two-road-curve.xodr",
+      "revMajor": "1"
+    }
+  },
+  "formatVersion": 1,
+  "plugins": [
+    {
+      "id": "opendrive",
+      "version": "1.4"
+    },
+    {
+      "configHash": "a8350427",
+      "id": "scene-adapter-opendrive",
+      "version": "0.1.0"
+    }
+  ],
+  "sceneHash": "a8350427",
+  "sceneId": "odr-two-road-curve",
+  "seed": 0,
+  "stateHash": "04b50ad8",
+  "step": 0,
+  "steps": 0
+}

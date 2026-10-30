@@ -1,0 +1,6 @@
+[
+  {
+    "id": "package.example.no-op",
+    "description": "示例包没有运行时不变量：这里只登记“以后该验什么”"
+  }
+]

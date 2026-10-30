@@ -1,0 +1,45 @@
+{
+  "checks": [
+    {
+      "description": "输入调度在 trace 里逐条落地",
+      "id": "fmu.input-applied",
+      "notes": [
+        "2 次输入变更都在 trace 里落地"
+      ],
+      "status": "pass",
+      "violations": []
+    },
+    {
+      "description": "level 始终落在声明区间内且为有限值",
+      "id": "fmu.output-range",
+      "notes": [
+        "峰值 5.599999897946995 · 终值 5.599999897946995"
+      ],
+      "status": "pass",
+      "violations": []
+    },
+    {
+      "description": "时间网格对齐 stopTime，事件序号连续",
+      "id": "fmu.time-grid",
+      "notes": [
+        "120 个固定步长推进到 120.0"
+      ],
+      "status": "pass",
+      "violations": []
+    }
+  ],
+  "formatVersion": 1,
+  "metrics": {
+    "finalLevel": 5.599999897946995,
+    "highEvents": 0,
+    "inputChanges": 2,
+    "lowEvents": 0,
+    "minLevel": 2.2648475646972654,
+    "peakLevel": 5.599999897946995,
+    "samples": 12,
+    "steps": 120
+  },
+  "passed": true,
+  "sceneId": "fmi-tank-step",
+  "warnings": []
+}

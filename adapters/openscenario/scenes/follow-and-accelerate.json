@@ -1,0 +1,13 @@
+{
+  "adapter": "openscenario.importer.v1",
+  "sceneId": "osc-follow-and-accelerate",
+  "source": "adapters/openscenario/scenes/follow-and-accelerate.xosc",
+  "duration": 20,
+  "step": 0.5,
+  "seed": 0,
+  "road": { "length": 500, "laneWidth": 3.5, "minLane": -3, "maxLane": -1 },
+  "maxSpeed": 30,
+  "minGap": 5,
+  "sampleEvery": 2,
+  "minimumSamples": 5
+}

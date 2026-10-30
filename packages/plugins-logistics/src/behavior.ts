@@ -78,17 +78,41 @@ export function createLogisticsBehavior(config: LogisticsBehaviorConfig = {}): W
         ctx.setAttr(parcelEntity.id, '__raw', distance);
       }
 
-      // 2) 设备忙闲：中心线两侧 zoneHalfWidth 内有包裹即 busy。
+      // 2) 设备忙闲：中心线两侧 zoneHalfWidth 内有包裹即 busy（只看 X 轴，与设备声明一致）。
+      //    按 X 轴把货物哈希进 1D 桶：每台设备只查自己附近的桶，不再扫全部货物
+      //    （devices × parcels = O(N²)，副本翻倍时平方级恶化）。
+      let maxHalf = defaultZone;
+      for (const device of devices) {
+        maxHalf = Math.max(
+          maxHalf,
+          config.zoneHalfWidth !== undefined ? config.zoneHalfWidth : num(device.config?.zoneHalfWidth, defaultZone),
+        );
+      }
+      const cell = Math.max(0.1, maxHalf);
+      const byX = new Map<number, WorldEntityState[]>();
+      for (const parcel of parcels) {
+        const key = Math.floor(parcel.transform.position[0] / cell);
+        const list = byX.get(key);
+        if (list) list.push(parcel);
+        else byX.set(key, [parcel]);
+      }
       for (const device of devices) {
         const centerX = device.transform.position[0];
         // 行为参数优先于设备声明：operator 想收紧/放宽检测区时不需要改场景。
         const half = config.zoneHalfWidth !== undefined ? config.zoneHalfWidth : num(device.config?.zoneHalfWidth, defaultZone);
         let busy = false;
-        for (const parcelEntity of parcels) {
-          if (Math.abs(parcelEntity.transform.position[0] - centerX) <= half) {
-            busy = true;
-            break;
+        const lo = Math.floor((centerX - half) / cell);
+        const hi = Math.floor((centerX + half) / cell);
+        for (let kx = lo; kx <= hi; kx += 1) {
+          const list = byX.get(kx);
+          if (!list) continue;
+          for (const parcelEntity of list) {
+            if (Math.abs(parcelEntity.transform.position[0] - centerX) <= half) {
+              busy = true;
+              break;
+            }
           }
+          if (busy) break;
         }
         const next = busy ? 'busy' : 'idle';
         if (device.attrs.__status !== next) {

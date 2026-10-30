@@ -1,0 +1,51 @@
+{
+  "checks": [
+    {
+      "description": "planView 几何连续、长度与 road.length 自洽",
+      "id": "opendrive.geometry-continuity",
+      "notes": [
+        "2 条道路的 planView 连续且长度自洽"
+      ],
+      "status": "pass",
+      "violations": []
+    },
+    {
+      "description": "车道宽度为正且覆盖车道",
+      "id": "opendrive.lane-widths",
+      "notes": [
+        "车道宽度在采样端点均为正"
+      ],
+      "status": "pass",
+      "violations": []
+    },
+    {
+      "description": "位置 / 路由查询都解出有限结果",
+      "id": "opendrive.queries-resolved",
+      "notes": [
+        "4 个查询都解出了坐标或路径"
+      ],
+      "status": "pass",
+      "violations": []
+    },
+    {
+      "description": "道路通过前后连接或路口进入路网",
+      "id": "opendrive.connectivity",
+      "notes": [
+        "2 条连接边"
+      ],
+      "status": "pass",
+      "violations": []
+    }
+  ],
+  "formatVersion": 1,
+  "metrics": {
+    "edges": 2,
+    "junctions": 0,
+    "queries": 4,
+    "roads": 2,
+    "routeLength": 150.0
+  },
+  "passed": true,
+  "sceneId": "odr-two-road-curve",
+  "warnings": []
+}

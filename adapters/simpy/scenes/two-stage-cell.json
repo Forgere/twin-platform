@@ -1,0 +1,19 @@
+{
+  "adapter": "simpy.factory.v1",
+  "sceneId": "simpy-two-stage-cell",
+  "seed": 23,
+  "step": 1,
+  "duration": 240,
+  "arrival": {
+    "meanInterval": 5
+  },
+  "processing": {
+    "capacity": 2,
+    "meanTime": 7
+  },
+  "inspection": {
+    "capacity": 1,
+    "meanTime": 3
+  },
+  "minimumCompleted": 10
+}

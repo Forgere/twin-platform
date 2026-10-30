@@ -2,12 +2,37 @@
   "name": "twin-platform",
   "private": true,
   "packageManager": "bun@1.3.12",
-  "workspaces": ["apps/*", "packages/*", "plugins/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "plugins/*"
+  ],
   "scripts": {
     "dev": "bun run --filter @twin-platform/studio dev",
+    "dev:server": "bun run --filter server dev",
+    "dev:worker": "bun run --filter @twin-platform/worker dev",
+    "gen:scale-scene": "bun scripts/gen-scale-scene.mjs",
+    "scene": "bun packages/scene-cli/src/cli.ts",
+    "scene:simpy": "python3 adapters/simpy/run.py",
+    "test:simpy": "python3 -m unittest discover -s adapters/simpy -p 'test_*.py'",
+    "build:fmu": "python3 adapters/fmu/scripts/build_reference_fmu.py",
+    "scene:fmu": "python3 adapters/fmu/run.py",
+    "test:fmu": "python3 -m unittest discover -s adapters/fmu -p 'test_*.py'",
+    "scene:openscenario": "python3 adapters/openscenario/run.py",
+    "test:openscenario": "python3 -m unittest discover -s adapters/openscenario -p 'test_*.py'",
+    "scene:introspect": "python3 adapters/introspector/run.py",
+    "test:introspect": "python3 -m unittest discover -s adapters/introspector -p 'test_*.py'",
+    "scene:opendrive": "python3 adapters/opendrive/run.py",
+    "test:opendrive": "python3 -m unittest discover -s adapters/opendrive -p 'test_*.py'",
+    "test:conformance": "bun test packages/plugin-conformance",
     "build": "bun run --filter @twin-platform/studio build",
-    "test": "bun test packages",
-    "typecheck": "bun run --filter @twin-platform/studio typecheck && bun run typecheck:packages",
-    "typecheck:packages": "bun x tsc --noEmit -p packages/scene-schema/tsconfig.json && bun x tsc --noEmit -p packages/world-kernel/tsconfig.json && bun x tsc --noEmit -p packages/storage-contracts/tsconfig.json && bun x tsc --noEmit -p packages/storage-memory/tsconfig.json && bun x tsc --noEmit -p packages/storage-testkit/tsconfig.json && bun x tsc --noEmit -p packages/analytics-core/tsconfig.json && bun x tsc --noEmit -p packages/replay-core/tsconfig.json && bun x tsc --noEmit -p packages/data-source-csv/tsconfig.json && bun x tsc --noEmit -p packages/storage-postgres/tsconfig.json && bun x tsc --noEmit -p packages/plugin-sdk/tsconfig.json && bun x tsc --noEmit -p packages/plugins-logistics/tsconfig.json && bun x tsc --noEmit -p packages/scenario-compare/tsconfig.json"
+    "test": "bun test packages apps/server apps/worker --path-ignore-patterns '**/studio/**'",
+    "typecheck": "bun run --filter @twin-platform/studio typecheck && bun run typecheck:packages && bun run typecheck:apps",
+    "typecheck:apps": "bun x tsc --noEmit -p apps/server/tsconfig.json && bun x tsc --noEmit -p apps/worker/tsconfig.json",
+    "typecheck:packages": "bun x tsc --noEmit -p packages/scene-schema/tsconfig.json && bun x tsc --noEmit -p packages/world-kernel/tsconfig.json && bun x tsc --noEmit -p packages/storage-contracts/tsconfig.json && bun x tsc --noEmit -p packages/storage-memory/tsconfig.json && bun x tsc --noEmit -p packages/storage-file/tsconfig.json && bun x tsc --noEmit -p packages/storage-testkit/tsconfig.json && bun x tsc --noEmit -p packages/analytics-core/tsconfig.json && bun x tsc --noEmit -p packages/replay-core/tsconfig.json && bun x tsc --noEmit -p packages/data-source-csv/tsconfig.json && bun x tsc --noEmit -p packages/data-source-mqtt/tsconfig.json && bun x tsc --noEmit -p packages/data-source-opcua/tsconfig.json && bun x tsc --noEmit -p packages/storage-postgres/tsconfig.json && bun x tsc --noEmit -p packages/plugin-sdk/tsconfig.json && bun x tsc --noEmit -p packages/plugins-logistics/tsconfig.json && bun x tsc --noEmit -p packages/scenario-compare/tsconfig.json && bun x tsc --noEmit -p packages/decision-core/tsconfig.json && bun x tsc --noEmit -p packages/plugins-fishing/tsconfig.json && bun x tsc --noEmit -p packages/scene-spec/tsconfig.json && bun x tsc --noEmit -p packages/scene-audit/tsconfig.json && bun x tsc --noEmit -p packages/scene-runner/tsconfig.json && bun x tsc --noEmit -p packages/scene-cli/tsconfig.json && bun x tsc --noEmit -p packages/plugin-conformance/tsconfig.json && bun x tsc --noEmit -p packages/studio-sdk/tsconfig.json && bun x tsc --noEmit -p packages/plugins-fishing/studio/tsconfig.json"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "@types/node": "^20.14.0"
   }
 }

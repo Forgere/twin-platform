@@ -9,9 +9,15 @@ app.config.timestamp_*.js
 # Environment
 .env
 .env*.local
+# wrangler 本地 secret（含 API_TOKEN / UPSTREAM），绝不能提交；
+# 模板 .dev.vars.example 要提交，所以只按精确文件名忽略。
+.dev.vars
 
 # dependencies
 node_modules/
+
+# TypeScript 增量构建产物（`tsc -b` 每次都会重写，不该进版本库）
+*.tsbuildinfo
 
 # IDEs and editors
 /.idea
@@ -26,3 +32,18 @@ gitignore
 # System Files
 .DS_Store
 Thumbs.db
+
+# 服务端运行时数据（场景库 / 事件流）
+data/
+
+# scene CLI 的运行产物（trace / 报告 / JUnit），每次跑都重写
+.scene-ci/
+
+# Python adapter 的构建产物与字节码
+__pycache__/
+*.py[cod]
+adapters/fmu/build/
+*.fmu
+*.so
+*.dylib
+*.dll

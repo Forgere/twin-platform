@@ -1,0 +1,55 @@
+{
+  "skill_name": "fish",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "/fish 我是新手，帮我调四钓二",
+      "expected_output": "向导七步跑完产出 t0=4 / t=2 / w=1 / d=2，calculateRigState 判 zone = neutral（不灵不钝：下钩饵全着底、上钩饵全悬）。同种子 400 秒仿真里，调四钓二的咬钩率与中鱼率都高于走铅的调平水钓二（zone = sinker_on_bottom）——模型声称的'偏好不灵不钝'在仿真里成立。"
+    },
+    {
+      "id": 2,
+      "prompt": "总是有口打不中，怎么办",
+      "expected_output": "规则 Judge 在 intent = bite_no_catch 且 zone = sensitive/neutral 时给出 ADJUST_FLOAT（direction=blunt, steps=1）。执行后（钓目 2.5 → 4.5，zone sensitive → blunt）同种子继续钓，中鱼率明显高于不执行的对照——'有口不中往钝'在仿真里真的改善结果。"
+    },
+    {
+      "id": 3,
+      "prompt": "走水了，浮漂站不住",
+      "expected_output": "走水时 conditionMultipliers 给 bite ×0.55 / hook ×0.7；ADD_LEAD 后恢复为 ×0.9 / ×0.95，且 attrs.antiDrift = true。仿真里移漂占比明显下降（信号从'糊'变回真实的口）。但抗流不是免费的：加铅会把钓组推钝（分区改变，如 neutral → blunt），咬钩率不保证上升——这正是模型要教用户的权衡。"
+    },
+    {
+      "id": 4,
+      "prompt": "小鱼闹窝，口多就是不中鱼",
+      "expected_output": "小鱼闹窝时 bite ×1.7（口变多）但 hook ×0.35（中鱼率大跌），仿真里空竿率比静水高 0.2 以上。CHANGE_SPOT 落地后 smallFish / drift 清零、nestUntil = 0——换钓位真的甩掉小鱼。"
+    },
+    {
+      "id": 5,
+      "prompt": "半天没口，要不要补窝",
+      "expected_output": "REFILL_NEST 后 nestUntil = now + seconds（light 45 / normal 90 / heavy 150）。同种子对比：窝料有效期内的咬钩率高于补窝前（bite ×1.3 在仿真里可见）。"
+    },
+    {
+      "id": 6,
+      "prompt": "钓鲫鱼该用什么饵",
+      "expected_output": "CHANGE_BAIT 把饵换成目标鱼 baitAffinity 最高的那款（鲫鱼：蚯蚓 1.2）。loadoutEffects 里 baitMul 随 baitAffinity 单调递增——越爱吃的饵咬钩率倍率越高。"
+    },
+    {
+      "id": 7,
+      "prompt": "刚才那口是什么口",
+      "expected_output": "漂相由状态算出而不是等概率：不走水时永远不出移漂；钝区黑漂（sink）占比 > 40%；灵区顿口（nod）占比 > 40%；走水未抗流时移漂（run）占比 > 40%。提竿窗口随漂相：顿口 1.1s < 送漂 1.4s < 移漂 1.6s < 黑漂 1.9s。"
+    },
+    {
+      "id": 8,
+      "prompt": "场景再跑一遍，结果一样吗",
+      "expected_output": "同种子运行两次，事件流（fish:cast / fish:lift / fish:break）与 rig attrs 逐位一致——确定性是回放、seek、方案对比的地基。"
+    },
+    {
+      "id": 9,
+      "prompt": "把这套钓组原样搬进真实钓点",
+      "expected_output": "fishingMode = real 时不模拟鱼口：不抛竿、不涨计数、signal 恒为 none，只摆钓组姿态（fishingLayout 照常每步刷新）——真实钓点的计数只来自用户手动记录。"
+    },
+    {
+      "id": 10,
+      "prompt": "我是新手，帮我从零开始",
+      "expected_output": "向导七步（选鱼 → 配装备 → 测 t0 → 测 t → 测 w → 选预设 → 找底确认）跑完到达 done，产出的 t0/t/w/d 通过 calculateRigState 校验——向导与引擎对'参数合法'的认知是同一份代码。"
+    }
+  ]
+}

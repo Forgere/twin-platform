@@ -321,3 +321,36 @@ export function migrateTwinScene(input: unknown): SceneMigrationResult {
 
   return { scene: assertTwinScene(current), fromVersion, applied };
 }
+
+// -----------------------------------------------------------------------------
+// 文档进出（解析 / 序列化）
+// -----------------------------------------------------------------------------
+
+/**
+ * 场景文件的读写出口，见 `./io`。
+ *
+ * 从主入口一并导出，而不是走 `@twin-platform/scene-schema/io` 子路径——
+ * 仓库各包在本机（含 WSL/9P 挂载）下的软链接解析对子路径导出支持不稳，
+ * 统一走主入口最省心。这里只是 re-export，没有循环依赖风险：
+ * `io.ts` 顶层不引用本模块的任何绑定，只在函数体内调用。
+ */
+export type { SceneDocumentIssue, SceneExportOptions, SceneImportResult, SceneSummary } from './io';
+export {
+  SCENE_FILE_EXTENSION,
+  inspectSceneDocument,
+  parseSceneDocument,
+  roundTripIssues,
+  sceneFileName,
+  sceneSummary,
+  serializeSceneDocument,
+} from './io';
+
+/**
+ * 布局编辑操作（ops）的出口，理由同上：统一走主入口，不用子路径。
+ *
+ * 循环依赖同样靠"运行时绑定只在函数体内用"解决：
+ * 本模块的 `validateTwinScene` 被 `ops.ts` 在 `applySceneOps` 体内调用，
+ * 而本模块只是 re-export `ops`，顶层不互相执行。
+ */
+export type { SceneOp, SetTransformOp } from './ops';
+export { applySceneOps, sameTransform, SceneOpError } from './ops';

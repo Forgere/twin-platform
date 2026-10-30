@@ -13,3 +13,4 @@
 export * from './fingerprint';
 export * from './recorder';
 export * from './controller';
+export * from './frame-source';

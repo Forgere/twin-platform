@@ -1,0 +1,55 @@
+# Twin Platform 服务端部署（docker compose）
+#
+# 两种用法：
+#  A. 生产（推荐）：连云厂商托管 PostgreSQL（RDS / TencentDB / PolarDB…）。
+#     把 DATABASE_URL 指向托管库，注释掉下面的 postgres 服务即可。
+#  B. 内网 / 开发自托管：取消注释 postgres 服务，DATABASE_URL 指向它。
+#
+# 启动：  cp deploy/.env.example deploy/.env   # 填 DATABASE_URL / TWIN_API_TOKEN
+#         docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d
+
+services:
+  server:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${SERVER_PORT:-8787}:8787"
+    environment:
+      PORT: 8787
+      TWIN_STORAGE: postgres
+      DATABASE_URL: ${DATABASE_URL}
+      TWIN_PG_SCHEMA: ${TWIN_PG_SCHEMA:-twin}
+      TWIN_API_TOKEN: ${TWIN_API_TOKEN}
+      # 若不用 Cloudflare Worker 托管 Studio，可让服务端同源托管 dist：
+      # TWIN_STUDIO_DIST: apps/studio/dist
+    healthcheck:
+      test: ["CMD", "bun", "-e", "fetch('http://127.0.0.1:8787/api/health',{headers:{'authorization':'Bearer '+(process.env.TWIN_API_TOKEN||'')}}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    # 仅当回退到 file 后端（不推荐上云）才需要持久卷：
+    # volumes:
+    #   - twin-data:/app/data
+
+  # 自托管 PostgreSQL（开发 / 内网用；生产请用云厂商托管 RDS，免去运维与备份）
+  # postgres:
+  #   image: postgres:18-alpine
+  #   restart: unless-stopped
+  #   environment:
+  #     POSTGRES_USER: ${PG_USER:-postgres}
+  #     POSTGRES_PASSWORD: ${PG_PASSWORD}
+  #     POSTGRES_DB: ${PG_DB:-twin}
+  #   volumes:
+  #     - pg-data:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-postgres}"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+
+# volumes:
+#   twin-data:
+#   pg-data:

@@ -1,0 +1,9 @@
+# 复制成 .dev.vars（已 gitignore）供 `bun run dev` 使用。
+#
+# 本地端到端的端口约定：**8787 留给 Worker**，server 挪到 8799。
+# 这样页面 origin 就是 localhost:8787，前端 defaultServerUrl() 推断出同源，
+# 请求经 Worker 转发（token 由 Worker 注入），和生产形态完全一致。
+UPSTREAM=http://127.0.0.1:8799
+
+# 必须与服务端的 TWIN_API_TOKEN 一致，否则上游全 401。
+API_TOKEN=dev-token

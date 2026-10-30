@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<OpenSCENARIO>
+  <FileHeader revMajor="1" revMinor="0" date="2026-01-01T00:00:00" description="直路上的加速跟车场景（OpenSCENARIO importer 参考样例）" author="twin-platform"/>
+
+  <Entities>
+    <ScenarioObject name="ego">
+      <Vehicle name="ego-car" vehicleCategory="car">
+        <BoundingBox>
+          <Center x="1.5" y="0" z="0.8"/>
+          <Dimensions width="1.9" length="4.6" height="1.5"/>
+        </BoundingBox>
+        <Performance maxSpeed="40" maxAcceleration="4" maxDeceleration="9"/>
+      </Vehicle>
+    </ScenarioObject>
+    <ScenarioObject name="lead">
+      <Vehicle name="lead-car" vehicleCategory="car">
+        <BoundingBox>
+          <Center x="1.5" y="0" z="0.8"/>
+          <Dimensions width="1.9" length="4.6" height="1.5"/>
+        </BoundingBox>
+        <Performance maxSpeed="40" maxAcceleration="3" maxDeceleration="8"/>
+      </Vehicle>
+    </ScenarioObject>
+    <ScenarioObject name="side">
+      <Vehicle name="side-car" vehicleCategory="car">
+        <BoundingBox>
+          <Center x="1.5" y="0" z="0.8"/>
+          <Dimensions width="1.9" length="4.6" height="1.5"/>
+        </BoundingBox>
+        <Performance maxSpeed="40" maxAcceleration="3" maxDeceleration="8"/>
+      </Vehicle>
+    </ScenarioObject>
+  </Entities>
+
+  <Storyboard>
+    <Init>
+      <Actions>
+        <Private entityRef="ego">
+          <PrivateAction>
+            <PositionAction>
+              <Position>
+                <LanePosition roadId="0" laneId="-1" s="10" offset="0"/>
+              </Position>
+            </PositionAction>
+          </PrivateAction>
+          <PrivateAction>
+            <LongitudinalAction>
+              <SpeedAction>
+                <SpeedActionDynamics dynamicsShape="step" value="0"/>
+                <SpeedActionTarget>
+                  <AbsoluteTargetSpeed value="12"/>
+                </SpeedActionTarget>
+              </SpeedAction>
+            </LongitudinalAction>
+          </PrivateAction>
+        </Private>
+        <Private entityRef="lead">
+          <PrivateAction>
+            <PositionAction>
+              <Position>
+                <LanePosition roadId="0" laneId="-1" s="70" offset="0"/>
+              </Position>
+            </PositionAction>
+          </PrivateAction>
+          <PrivateAction>
+            <LongitudinalAction>
+              <SpeedAction>
+                <SpeedActionDynamics dynamicsShape="step" value="0"/>
+                <SpeedActionTarget>
+                  <AbsoluteTargetSpeed value="10"/>
+                </SpeedActionTarget>
+              </SpeedAction>
+            </LongitudinalAction>
+          </PrivateAction>
+        </Private>
+        <Private entityRef="side">
+          <PrivateAction>
+            <PositionAction>
+              <Position>
+                <LanePosition roadId="0" laneId="-2" s="30" offset="0"/>
+              </Position>
+            </PositionAction>
+          </PrivateAction>
+          <PrivateAction>
+            <LongitudinalAction>
+              <SpeedAction>
+                <SpeedActionDynamics dynamicsShape="step" value="0"/>
+                <SpeedActionTarget>
+                  <AbsoluteTargetSpeed value="14"/>
+                </SpeedActionTarget>
+              </SpeedAction>
+            </LongitudinalAction>
+          </PrivateAction>
+        </Private>
+      </Actions>
+    </Init>
+
+    <Story name="accelerate-and-follow">
+      <Act name="main-act">
+        <ManeuverGroup maximumExecutionCount="1" name="ego-group">
+          <Actors selectTriggeringEntities="false">
+            <EntityRef entityRef="ego"/>
+          </Actors>
+          <Maneuver name="ego-maneuver">
+            <Event name="ego-speed-up" priority="overwrite">
+              <Action name="ego-speed-action">
+                <PrivateAction>
+                  <LongitudinalAction>
+                    <SpeedAction>
+                      <SpeedActionDynamics dynamicsShape="step" value="0"/>
+                      <SpeedActionTarget>
+                        <AbsoluteTargetSpeed value="14"/>
+                      </SpeedActionTarget>
+                    </SpeedAction>
+                  </LongitudinalAction>
+                </PrivateAction>
+              </Action>
+              <StartTrigger>
+                <ConditionGroup>
+                  <Condition name="at-4s" delay="0" conditionEdge="none">
+                    <ByValueCondition>
+                      <SimulationTimeCondition value="4" rule="greaterThan"/>
+                    </ByValueCondition>
+                  </Condition>
+                </ConditionGroup>
+              </StartTrigger>
+            </Event>
+          </Maneuver>
+        </ManeuverGroup>
+
+        <ManeuverGroup maximumExecutionCount="1" name="lead-group">
+          <Actors selectTriggeringEntities="false">
+            <EntityRef entityRef="lead"/>
+          </Actors>
+          <Maneuver name="lead-maneuver">
+            <Event name="lead-speed-up" priority="overwrite">
+              <Action name="lead-speed-action">
+                <PrivateAction>
+                  <LongitudinalAction>
+                    <SpeedAction>
+                      <SpeedActionDynamics dynamicsShape="linear" value="1.5"/>
+                      <SpeedActionTarget>
+                        <AbsoluteTargetSpeed value="18"/>
+                      </SpeedActionTarget>
+                    </SpeedAction>
+                  </LongitudinalAction>
+                </PrivateAction>
+              </Action>
+              <StartTrigger>
+                <ConditionGroup>
+                  <Condition name="at-6s" delay="0" conditionEdge="none">
+                    <ByValueCondition>
+                      <SimulationTimeCondition value="6" rule="greaterThan"/>
+                    </ByValueCondition>
+                  </Condition>
+                </ConditionGroup>
+              </StartTrigger>
+            </Event>
+          </Maneuver>
+        </ManeuverGroup>
+      </Act>
+    </Story>
+
+    <StopTrigger>
+      <ConditionGroup>
+        <Condition name="stop" delay="0" conditionEdge="none">
+          <ByValueCondition>
+            <SimulationTimeCondition value="20" rule="greaterThan"/>
+          </ByValueCondition>
+        </Condition>
+      </ConditionGroup>
+    </StopTrigger>
+  </Storyboard>
+</OpenSCENARIO>

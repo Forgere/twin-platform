@@ -1,0 +1,1206 @@
+{
+  "actions": [
+    {
+      "atStep": 10,
+      "id": "osc:speed",
+      "params": {
+        "entity": "ego",
+        "value": 8.0
+      }
+    }
+  ],
+  "eventHash": "95152f89",
+  "events": [
+    {
+      "entityId": "ego",
+      "occurredAt": 0,
+      "payload": {
+        "lane": -1.0,
+        "s": 150.0,
+        "speed": 5.0
+      },
+      "sequence": 1,
+      "type": "osc:spawn"
+    },
+    {
+      "entityId": "follower",
+      "occurredAt": 0,
+      "payload": {
+        "lane": -1.0,
+        "s": 20.0,
+        "speed": 4.0
+      },
+      "sequence": 2,
+      "type": "osc:spawn"
+    },
+    {
+      "entityId": "ego",
+      "occurredAt": 1.0,
+      "payload": {
+        "heading": 0.55,
+        "lane": -1.0,
+        "road": "0",
+        "s": 155.0,
+        "speed": 5.0,
+        "x": 153.18342554369457,
+        "y": 13.255629880445296
+      },
+      "sequence": 3,
+      "type": "osc:sample"
+    },
+    {
+      "entityId": "follower",
+      "occurredAt": 1.0,
+      "payload": {
+        "heading": 0.0,
+        "lane": -1.0,
+        "road": "0",
+        "s": 24.0,
+        "speed": 4.0,
+        "x": 24.0,
+        "y": -1.75
+      },
+      "sequence": 4,
+      "type": "osc:sample"
+    },
+    {
+      "entityId": "ego",
+      "occurredAt": 2.0,
+      "payload": {
+        "heading": 0.6,
+        "lane": -1.0,
+        "road": "0",
+        "s": 160.0,
+        "speed": 5.0,
+        "x": 157.45237166794485,
+        "y": 16.02210118294023
+      },
+      "sequence": 5,
+      "type": "osc:sample"
+    },
+    {
+      "entityId": "follower",
+      "occurredAt": 2.0,
+      "payload": {
+        "heading": 0.0,
+        "lane": -1.0,
+        "road": "0",
+        "s": 28.0,
+        "speed": 4.0,
+        "x": 28.0,
+        "y": -1.75
+      },
+      "sequence": 6,
+      "type": "osc:sample"
+    },
+    {
+      "entityId": "ego",
+      "occurredAt": 3.0,
+      "payload": {
+        "heading": 0.65,
+        "lane": -1.0,
+        "road": "0",
+        "s": 165.0,
+        "speed": 5.0,
+        "x": 161.57771678364202,
+        "y": 18.998473497633565
+      },
+      "sequence": 7,
+      "type": "osc:sample"
+    },
+    {
+      "entityId": "follower",
+      "occurredAt": 3.0,
+      "payload": {
+        "heading": 0.0,
+        "lane": -1.0,
+        "road": "0",
+        "s": 32.0,
+        "speed": 4.0,
+        "x": 32.0,
+        "y": -1.75
+      },
+      "sequence": 8,
+      "type": "osc:sample"
+    },
+    {
+      "entityId": "ego",
+      "occurredAt": 4.0,
+      "payload": {
+        "heading": 0.7000000000000001,
+        "lane": -1.0,
+        "road": "0",
+        "s": 170.0,
+        "speed": 5.0,
+        "x": 165.54914967643506,
+        "y": 22.177307443803308
+      },
+      "sequence": 9,
+      "type": "osc:sample"
+    },
+    {
+      "entityId": "follower",
+      "occurredAt": 4.0,
+      "payload": {
+        "heading": 0.0,
+        "lane": -1.0,
+        "road": "0",
+        "s": 36.0,
+        "speed": 4.0,
+        "x": 36.0,
+        "y": -1.75
+      },
+      "sequence": 10,
+      "type": "osc:sample"
+    },
+    {
+      "entityId": "ego",
+      "occurredAt": 5.0,
+      "payload": {
+        "heading": 0.75,
+        "lane": -1.0,
+        "road": "0",
+        "s": 175.0,
+        "speed": 5.0,
+        "x": 169.35674383237424,
+        "y": 25.550657592088722
+      },
+      "sequence": 11,
+      "type": "osc:sample"
+    },
+    {
+      "entityId": "follower",
+      "occurredAt": 5.0,
+      "payload": {
+        "heading": 0.0,
+        "lane": -1.0,
+        "road": "0",
+        "s": 40.0,
+        "speed": 4.0,
+        "x": 40.0,
+        "y": -1.75
+      },
+      "sequence": 12,
+      "type": "osc:sample"
+    },
+    {
+      "entityId": "ego",
+      "occurredAt": 5.0,
+      "payload": {
+        "rate": 0,
+        "speed": 8.0
+      },
+      "sequence": 13,
+      "type": "osc:speed:set"
+    },
+    {
+      "entityId": "ego",
+      "occurredAt": 6.0,
+      "payload": {
+        "heading": 0.8300000000000001,
+        "lane": -1.0,
+        "road": "0",
+        "s": 183.0,
+        "speed": 8.0,
+        "x": 175.0845170104387,
+        "y": 31.331391412748577
+      },
+      "sequence": 14,
+      "type": "osc:sample"
+    },
+    {
+      "entityId": "follower",
+      "occurredAt": 6.0,
+      "payload": {
+        "heading": 0.0,
+        "lane": -1.0,
+        "road": "0",
+        "s": 44.0,
+        "speed": 4.0,
+        "x": 44.0,
+        "y": -1.75
+      },
+      "sequence": 15,
+      "type": "osc:sample"
+    },
+    {
+      "entityId": "ego",
+      "occurredAt": 7.0,
+      "payload": {
+        "heading": 0.91,
+        "lane": -1.0,
+        "road": "0",
+        "s": 191.0,
+        "speed": 8.0,
+        "x": 180.33200551345246,
+        "y": 37.551369989513425
+      },
+      "sequence": 16,
+      "type": "osc:sample"
+    },
+    {
+      "entityId": "follower",
+      "occurredAt": 7.0,
+      "payload": {
+        "heading": 0.0,
+        "lane": -1.0,
+        "road": "0",
+        "s": 48.0,
+        "speed": 4.0,
+        "x": 48.0,
+        "y": -1.75
+      },
+      "sequence": 17,
+      "type": "osc:sample"
+    },
+    {
+      "entityId": "ego",
+      "occurredAt": 8.0,
+      "payload": {
+        "heading": 0.99,
+        "lane": -1.0,
+        "road": "0",
+        "s": 199.0,
+        "speed": 8.0,
+        "x": 185.065643322603,
+        "y": 44.170806685823464
+      },
+      "sequence": 18,
+      "type": "osc:sample"
+    },
+    {
+      "entityId": "follower",
+      "occurredAt": 8.0,
+      "payload": {
+        "heading": 0.0,
+        "lane": -1.0,
+        "road": "0",
+        "s": 52.0,
+        "speed": 4.0,
+        "x": 52.0,
+        "y": -1.75
+      },
+      "sequence": 19,
+      "type": "osc:sample"
+    },
+    {
+      "entityId": "ego",
+      "occurredAt": 8.5,
+      "payload": {
+        "fromRoad": "0",
+        "lane": -1,
+        "road": "1",
+        "s": 3.0,
+        "via": "road-link"
+      },
+      "sequence": 20,
+      "type": "osc:road:enter"
+    },
+    {
+      "entityId": "ego",
+      "occurredAt": 9.0,
+      "payload": {
+        "heading": 1.0,
+        "lane": -1,
+        "road": "1",
+        "s": 7.0,
+        "speed": 8.0,
+        "x": 189.40178884528046,
+        "y": 50.91453727157205
+      },
+      "sequence": 21,
+      "type": "osc:sample"
+    },
+    {
+      "entityId": "follower",
+      "occurredAt": 9.0,
+      "payload": {
+        "heading": 0.0,
+        "lane": -1.0,
+        "road": "0",
+        "s": 56.0,
+        "speed": 4.0,
+        "x": 56.0,
+        "y": -1.75
+      },
+      "sequence": 22,
+      "type": "osc:sample"
+    },
+    {
+      "entityId": "ego",
+      "occurredAt": 10.0,
+      "payload": {
+        "heading": 1.0,
+        "lane": -1,
+        "road": "1",
+        "s": 15.0,
+        "speed": 8.0,
+        "x": 193.72420729222557,
+        "y": 57.646305150035225
+      },
+      "sequence": 23,
+      "type": "osc:sample"
+    },
+    {
+      "entityId": "follower",
+      "occurredAt": 10.0,
+      "payload": {
+        "heading": 0.0,
+        "lane": -1.0,
+        "road": "0",
+        "s": 60.0,
+        "speed": 4.0,
+        "x": 60.0,
+        "y": -1.75
+      },
+      "sequence": 24,
+      "type": "osc:sample"
+    },
+    {
+      "entityId": "ego",
+      "occurredAt": 11.0,
+      "payload": {
+        "heading": 1.0,
+        "lane": -1,
+        "road": "1",
+        "s": 23.0,
+        "speed": 8.0,
+        "x": 198.0466257391707,
+        "y": 64.37807302849839
+      },
+      "sequence": 25,
+      "type": "osc:sample"
+    },
+    {
+      "entityId": "follower",
+      "occurredAt": 11.0,
+      "payload": {
+        "heading": 0.0,
+        "lane": -1.0,
+        "road": "0",
+        "s": 64.0,
+        "speed": 4.0,
+        "x": 64.0,
+        "y": -1.75
+      },
+      "sequence": 26,
+      "type": "osc:sample"
+    },
+    {
+      "entityId": "ego",
+      "occurredAt": 12.0,
+      "payload": {
+        "heading": 1.0,
+        "lane": -1,
+        "road": "1",
+        "s": 31.0,
+        "speed": 8.0,
+        "x": 202.36904418611581,
+        "y": 71.10984090696157
+      },
+      "sequence": 27,
+      "type": "osc:sample"
+    },
+    {
+      "entityId": "follower",
+      "occurredAt": 12.0,
+      "payload": {
+        "heading": 0.0,
+        "lane": -1.0,
+        "road": "0",
+        "s": 68.0,
+        "speed": 4.0,
+        "x": 68.0,
+        "y": -1.75
+      },
+      "sequence": 28,
+      "type": "osc:sample"
+    },
+    {
+      "entityId": "ego",
+      "occurredAt": 13.0,
+      "payload": {
+        "heading": 1.0,
+        "lane": -1,
+        "road": "1",
+        "s": 39.0,
+        "speed": 8.0,
+        "x": 206.69146263306092,
+        "y": 77.84160878542474
+      },
+      "sequence": 29,
+      "type": "osc:sample"
+    },
+    {
+      "entityId": "follower",
+      "occurredAt": 13.0,
+      "payload": {
+        "heading": 0.0,
+        "lane": -1.0,
+        "road": "0",
+        "s": 72.0,
+        "speed": 4.0,
+        "x": 72.0,
+        "y": -1.75
+      },
+      "sequence": 30,
+      "type": "osc:sample"
+    },
+    {
+      "entityId": "ego",
+      "occurredAt": 14.0,
+      "payload": {
+        "heading": 1.0,
+        "lane": -1,
+        "road": "1",
+        "s": 47.0,
+        "speed": 8.0,
+        "x": 211.01388108000606,
+        "y": 84.57337666388791
+      },
+      "sequence": 31,
+      "type": "osc:sample"
+    },
+    {
+      "entityId": "follower",
+      "occurredAt": 14.0,
+      "payload": {
+        "heading": 0.0,
+        "lane": -1.0,
+        "road": "0",
+        "s": 76.0,
+        "speed": 4.0,
+        "x": 76.0,
+        "y": -1.75
+      },
+      "sequence": 32,
+      "type": "osc:sample"
+    },
+    {
+      "entityId": "ego",
+      "occurredAt": 15.0,
+      "payload": {
+        "heading": 1.0,
+        "lane": -1,
+        "road": "1",
+        "s": 55.0,
+        "speed": 8.0,
+        "x": 215.33629952695117,
+        "y": 91.30514454235109
+      },
+      "sequence": 33,
+      "type": "osc:sample"
+    },
+    {
+      "entityId": "follower",
+      "occurredAt": 15.0,
+      "payload": {
+        "heading": 0.0,
+        "lane": -1.0,
+        "road": "0",
+        "s": 80.0,
+        "speed": 4.0,
+        "x": 80.0,
+        "y": -1.75
+      },
+      "sequence": 34,
+      "type": "osc:sample"
+    },
+    {
+      "entityId": "ego",
+      "occurredAt": 16.0,
+      "payload": {
+        "heading": 1.0,
+        "lane": -1,
+        "road": "1",
+        "s": 63.0,
+        "speed": 8.0,
+        "x": 219.6587179738963,
+        "y": 98.03691242081426
+      },
+      "sequence": 35,
+      "type": "osc:sample"
+    },
+    {
+      "entityId": "follower",
+      "occurredAt": 16.0,
+      "payload": {
+        "heading": 0.0,
+        "lane": -1.0,
+        "road": "0",
+        "s": 84.0,
+        "speed": 4.0,
+        "x": 84.0,
+        "y": -1.75
+      },
+      "sequence": 36,
+      "type": "osc:sample"
+    },
+    {
+      "entityId": "ego",
+      "occurredAt": 17.0,
+      "payload": {
+        "heading": 1.0,
+        "lane": -1,
+        "road": "1",
+        "s": 71.0,
+        "speed": 8.0,
+        "x": 223.9811364208414,
+        "y": 104.76868029927742
+      },
+      "sequence": 37,
+      "type": "osc:sample"
+    },
+    {
+      "entityId": "follower",
+      "occurredAt": 17.0,
+      "payload": {
+        "heading": 0.0,
+        "lane": -1.0,
+        "road": "0",
+        "s": 88.0,
+        "speed": 4.0,
+        "x": 88.0,
+        "y": -1.75
+      },
+      "sequence": 38,
+      "type": "osc:sample"
+    },
+    {
+      "entityId": "ego",
+      "occurredAt": 18.0,
+      "payload": {
+        "heading": 1.0,
+        "lane": -1,
+        "road": "1",
+        "s": 79.0,
+        "speed": 8.0,
+        "x": 228.30355486778652,
+        "y": 111.50044817774061
+      },
+      "sequence": 39,
+      "type": "osc:sample"
+    },
+    {
+      "entityId": "follower",
+      "occurredAt": 18.0,
+      "payload": {
+        "heading": 0.0,
+        "lane": -1.0,
+        "road": "0",
+        "s": 92.0,
+        "speed": 4.0,
+        "x": 92.0,
+        "y": -1.75
+      },
+      "sequence": 40,
+      "type": "osc:sample"
+    },
+    {
+      "entityId": "ego",
+      "occurredAt": 19.0,
+      "payload": {
+        "heading": 1.0,
+        "lane": -1,
+        "road": "1",
+        "s": 87.0,
+        "speed": 8.0,
+        "x": 232.62597331473162,
+        "y": 118.23221605620377
+      },
+      "sequence": 41,
+      "type": "osc:sample"
+    },
+    {
+      "entityId": "follower",
+      "occurredAt": 19.0,
+      "payload": {
+        "heading": 0.0,
+        "lane": -1.0,
+        "road": "0",
+        "s": 96.0,
+        "speed": 4.0,
+        "x": 96.0,
+        "y": -1.75
+      },
+      "sequence": 42,
+      "type": "osc:sample"
+    },
+    {
+      "entityId": "ego",
+      "occurredAt": 20.0,
+      "payload": {
+        "heading": 1.0,
+        "lane": -1,
+        "road": "1",
+        "s": 95.0,
+        "speed": 8.0,
+        "x": 236.94839176167676,
+        "y": 124.96398393466696
+      },
+      "sequence": 43,
+      "type": "osc:sample"
+    },
+    {
+      "entityId": "follower",
+      "occurredAt": 20.0,
+      "payload": {
+        "heading": 0.0,
+        "lane": -1.0,
+        "road": "0",
+        "s": 100.0,
+        "speed": 4.0,
+        "x": 100.0,
+        "y": -1.75
+      },
+      "sequence": 44,
+      "type": "osc:sample"
+    },
+    {
+      "entityId": "",
+      "occurredAt": 20.0,
+      "payload": {
+        "entities": 2
+      },
+      "sequence": 45,
+      "type": "osc:completed"
+    }
+  ],
+  "finalState": {
+    "actions": [
+      {
+        "at": 5.0,
+        "entity": "ego",
+        "kind": "speed",
+        "lane": null,
+        "road": null,
+        "s": null,
+        "value": 8.0
+      }
+    ],
+    "entities": {
+      "ego": {
+        "category": "car",
+        "lane": -1,
+        "rate": null,
+        "road": "1",
+        "s": 95.0,
+        "speed": 8.0,
+        "target": 8.0
+      },
+      "follower": {
+        "category": "car",
+        "lane": -1.0,
+        "rate": null,
+        "road": "0",
+        "s": 100.0,
+        "speed": 4.0,
+        "target": 4.0
+      }
+    },
+    "interval": {
+      "duration": 20.0,
+      "start": 0,
+      "step": 0.5,
+      "steps": 40
+    },
+    "limits": {
+      "maxSpeed": 30.0,
+      "minGap": 5.0
+    },
+    "opendrive": "adapters/opendrive/scenes/two-road-curve.xodr",
+    "road": {
+      "laneWidth": 0.0,
+      "length": 0.0,
+      "maxLane": 10.0,
+      "minLane": -10.0
+    },
+    "runtime": "openscenario",
+    "samples": [
+      {
+        "entities": {
+          "ego": {
+            "heading": 0.55,
+            "lane": -1.0,
+            "road": "0",
+            "s": 155.0,
+            "speed": 5.0,
+            "x": 153.18342554369457,
+            "y": 13.255629880445296
+          },
+          "follower": {
+            "heading": 0.0,
+            "lane": -1.0,
+            "road": "0",
+            "s": 24.0,
+            "speed": 4.0,
+            "x": 24.0,
+            "y": -1.75
+          }
+        },
+        "time": 1.0
+      },
+      {
+        "entities": {
+          "ego": {
+            "heading": 0.6,
+            "lane": -1.0,
+            "road": "0",
+            "s": 160.0,
+            "speed": 5.0,
+            "x": 157.45237166794485,
+            "y": 16.02210118294023
+          },
+          "follower": {
+            "heading": 0.0,
+            "lane": -1.0,
+            "road": "0",
+            "s": 28.0,
+            "speed": 4.0,
+            "x": 28.0,
+            "y": -1.75
+          }
+        },
+        "time": 2.0
+      },
+      {
+        "entities": {
+          "ego": {
+            "heading": 0.65,
+            "lane": -1.0,
+            "road": "0",
+            "s": 165.0,
+            "speed": 5.0,
+            "x": 161.57771678364202,
+            "y": 18.998473497633565
+          },
+          "follower": {
+            "heading": 0.0,
+            "lane": -1.0,
+            "road": "0",
+            "s": 32.0,
+            "speed": 4.0,
+            "x": 32.0,
+            "y": -1.75
+          }
+        },
+        "time": 3.0
+      },
+      {
+        "entities": {
+          "ego": {
+            "heading": 0.7000000000000001,
+            "lane": -1.0,
+            "road": "0",
+            "s": 170.0,
+            "speed": 5.0,
+            "x": 165.54914967643506,
+            "y": 22.177307443803308
+          },
+          "follower": {
+            "heading": 0.0,
+            "lane": -1.0,
+            "road": "0",
+            "s": 36.0,
+            "speed": 4.0,
+            "x": 36.0,
+            "y": -1.75
+          }
+        },
+        "time": 4.0
+      },
+      {
+        "entities": {
+          "ego": {
+            "heading": 0.75,
+            "lane": -1.0,
+            "road": "0",
+            "s": 175.0,
+            "speed": 5.0,
+            "x": 169.35674383237424,
+            "y": 25.550657592088722
+          },
+          "follower": {
+            "heading": 0.0,
+            "lane": -1.0,
+            "road": "0",
+            "s": 40.0,
+            "speed": 4.0,
+            "x": 40.0,
+            "y": -1.75
+          }
+        },
+        "time": 5.0
+      },
+      {
+        "entities": {
+          "ego": {
+            "heading": 0.8300000000000001,
+            "lane": -1.0,
+            "road": "0",
+            "s": 183.0,
+            "speed": 8.0,
+            "x": 175.0845170104387,
+            "y": 31.331391412748577
+          },
+          "follower": {
+            "heading": 0.0,
+            "lane": -1.0,
+            "road": "0",
+            "s": 44.0,
+            "speed": 4.0,
+            "x": 44.0,
+            "y": -1.75
+          }
+        },
+        "time": 6.0
+      },
+      {
+        "entities": {
+          "ego": {
+            "heading": 0.91,
+            "lane": -1.0,
+            "road": "0",
+            "s": 191.0,
+            "speed": 8.0,
+            "x": 180.33200551345246,
+            "y": 37.551369989513425
+          },
+          "follower": {
+            "heading": 0.0,
+            "lane": -1.0,
+            "road": "0",
+            "s": 48.0,
+            "speed": 4.0,
+            "x": 48.0,
+            "y": -1.75
+          }
+        },
+        "time": 7.0
+      },
+      {
+        "entities": {
+          "ego": {
+            "heading": 0.99,
+            "lane": -1.0,
+            "road": "0",
+            "s": 199.0,
+            "speed": 8.0,
+            "x": 185.065643322603,
+            "y": 44.170806685823464
+          },
+          "follower": {
+            "heading": 0.0,
+            "lane": -1.0,
+            "road": "0",
+            "s": 52.0,
+            "speed": 4.0,
+            "x": 52.0,
+            "y": -1.75
+          }
+        },
+        "time": 8.0
+      },
+      {
+        "entities": {
+          "ego": {
+            "heading": 1.0,
+            "lane": -1,
+            "road": "1",
+            "s": 7.0,
+            "speed": 8.0,
+            "x": 189.40178884528046,
+            "y": 50.91453727157205
+          },
+          "follower": {
+            "heading": 0.0,
+            "lane": -1.0,
+            "road": "0",
+            "s": 56.0,
+            "speed": 4.0,
+            "x": 56.0,
+            "y": -1.75
+          }
+        },
+        "time": 9.0
+      },
+      {
+        "entities": {
+          "ego": {
+            "heading": 1.0,
+            "lane": -1,
+            "road": "1",
+            "s": 15.0,
+            "speed": 8.0,
+            "x": 193.72420729222557,
+            "y": 57.646305150035225
+          },
+          "follower": {
+            "heading": 0.0,
+            "lane": -1.0,
+            "road": "0",
+            "s": 60.0,
+            "speed": 4.0,
+            "x": 60.0,
+            "y": -1.75
+          }
+        },
+        "time": 10.0
+      },
+      {
+        "entities": {
+          "ego": {
+            "heading": 1.0,
+            "lane": -1,
+            "road": "1",
+            "s": 23.0,
+            "speed": 8.0,
+            "x": 198.0466257391707,
+            "y": 64.37807302849839
+          },
+          "follower": {
+            "heading": 0.0,
+            "lane": -1.0,
+            "road": "0",
+            "s": 64.0,
+            "speed": 4.0,
+            "x": 64.0,
+            "y": -1.75
+          }
+        },
+        "time": 11.0
+      },
+      {
+        "entities": {
+          "ego": {
+            "heading": 1.0,
+            "lane": -1,
+            "road": "1",
+            "s": 31.0,
+            "speed": 8.0,
+            "x": 202.36904418611581,
+            "y": 71.10984090696157
+          },
+          "follower": {
+            "heading": 0.0,
+            "lane": -1.0,
+            "road": "0",
+            "s": 68.0,
+            "speed": 4.0,
+            "x": 68.0,
+            "y": -1.75
+          }
+        },
+        "time": 12.0
+      },
+      {
+        "entities": {
+          "ego": {
+            "heading": 1.0,
+            "lane": -1,
+            "road": "1",
+            "s": 39.0,
+            "speed": 8.0,
+            "x": 206.69146263306092,
+            "y": 77.84160878542474
+          },
+          "follower": {
+            "heading": 0.0,
+            "lane": -1.0,
+            "road": "0",
+            "s": 72.0,
+            "speed": 4.0,
+            "x": 72.0,
+            "y": -1.75
+          }
+        },
+        "time": 13.0
+      },
+      {
+        "entities": {
+          "ego": {
+            "heading": 1.0,
+            "lane": -1,
+            "road": "1",
+            "s": 47.0,
+            "speed": 8.0,
+            "x": 211.01388108000606,
+            "y": 84.57337666388791
+          },
+          "follower": {
+            "heading": 0.0,
+            "lane": -1.0,
+            "road": "0",
+            "s": 76.0,
+            "speed": 4.0,
+            "x": 76.0,
+            "y": -1.75
+          }
+        },
+        "time": 14.0
+      },
+      {
+        "entities": {
+          "ego": {
+            "heading": 1.0,
+            "lane": -1,
+            "road": "1",
+            "s": 55.0,
+            "speed": 8.0,
+            "x": 215.33629952695117,
+            "y": 91.30514454235109
+          },
+          "follower": {
+            "heading": 0.0,
+            "lane": -1.0,
+            "road": "0",
+            "s": 80.0,
+            "speed": 4.0,
+            "x": 80.0,
+            "y": -1.75
+          }
+        },
+        "time": 15.0
+      },
+      {
+        "entities": {
+          "ego": {
+            "heading": 1.0,
+            "lane": -1,
+            "road": "1",
+            "s": 63.0,
+            "speed": 8.0,
+            "x": 219.6587179738963,
+            "y": 98.03691242081426
+          },
+          "follower": {
+            "heading": 0.0,
+            "lane": -1.0,
+            "road": "0",
+            "s": 84.0,
+            "speed": 4.0,
+            "x": 84.0,
+            "y": -1.75
+          }
+        },
+        "time": 16.0
+      },
+      {
+        "entities": {
+          "ego": {
+            "heading": 1.0,
+            "lane": -1,
+            "road": "1",
+            "s": 71.0,
+            "speed": 8.0,
+            "x": 223.9811364208414,
+            "y": 104.76868029927742
+          },
+          "follower": {
+            "heading": 0.0,
+            "lane": -1.0,
+            "road": "0",
+            "s": 88.0,
+            "speed": 4.0,
+            "x": 88.0,
+            "y": -1.75
+          }
+        },
+        "time": 17.0
+      },
+      {
+        "entities": {
+          "ego": {
+            "heading": 1.0,
+            "lane": -1,
+            "road": "1",
+            "s": 79.0,
+            "speed": 8.0,
+            "x": 228.30355486778652,
+            "y": 111.50044817774061
+          },
+          "follower": {
+            "heading": 0.0,
+            "lane": -1.0,
+            "road": "0",
+            "s": 92.0,
+            "speed": 4.0,
+            "x": 92.0,
+            "y": -1.75
+          }
+        },
+        "time": 18.0
+      },
+      {
+        "entities": {
+          "ego": {
+            "heading": 1.0,
+            "lane": -1,
+            "road": "1",
+            "s": 87.0,
+            "speed": 8.0,
+            "x": 232.62597331473162,
+            "y": 118.23221605620377
+          },
+          "follower": {
+            "heading": 0.0,
+            "lane": -1.0,
+            "road": "0",
+            "s": 96.0,
+            "speed": 4.0,
+            "x": 96.0,
+            "y": -1.75
+          }
+        },
+        "time": 19.0
+      },
+      {
+        "entities": {
+          "ego": {
+            "heading": 1.0,
+            "lane": -1,
+            "road": "1",
+            "s": 95.0,
+            "speed": 8.0,
+            "x": 236.94839176167676,
+            "y": 124.96398393466696
+          },
+          "follower": {
+            "heading": 0.0,
+            "lane": -1.0,
+            "road": "0",
+            "s": 100.0,
+            "speed": 4.0,
+            "x": 100.0,
+            "y": -1.75
+          }
+        },
+        "time": 20.0
+      }
+    ],
+    "source": {
+      "description": "车辆跨道路行驶（车道级换路样例）",
+      "file": "adapters/openscenario/scenes/cross-road.xosc",
+      "revMajor": "1",
+      "revMinor": "0"
+    }
+  },
+  "formatVersion": 1,
+  "plugins": [
+    {
+      "id": "openscenario",
+      "version": "1.0"
+    },
+    {
+      "configHash": "451997f6",
+      "id": "scene-adapter-openscenario",
+      "version": "0.1.0"
+    }
+  ],
+  "sceneHash": "451997f6",
+  "sceneId": "osc-cross-road",
+  "seed": 0,
+  "stateHash": "f8718091",
+  "step": 0.5,
+  "steps": 40
+}

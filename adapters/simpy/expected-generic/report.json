@@ -1,0 +1,61 @@
+{
+  "checks": [
+    {
+      "description": "静态预检与受限执行：无危险导入、无 open / eval、无全局随机",
+      "id": "simpy.generic.static-safety",
+      "notes": [
+        "静态预检通过：只允许 simpy，禁用 open / eval / 全局 random"
+      ],
+      "status": "pass",
+      "violations": []
+    },
+    {
+      "description": "模型跑完并追踪到进程与事件",
+      "id": "simpy.generic.executed",
+      "notes": [
+        "46 个进程、352 条事件，运行到 240.0"
+      ],
+      "status": "pass",
+      "violations": []
+    },
+    {
+      "description": "资源并发不超过容量，释放不超过获得",
+      "id": "simpy.generic.resources",
+      "notes": [
+        "2 个资源：容量占用与释放次数自洽"
+      ],
+      "status": "pass",
+      "violations": []
+    },
+    {
+      "description": "同 spec 重跑得到相同事件流",
+      "id": "simpy.generic.determinism",
+      "notes": [
+        "比较 2 次运行的 eventHash"
+      ],
+      "status": "pass",
+      "violations": []
+    },
+    {
+      "description": "事件序号连续、仿真时间单调",
+      "id": "simpy.generic.time-order",
+      "notes": [
+        "事件序号连续、仿真时间单调"
+      ],
+      "status": "pass",
+      "violations": []
+    }
+  ],
+  "formatVersion": 1,
+  "metrics": {
+    "envNow": 240.0,
+    "events": 352,
+    "processes": 46,
+    "queuePeak": 3,
+    "resources": 2,
+    "runs": 2
+  },
+  "passed": true,
+  "sceneId": "simpy-generic-two-stage",
+  "warnings": []
+}

@@ -37,6 +37,24 @@ import type {
  * 一期假定同一场景只有一个写入者。
  */
 
+/**
+ * 单条 INSERT 的安全分块上限。PostgreSQL 扩展协议用 16 位长度字段承载参数个数，
+ * 硬上限 65535；再算上语句本身长度，这里取保守值：upsert 每行 8 参数 → 1000 行
+ * 仅 8001 个参数，远低于上限，且单条语句不至于撑爆网络包。
+ *
+ * 此前一次性把所有记录拼成一条巨型 INSERT，1000+ 实体时参数总数突破协议上限，
+ * PGlite / PostgreSQL 直接报 `bind message has N parameter formats but 0 parameters`。
+ */
+const BULK_CHUNK = 1000;
+
+function chunk<T>(items: readonly T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let start = 0; start < items.length; start += size) {
+    out.push(items.slice(start, start + size));
+  }
+  return out;
+}
+
 export interface SqlRow {
   [column: string]: unknown;
 }
@@ -48,6 +66,18 @@ export interface SqlExecutor {
 export interface PostgresStorageOptions {
   /** schema 前缀，例如 `twin`（需要已存在）。 */
   schema?: string;
+}
+
+/**
+ * 场景仓储多一个 `remove`：契约里没有，但服务端 DELETE 需要连带清理派生数据。
+ * 与 `storage-file` 的 `FileSceneRepository` 保持一致。
+ * 直接让 `PostgresSceneRepository` 类实现 `SceneRepository` 并额外提供 `remove`，
+ * 不再单独声明同名 interface（否则与 class 合并声明时的导出一致性会报错 TS2395）。
+ */
+
+/** 完整的 PostgreSQL 仓储，`scenes` 带 `remove`。 */
+export interface PostgresStorage extends TwinStorage {
+  readonly scenes: PostgresSceneRepository;
 }
 
 const num = (value: unknown): number => (typeof value === 'number' ? value : Number(value ?? 0));
@@ -111,7 +141,7 @@ function toState(row: SqlRow): EntityStateRecord {
     transform: json<EntityStateRecord['transform']>(row.transform),
     dataSource: str(row.data_source) as EntityStateRecord['dataSource'],
     updatedSequence: num(row.updated_sequence),
-    updatedAt: num(row.updated_at),
+    updatedAt: row.updated_at === undefined || row.updated_at === null ? num(row.updated_wall_at) : num(row.updated_at),
   };
 }
 
@@ -127,7 +157,7 @@ function toRollup(row: SqlRow): MetricRollup {
   };
 }
 
-class PostgresSceneRepository implements SceneRepository {
+export class PostgresSceneRepository implements SceneRepository {
   constructor(
     private readonly sql: SqlExecutor,
     private readonly name: (table: string) => string,
@@ -175,6 +205,18 @@ class PostgresSceneRepository implements SceneRepository {
       updatedAt: iso(row.created_at),
     }));
   }
+
+  async remove(id: string): Promise<boolean> {
+    const rows = await this.sql.query(`delete from ${this.name('scene_versions')} where scene_id = $1 returning scene_id`, [id]);
+    if (rows.length === 0) return false;
+    // 级联清理：场景版本是父行，其余都是它的派生数据。
+    await this.sql.query(`delete from ${this.name('twin_events')} where scene_id = $1`, [id]);
+    await this.sql.query(`delete from ${this.name('world_snapshots')} where scene_id = $1`, [id]);
+    await this.sql.query(`delete from ${this.name('entity_state_latest')} where scene_id = $1`, [id]);
+    await this.sql.query(`delete from ${this.name('metric_rollups')} where scene_id = $1`, [id]);
+    await this.sql.query(`delete from ${this.name('replay_sessions')} where scene_id = $1`, [id]);
+    return true;
+  }
 }
 
 class PostgresEventRepository implements EventRepository {
@@ -186,30 +228,30 @@ class PostgresEventRepository implements EventRepository {
   async append(sceneId: string, events: readonly WorldEvent[]): Promise<number> {
     if (events.length === 0) return 0;
     let cursor = await this.latestSequence(sceneId);
-    for (const event of events) {
-      if (event.sequence <= cursor) throw new Error(`事件 sequence 必须严格单调：${event.sequence} <= ${cursor}。`);
-      cursor = event.sequence;
-    }
+    for (const batch of chunk(events, BULK_CHUNK)) {
+      const params: unknown[] = [sceneId];
+      const tuples = batch.map((event, index) => {
+        // 严格单调检查必须跨分块保持：cursor 在批次之间持续累加。
+        if (event.sequence <= cursor) throw new Error(`事件 sequence 必须严格单调：${event.sequence} <= ${cursor}。`);
+        cursor = event.sequence;
+        const base = index * 6 + 2;
+        params.push(
+          event.sequence,
+          event.occurredAt,
+          event.type,
+          event.entityId ?? null,
+          event.detail ?? null,
+          JSON.stringify(event.payload ?? {}),
+        );
+        return `( $1, $${base}, $${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}::jsonb )`;
+      });
 
-    const params: unknown[] = [sceneId];
-    const tuples = events.map((event, index) => {
-      const base = index * 6 + 2;
-      params.push(
-        event.sequence,
-        event.occurredAt,
-        event.type,
-        event.entityId ?? null,
-        event.detail ?? null,
-        JSON.stringify(event.payload ?? {}),
+      await this.sql.query(
+        `insert into ${this.name('twin_events')} (scene_id, sequence, occurred_at, type, entity_id, detail, payload)
+         values ${tuples.join(', ')}`,
+        params,
       );
-      return `( $1, $${base}, $${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}::jsonb )`;
-    });
-
-    await this.sql.query(
-      `insert into ${this.name('twin_events')} (scene_id, sequence, occurred_at, type, entity_id, detail, payload)
-       values ${tuples.join(', ')}`,
-      params,
-    );
+    }
     return events.length;
   }
 
@@ -368,32 +410,38 @@ class PostgresEntityStateRepository implements EntityStateRepository {
 
   async upsert(sceneId: string, records: readonly EntityStateRecord[]): Promise<number> {
     if (records.length === 0) return 0;
-    const params: unknown[] = [sceneId];
-    const tuples = records.map((record, index) => {
-      const base = index * 7 + 2;
-      params.push(
-        record.entityId,
-        record.kind,
-        record.status ?? null,
-        JSON.stringify(record.attrs),
-        JSON.stringify(record.transform),
-        record.dataSource,
-        record.updatedSequence,
-      );
-      return `( $1, $${base}, $${base + 1}, $${base + 2}, $${base + 3}::jsonb, $${base + 4}::jsonb, $${base + 5}, $${base + 6}, now() )`;
-    });
+    let written = 0;
+    for (const batch of chunk(records, BULK_CHUNK)) {
+      const params: unknown[] = [sceneId];
+      const tuples = batch.map((record, index) => {
+        const base = index * 8 + 2;
+        params.push(
+          record.entityId,
+          record.kind,
+          record.status ?? null,
+          JSON.stringify(record.attrs),
+          JSON.stringify(record.transform),
+          record.dataSource,
+          record.updatedSequence,
+          record.updatedAt,
+        );
+        return `( $1, $${base}, $${base + 1}, $${base + 2}, $${base + 3}::jsonb, $${base + 4}::jsonb, $${base + 5}, $${base + 6}, $${base + 7}, now() )`;
+      });
 
-    await this.sql.query(
-      `insert into ${this.name('entity_state_latest')}
-         (scene_id, entity_id, kind, status, attrs, transform, data_source, updated_sequence, updated_wall_at)
-       values ${tuples.join(', ')}
-       on conflict (scene_id, entity_id) do update
-         set kind = excluded.kind, status = excluded.status, attrs = excluded.attrs,
-             transform = excluded.transform, data_source = excluded.data_source,
-             updated_sequence = excluded.updated_sequence, updated_wall_at = now()`,
-      params,
-    );
-    return records.length;
+      await this.sql.query(
+        `insert into ${this.name('entity_state_latest')}
+           (scene_id, entity_id, kind, status, attrs, transform, data_source, updated_sequence, updated_at, updated_wall_at)
+         values ${tuples.join(', ')}
+         on conflict (scene_id, entity_id) do update
+           set kind = excluded.kind, status = excluded.status, attrs = excluded.attrs,
+               transform = excluded.transform, data_source = excluded.data_source,
+               updated_sequence = excluded.updated_sequence, updated_at = excluded.updated_at,
+               updated_wall_at = now()`,
+        params,
+      );
+      written += batch.length;
+    }
+    return written;
   }
 
   async get(sceneId: string, entityId: string): Promise<EntityStateRecord | null> {
@@ -422,25 +470,38 @@ class PostgresMetricRepository implements MetricRepository {
 
   async put(rollups: readonly MetricRollup[]): Promise<number> {
     if (rollups.length === 0) return 0;
-    const params: unknown[] = [];
-    const tuples = rollups.map((rollup, index) => {
-      const base = index * 6 + 1;
-      params.push(rollup.sceneId, rollup.metric, rollup.entityId ?? '', rollup.bucketStart, rollup.bucketSize, rollup.value, rollup.count);
-      // 注意：这里 7 个值，占位符要连续
-      return `( $${base}, $${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6} )`;
-    });
+    const table = this.name('metric_rollups');
+    let written = 0;
+    for (const batch of chunk(rollups, BULK_CHUNK)) {
+      const params: unknown[] = [];
+      const tuples = batch.map((rollup, index) => {
+        const base = index * 8 + 1;
+        params.push(
+          rollup.sceneId,
+          rollup.metric,
+          rollup.entityId ?? '',
+          rollup.bucketStart,
+          rollup.bucketSize,
+          rollup.value,
+          rollup.count,
+          new Date(),
+        );
+        return `( $${base}, $${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7} )`;
+      });
 
-    await this.sql.query(
-      `insert into ${this.name('metric_rollups')}
-         (scene_id, metric, entity_id, bucket_start, bucket_size, value, count)
-       values ${tuples.join(', ')}
-       on conflict (scene_id, metric, entity_id, bucket_start, bucket_size) do update
-         set value = ${this.name('metric_rollups')}.value + excluded.value,
-             count = ${this.name('metric_rollups')}.count + excluded.count,
-             updated_at = now()`,
-      params,
-    );
-    return rollups.length;
+      await this.sql.query(
+        `insert into ${table}
+           (scene_id, metric, entity_id, bucket_start, bucket_size, value, count, updated_at)
+         values ${tuples.join(', ')}
+         on conflict (scene_id, metric, entity_id, bucket_start, bucket_size) do update
+           set value = ${table}.value + excluded.value,
+               count = ${table}.count + excluded.count,
+               updated_at = excluded.updated_at`,
+        params,
+      );
+      written += batch.length;
+    }
+    return written;
   }
 
   async query(sceneId: string, query: MetricQuery = {}): Promise<MetricRollup[]> {
@@ -469,7 +530,7 @@ class PostgresMetricRepository implements MetricRepository {
  *
  * @param executor 任意能执行 `query(sql, params)` 的对象（`pg.Pool` / `pg.Client` 都行）。
  */
-export function createPostgresStorage(executor: SqlExecutor, options: PostgresStorageOptions = {}): TwinStorage {
+export function createPostgresStorage(executor: SqlExecutor, options: PostgresStorageOptions = {}): PostgresStorage {
   const name = table(options.schema);
   return {
     scenes: new PostgresSceneRepository(executor, name),
@@ -480,3 +541,7 @@ export function createPostgresStorage(executor: SqlExecutor, options: PostgresSt
     metrics: new PostgresMetricRepository(executor, name),
   };
 }
+
+// 驱动解析与连接装配（依赖 `connect.ts`）统一从包根导出，避免调用方走受限的子路径导入。
+export { connectPostgresStorage } from './connect';
+export type { ConnectPostgresOptions, ConnectPostgresResult, PostgresDriver, PostgresDriverKind } from './connect';
