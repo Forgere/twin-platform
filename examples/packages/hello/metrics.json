@@ -1,0 +1,7 @@
+[
+  {
+    "id": "entities",
+    "kind": "count",
+    "description": "场景声明实体数（示例指标口径）"
+  }
+]

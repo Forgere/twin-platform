@@ -35,3 +35,15 @@ Thumbs.db
 
 # 服务端运行时数据（场景库 / 事件流）
 data/
+
+# scene CLI 的运行产物（trace / 报告 / JUnit），每次跑都重写
+.scene-ci/
+
+# Python adapter 的构建产物与字节码
+__pycache__/
+*.py[cod]
+adapters/fmu/build/
+*.fmu
+*.so
+*.dylib
+*.dll

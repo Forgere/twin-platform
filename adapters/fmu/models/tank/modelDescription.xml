@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fmiModelDescription
+  fmiVersion="2.0"
+  modelName="ReferenceTank"
+  guid="d0f4f1b2-3f7f-4d1d-9f86-6c0e0a5f8a11"
+  description="参考水箱（FMI 2.0 Co-Simulation）：一阶液位模型，用于外部 FMU adapter 的验证示例"
+  variableNamingConvention="structured">
+
+  <CoSimulation modelIdentifier="tank" canHandleVariableCommunicationStepSize="false" canNotUseMemoryManagementFunctions="true"/>
+
+  <DefaultExperiment startTime="0" stopTime="120" stepSize="1"/>
+
+  <ModelVariables>
+    <ScalarVariable name="inflow" valueReference="0" causality="input" variability="continuous">
+      <Real start="0.6"/>
+    </ScalarVariable>
+    <ScalarVariable name="outflow_coeff" valueReference="1" causality="parameter" variability="fixed">
+      <Real start="0.25"/>
+    </ScalarVariable>
+    <ScalarVariable name="level" valueReference="2" causality="output" variability="continuous">
+      <Real start="0"/>
+    </ScalarVariable>
+    <ScalarVariable name="tank_capacity" valueReference="3" causality="parameter" variability="fixed">
+      <Real start="10"/>
+    </ScalarVariable>
+  </ModelVariables>
+
+  <ModelStructure>
+    <Outputs>
+      <Unknown index="3"/>
+    </Outputs>
+  </ModelStructure>
+</fmiModelDescription>

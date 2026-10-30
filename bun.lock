@@ -122,6 +122,17 @@
       "name": "@twin-platform/decision-core",
       "version": "0.1.0",
     },
+    "packages/plugin-conformance": {
+      "name": "@twin-platform/plugin-conformance",
+      "version": "0.1.0",
+      "dependencies": {
+        "@twin-platform/plugin-sdk": "workspace:*",
+        "@twin-platform/replay-core": "workspace:*",
+        "@twin-platform/scene-schema": "workspace:*",
+        "@twin-platform/scene-spec": "workspace:*",
+        "@twin-platform/world-kernel": "workspace:*",
+      },
+    },
     "packages/plugin-sdk": {
       "name": "@twin-platform/plugin-sdk",
       "version": "0.1.0",
@@ -137,7 +148,9 @@
       "dependencies": {
         "@twin-platform/decision-core": "workspace:*",
         "@twin-platform/plugin-sdk": "workspace:*",
+        "@twin-platform/scene-audit": "workspace:*",
         "@twin-platform/scene-schema": "workspace:*",
+        "@twin-platform/scene-spec": "workspace:*",
         "@twin-platform/world-kernel": "workspace:*",
       },
       "devDependencies": {
@@ -166,11 +179,13 @@
       "version": "0.1.0",
       "dependencies": {
         "@twin-platform/plugin-sdk": "workspace:*",
+        "@twin-platform/scene-audit": "workspace:*",
         "@twin-platform/scene-schema": "workspace:*",
         "@twin-platform/world-kernel": "workspace:*",
       },
       "devDependencies": {
         "@twin-platform/analytics-core": "workspace:*",
+        "@twin-platform/scene-runner": "workspace:*",
       },
     },
     "packages/replay-core": {
@@ -197,8 +212,43 @@
         "@twin-platform/plugins-logistics": "workspace:*",
       },
     },
+    "packages/scene-audit": {
+      "name": "@twin-platform/scene-audit",
+      "version": "0.1.0",
+      "dependencies": {
+        "@twin-platform/scene-spec": "workspace:*",
+      },
+    },
+    "packages/scene-cli": {
+      "name": "@twin-platform/scene-cli",
+      "version": "0.1.0",
+      "dependencies": {
+        "@twin-platform/plugin-sdk": "workspace:*",
+        "@twin-platform/plugins-fishing": "workspace:*",
+        "@twin-platform/plugins-logistics": "workspace:*",
+        "@twin-platform/scene-audit": "workspace:*",
+        "@twin-platform/scene-runner": "workspace:*",
+        "@twin-platform/scene-schema": "workspace:*",
+        "@twin-platform/scene-spec": "workspace:*",
+        "@twin-platform/world-kernel": "workspace:*",
+      },
+    },
+    "packages/scene-runner": {
+      "name": "@twin-platform/scene-runner",
+      "version": "0.1.0",
+      "dependencies": {
+        "@twin-platform/scene-audit": "workspace:*",
+        "@twin-platform/scene-schema": "workspace:*",
+        "@twin-platform/scene-spec": "workspace:*",
+        "@twin-platform/world-kernel": "workspace:*",
+      },
+    },
     "packages/scene-schema": {
       "name": "@twin-platform/scene-schema",
+      "version": "0.1.0",
+    },
+    "packages/scene-spec": {
+      "name": "@twin-platform/scene-spec",
       "version": "0.1.0",
     },
     "packages/storage-contracts": {
@@ -684,6 +734,8 @@
 
     "@twin-platform/decision-core": ["@twin-platform/decision-core@workspace:packages/decision-core"],
 
+    "@twin-platform/plugin-conformance": ["@twin-platform/plugin-conformance@workspace:packages/plugin-conformance"],
+
     "@twin-platform/plugin-sdk": ["@twin-platform/plugin-sdk@workspace:packages/plugin-sdk"],
 
     "@twin-platform/plugins-fishing": ["@twin-platform/plugins-fishing@workspace:packages/plugins-fishing"],
@@ -694,7 +746,15 @@
 
     "@twin-platform/scenario-compare": ["@twin-platform/scenario-compare@workspace:packages/scenario-compare"],
 
+    "@twin-platform/scene-audit": ["@twin-platform/scene-audit@workspace:packages/scene-audit"],
+
+    "@twin-platform/scene-cli": ["@twin-platform/scene-cli@workspace:packages/scene-cli"],
+
+    "@twin-platform/scene-runner": ["@twin-platform/scene-runner@workspace:packages/scene-runner"],
+
     "@twin-platform/scene-schema": ["@twin-platform/scene-schema@workspace:packages/scene-schema"],
+
+    "@twin-platform/scene-spec": ["@twin-platform/scene-spec@workspace:packages/scene-spec"],
 
     "@twin-platform/storage-contracts": ["@twin-platform/storage-contracts@workspace:packages/storage-contracts"],
 

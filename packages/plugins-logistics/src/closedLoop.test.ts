@@ -1,8 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import { PluginHost } from '@twin-platform/plugin-sdk';
+import { runAudit } from '@twin-platform/scene-audit';
+import { runTwinScene } from '@twin-platform/scene-runner';
 import { TwinWorld, type WorldBehavior } from '@twin-platform/world-kernel';
 import type { TwinEntity } from '@twin-platform/scene-schema';
-import { buildCenterScene, logisticsPlugin } from './index';
+import { buildCenterScene, centerConservationInvariant, centerFlowInvariant, logisticsPlugin } from './index';
 
 /**
  * 闭环产线端到端测试（`logistics-center` 场景本身）：
@@ -111,14 +113,16 @@ describe('智能物流中心 · 闭环产线', () => {
   });
 
   simTest('整条线跑通：产出 → 打包 → 入库 → 出库 → 卡车运走', () => {
-    const { world } = makeWorld(60 * 300); // 5 分钟
-    const counts = countByType(world);
-    expect(counts['goods:produced'] ?? 0).toBeGreaterThan(0);
-    expect(counts['goods:packed'] ?? 0).toBeGreaterThan(0);
-    expect(counts['asrs:store'] ?? 0).toBeGreaterThan(0);
-    expect(counts['asrs:retrieve'] ?? 0).toBeGreaterThan(0);
-    expect(counts['goods:shipped'] ?? 0).toBeGreaterThan(0);
-    expect(counts['truck:departed'] ?? 0).toBeGreaterThan(0);
+    const { report } = runTwinScene({
+      scene: buildCenterScene(FAST),
+      seed: 20240906,
+      step: STEP,
+      steps: 60 * 300,
+      behaviors: (logisticsPlugin.activate().behaviors ?? []) as WorldBehavior[],
+      checks: [centerFlowInvariant],
+    });
+    expect(report.passed).toBe(true);
+    expect(report.checks[0]?.violations).toEqual([]);
   });
 
   simTest('打包是严格的 2 合 1：每次消耗 2 个小货物、产 1 个托盘', () => {
@@ -147,18 +151,9 @@ describe('智能物流中心 · 闭环产线', () => {
 
   simTest('物料守恒：小货物 = 2×打包数 + 在制；托盘 = 已运走 + 在系统里', () => {
     const { world } = makeWorld(60 * 300);
-    const counts = countByType(world);
-    const produced = counts['goods:produced'] ?? 0;
-    const packed = counts['goods:packed'] ?? 0;
-    const shipped = counts['goods:shipped'] ?? 0;
-
-    const liveGoods = world.listEntities().filter((entity) => entity.kind === 'parcel' && String(entity.config?.source ?? '') !== '').length;
-    const livePallets = world.listEntities().filter((entity) => entity.kind === 'pallet').length;
-
-    // 产出的小货物：一半被吃进打包站，一半还跑在线上
-    expect(produced).toBe(packed * 2 + liveGoods);
-    // 打包出的托盘：要么已经被卡车拉走，要么还在线上（队列/货架/缓存台）
-    expect(packed).toBe(shipped + livePallets);
+    const report = runAudit({ sceneId: 'logistics-center', subject: world, checks: [centerConservationInvariant] });
+    expect(report.passed).toBe(true);
+    expect(report.checks[0]?.notes).toHaveLength(2);
   });
 
   simTest('背压：在制小货物不超过发生器声明的 maxWip', () => {

@@ -1,0 +1,61 @@
+{
+  "checks": [
+    {
+      "description": "跨道路换路时目标车道存在且路网确有连接",
+      "id": "openscenario.lane-continuity",
+      "notes": [
+        "1 次车道级换路都落在实际连接上"
+      ],
+      "status": "pass",
+      "violations": []
+    },
+    {
+      "description": "导入的动作在 trace 里逐条落地",
+      "id": "openscenario.actions-applied",
+      "notes": [
+        "1 个导入动作逐条落地"
+      ],
+      "status": "pass",
+      "violations": []
+    },
+    {
+      "description": "车辆始终在道路车道与里程范围内，采样时间单调",
+      "id": "openscenario.road-bounds",
+      "notes": [
+        "20 个采样都在道路范围内"
+      ],
+      "status": "pass",
+      "violations": []
+    },
+    {
+      "description": "车辆速度不超过场景声明上限",
+      "id": "openscenario.speed-limit",
+      "notes": [
+        "限速 30.0"
+      ],
+      "status": "pass",
+      "violations": []
+    },
+    {
+      "description": "同车道车辆保持最小纵向车距",
+      "id": "openscenario.gap",
+      "notes": [
+        "最小车距 5.0"
+      ],
+      "status": "pass",
+      "violations": []
+    }
+  ],
+  "formatVersion": 1,
+  "metrics": {
+    "actions": 1,
+    "entities": 2,
+    "finalEgoS": 95.0,
+    "maxSpeedSeen": 8.0,
+    "samples": 20,
+    "steps": 40
+  },
+  "passed": true,
+  "sceneId": "osc-cross-road",
+  "warnings": []
+}

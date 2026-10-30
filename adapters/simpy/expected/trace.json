@@ -1,0 +1,1848 @@
+{
+  "actions": [],
+  "eventHash": "6b7daa65",
+  "events": [
+    {
+      "entityId": "job-0001",
+      "occurredAt": 12.942360662472431,
+      "sequence": 1,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0001",
+      "occurredAt": 12.942360662472431,
+      "sequence": 2,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0002",
+      "occurredAt": 27.783508288264315,
+      "sequence": 3,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0002",
+      "occurredAt": 27.783508288264315,
+      "sequence": 4,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0003",
+      "occurredAt": 28.219750823763622,
+      "sequence": 5,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0001",
+      "occurredAt": 28.549872639923294,
+      "sequence": 6,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0001",
+      "occurredAt": 28.549872639923294,
+      "sequence": 7,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0003",
+      "occurredAt": 28.549872639923294,
+      "sequence": 8,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0003",
+      "occurredAt": 29.527144994041095,
+      "sequence": 9,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0001",
+      "occurredAt": 30.81550221207161,
+      "payload": {
+        "flowTime": 17.87314154959918
+      },
+      "sequence": 10,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0003",
+      "occurredAt": 30.81550221207161,
+      "sequence": 11,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0004",
+      "occurredAt": 30.975796758970688,
+      "sequence": 12,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0004",
+      "occurredAt": 30.975796758970688,
+      "sequence": 13,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0003",
+      "occurredAt": 31.455071319782554,
+      "payload": {
+        "flowTime": 3.2353204960189323
+      },
+      "sequence": 14,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0004",
+      "occurredAt": 32.7243584048651,
+      "sequence": 15,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0004",
+      "occurredAt": 32.7243584048651,
+      "sequence": 16,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0005",
+      "occurredAt": 33.91589238342205,
+      "sequence": 17,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0005",
+      "occurredAt": 33.91589238342205,
+      "sequence": 18,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0006",
+      "occurredAt": 34.041286527617416,
+      "sequence": 19,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0002",
+      "occurredAt": 34.059392163838695,
+      "sequence": 20,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0006",
+      "occurredAt": 34.059392163838695,
+      "sequence": 21,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0005",
+      "occurredAt": 34.54363535727626,
+      "sequence": 22,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0004",
+      "occurredAt": 34.545448288157644,
+      "payload": {
+        "flowTime": 3.569651529186956
+      },
+      "sequence": 23,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0002",
+      "occurredAt": 34.545448288157644,
+      "sequence": 24,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0002",
+      "occurredAt": 36.70166751712179,
+      "payload": {
+        "flowTime": 8.918159228857476
+      },
+      "sequence": 25,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0005",
+      "occurredAt": 36.70166751712179,
+      "sequence": 26,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0006",
+      "occurredAt": 37.8875650626092,
+      "sequence": 27,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0007",
+      "occurredAt": 40.2307996931574,
+      "sequence": 28,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0007",
+      "occurredAt": 40.2307996931574,
+      "sequence": 29,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0007",
+      "occurredAt": 40.64574021723563,
+      "sequence": 30,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0005",
+      "occurredAt": 40.67680338632048,
+      "payload": {
+        "flowTime": 6.760911002898432
+      },
+      "sequence": 31,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0006",
+      "occurredAt": 40.67680338632048,
+      "sequence": 32,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0008",
+      "occurredAt": 42.454400408741925,
+      "sequence": 33,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0008",
+      "occurredAt": 42.454400408741925,
+      "sequence": 34,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0006",
+      "occurredAt": 45.26179255861075,
+      "payload": {
+        "flowTime": 11.220506030993334
+      },
+      "sequence": 35,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0007",
+      "occurredAt": 45.26179255861075,
+      "sequence": 36,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0009",
+      "occurredAt": 46.9017131803879,
+      "sequence": 37,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0009",
+      "occurredAt": 46.9017131803879,
+      "sequence": 38,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0007",
+      "occurredAt": 48.17238214364279,
+      "payload": {
+        "flowTime": 7.941582450485392
+      },
+      "sequence": 39,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0008",
+      "occurredAt": 49.963225794762316,
+      "sequence": 40,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0008",
+      "occurredAt": 49.963225794762316,
+      "sequence": 41,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0009",
+      "occurredAt": 50.05633289877276,
+      "sequence": 42,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0008",
+      "occurredAt": 54.24190869981445,
+      "payload": {
+        "flowTime": 11.787508291072527
+      },
+      "sequence": 43,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0009",
+      "occurredAt": 54.24190869981445,
+      "sequence": 44,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0009",
+      "occurredAt": 55.62175406780477,
+      "payload": {
+        "flowTime": 8.720040887416872
+      },
+      "sequence": 45,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0010",
+      "occurredAt": 64.55856714417997,
+      "sequence": 46,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0010",
+      "occurredAt": 64.55856714417997,
+      "sequence": 47,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0011",
+      "occurredAt": 68.80227410030086,
+      "sequence": 48,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0011",
+      "occurredAt": 68.80227410030086,
+      "sequence": 49,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0011",
+      "occurredAt": 69.42972641498024,
+      "sequence": 50,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0011",
+      "occurredAt": 69.42972641498024,
+      "sequence": 51,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0012",
+      "occurredAt": 70.68951383013132,
+      "sequence": 52,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0012",
+      "occurredAt": 70.68951383013132,
+      "sequence": 53,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0011",
+      "occurredAt": 71.35746747440146,
+      "payload": {
+        "flowTime": 2.5551933741005968
+      },
+      "sequence": 54,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0010",
+      "occurredAt": 72.12119854577149,
+      "sequence": 55,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0010",
+      "occurredAt": 72.12119854577149,
+      "sequence": 56,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0010",
+      "occurredAt": 73.90084106750187,
+      "payload": {
+        "flowTime": 9.342273923321898
+      },
+      "sequence": 57,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0012",
+      "occurredAt": 76.941117889525,
+      "sequence": 58,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0012",
+      "occurredAt": 76.941117889525,
+      "sequence": 59,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0013",
+      "occurredAt": 77.01723034663627,
+      "sequence": 60,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0013",
+      "occurredAt": 77.01723034663627,
+      "sequence": 61,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0014",
+      "occurredAt": 78.02187364353227,
+      "sequence": 62,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0014",
+      "occurredAt": 78.02187364353227,
+      "sequence": 63,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0013",
+      "occurredAt": 78.39393416487054,
+      "sequence": 64,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0015",
+      "occurredAt": 79.97534001439062,
+      "sequence": 65,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0015",
+      "occurredAt": 79.97534001439062,
+      "sequence": 66,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0012",
+      "occurredAt": 80.02595794395869,
+      "payload": {
+        "flowTime": 9.336444113827369
+      },
+      "sequence": 67,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0013",
+      "occurredAt": 80.02595794395869,
+      "sequence": 68,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0013",
+      "occurredAt": 80.33739042175087,
+      "payload": {
+        "flowTime": 3.3201600751146003
+      },
+      "sequence": 69,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0015",
+      "occurredAt": 80.82498844343377,
+      "sequence": 70,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0015",
+      "occurredAt": 80.82498844343377,
+      "sequence": 71,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0015",
+      "occurredAt": 80.9441224330544,
+      "payload": {
+        "flowTime": 0.9687824186637783
+      },
+      "sequence": 72,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0016",
+      "occurredAt": 81.06368193160787,
+      "sequence": 73,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0016",
+      "occurredAt": 81.06368193160787,
+      "sequence": 74,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0017",
+      "occurredAt": 82.67549440638302,
+      "sequence": 75,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0016",
+      "occurredAt": 87.0175616447127,
+      "sequence": 76,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0016",
+      "occurredAt": 87.0175616447127,
+      "sequence": 77,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0017",
+      "occurredAt": 87.0175616447127,
+      "sequence": 78,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0016",
+      "occurredAt": 88.22260030778281,
+      "payload": {
+        "flowTime": 7.158918376174938
+      },
+      "sequence": 79,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0014",
+      "occurredAt": 89.86679916758445,
+      "sequence": 80,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0014",
+      "occurredAt": 89.86679916758445,
+      "sequence": 81,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0017",
+      "occurredAt": 90.2479657176814,
+      "sequence": 82,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0014",
+      "occurredAt": 90.88787265604478,
+      "payload": {
+        "flowTime": 12.865999012512503
+      },
+      "sequence": 83,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0017",
+      "occurredAt": 90.88787265604478,
+      "sequence": 84,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0018",
+      "occurredAt": 91.26794225720084,
+      "sequence": 85,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0018",
+      "occurredAt": 91.26794225720084,
+      "sequence": 86,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0017",
+      "occurredAt": 91.97848554486623,
+      "payload": {
+        "flowTime": 9.302991138483208
+      },
+      "sequence": 87,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0018",
+      "occurredAt": 96.84185648036006,
+      "sequence": 88,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0018",
+      "occurredAt": 96.84185648036006,
+      "sequence": 89,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0018",
+      "occurredAt": 97.73876721031462,
+      "payload": {
+        "flowTime": 6.470824953113777
+      },
+      "sequence": 90,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0019",
+      "occurredAt": 98.78393741579434,
+      "sequence": 91,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0019",
+      "occurredAt": 98.78393741579434,
+      "sequence": 92,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0020",
+      "occurredAt": 99.35049333952809,
+      "sequence": 93,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0020",
+      "occurredAt": 99.35049333952809,
+      "sequence": 94,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0021",
+      "occurredAt": 105.49085531301266,
+      "sequence": 95,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0022",
+      "occurredAt": 106.85007214696455,
+      "sequence": 96,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0019",
+      "occurredAt": 109.50509059508838,
+      "sequence": 97,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0019",
+      "occurredAt": 109.50509059508838,
+      "sequence": 98,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0021",
+      "occurredAt": 109.50509059508838,
+      "sequence": 99,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0023",
+      "occurredAt": 110.79262820934161,
+      "sequence": 100,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0020",
+      "occurredAt": 111.69536428251105,
+      "sequence": 101,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0022",
+      "occurredAt": 111.69536428251105,
+      "sequence": 102,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0022",
+      "occurredAt": 112.97659890497947,
+      "sequence": 103,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0023",
+      "occurredAt": 112.97659890497947,
+      "sequence": 104,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0021",
+      "occurredAt": 115.79245416562453,
+      "sequence": 105,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0019",
+      "occurredAt": 117.03551202886189,
+      "payload": {
+        "flowTime": 18.251574613067547
+      },
+      "sequence": 106,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0020",
+      "occurredAt": 117.03551202886189,
+      "sequence": 107,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0020",
+      "occurredAt": 117.20814453194306,
+      "payload": {
+        "flowTime": 17.857651192414977
+      },
+      "sequence": 108,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0022",
+      "occurredAt": 117.20814453194306,
+      "sequence": 109,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0022",
+      "occurredAt": 118.82285483320511,
+      "payload": {
+        "flowTime": 11.972782686240564
+      },
+      "sequence": 110,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0021",
+      "occurredAt": 118.82285483320511,
+      "sequence": 111,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0021",
+      "occurredAt": 118.89377494862515,
+      "payload": {
+        "flowTime": 13.402919635612491
+      },
+      "sequence": 112,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0024",
+      "occurredAt": 125.33732376329314,
+      "sequence": 113,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0024",
+      "occurredAt": 125.33732376329314,
+      "sequence": 114,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0024",
+      "occurredAt": 133.47278259269387,
+      "sequence": 115,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0024",
+      "occurredAt": 133.47278259269387,
+      "sequence": 116,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0025",
+      "occurredAt": 133.62949998431054,
+      "sequence": 117,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0025",
+      "occurredAt": 133.62949998431054,
+      "sequence": 118,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0023",
+      "occurredAt": 138.8005665949645,
+      "sequence": 119,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0026",
+      "occurredAt": 141.8023488213959,
+      "sequence": 120,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0026",
+      "occurredAt": 141.8023488213959,
+      "sequence": 121,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0024",
+      "occurredAt": 144.39141057583493,
+      "payload": {
+        "flowTime": 19.054086812541783
+      },
+      "sequence": 122,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0023",
+      "occurredAt": 144.39141057583493,
+      "sequence": 123,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0027",
+      "occurredAt": 145.6697564748295,
+      "sequence": 124,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0028",
+      "occurredAt": 147.79408608531693,
+      "sequence": 125,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0023",
+      "occurredAt": 148.53848927421475,
+      "payload": {
+        "flowTime": 37.74586106487314
+      },
+      "sequence": 126,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0025",
+      "occurredAt": 154.43745531915008,
+      "sequence": 127,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0025",
+      "occurredAt": 154.43745531915008,
+      "sequence": 128,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0027",
+      "occurredAt": 154.43745531915008,
+      "sequence": 129,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0025",
+      "occurredAt": 155.85707754680988,
+      "payload": {
+        "flowTime": 22.227577562499334
+      },
+      "sequence": 130,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0027",
+      "occurredAt": 155.94119983303662,
+      "sequence": 131,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0027",
+      "occurredAt": 155.94119983303662,
+      "sequence": 132,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0028",
+      "occurredAt": 155.94119983303662,
+      "sequence": 133,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0027",
+      "occurredAt": 156.17793036600793,
+      "payload": {
+        "flowTime": 10.508173891178416
+      },
+      "sequence": 134,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0028",
+      "occurredAt": 160.33216277969095,
+      "sequence": 135,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0028",
+      "occurredAt": 160.33216277969095,
+      "sequence": 136,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0028",
+      "occurredAt": 160.9890381473117,
+      "payload": {
+        "flowTime": 13.194952061994769
+      },
+      "sequence": 137,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0029",
+      "occurredAt": 166.11817316328663,
+      "sequence": 138,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0029",
+      "occurredAt": 166.11817316328663,
+      "sequence": 139,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0026",
+      "occurredAt": 172.8903671797092,
+      "sequence": 140,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0026",
+      "occurredAt": 172.8903671797092,
+      "sequence": 141,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0026",
+      "occurredAt": 173.62021887518227,
+      "payload": {
+        "flowTime": 31.81787005378638
+      },
+      "sequence": 142,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0030",
+      "occurredAt": 179.67681767587487,
+      "sequence": 143,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0030",
+      "occurredAt": 179.67681767587487,
+      "sequence": 144,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0031",
+      "occurredAt": 180.22312187439965,
+      "sequence": 145,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0032",
+      "occurredAt": 181.15284209417902,
+      "sequence": 146,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0030",
+      "occurredAt": 184.94665191119208,
+      "sequence": 147,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0030",
+      "occurredAt": 184.94665191119208,
+      "sequence": 148,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0031",
+      "occurredAt": 184.94665191119208,
+      "sequence": 149,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0033",
+      "occurredAt": 185.0752999683279,
+      "sequence": 150,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0031",
+      "occurredAt": 186.98906689370668,
+      "sequence": 151,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0032",
+      "occurredAt": 186.98906689370668,
+      "sequence": 152,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0029",
+      "occurredAt": 187.15210502768863,
+      "sequence": 153,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0033",
+      "occurredAt": 187.15210502768863,
+      "sequence": 154,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0034",
+      "occurredAt": 187.81405873329874,
+      "sequence": 155,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0035",
+      "occurredAt": 189.9127122927128,
+      "sequence": 156,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0030",
+      "occurredAt": 189.97407036324717,
+      "payload": {
+        "flowTime": 10.297252687372293
+      },
+      "sequence": 157,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0031",
+      "occurredAt": 189.97407036324717,
+      "sequence": 158,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0033",
+      "occurredAt": 191.26973823248474,
+      "sequence": 159,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0034",
+      "occurredAt": 191.26973823248474,
+      "sequence": 160,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0031",
+      "occurredAt": 195.0161623980164,
+      "payload": {
+        "flowTime": 14.793040523616753
+      },
+      "sequence": 161,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0029",
+      "occurredAt": 195.0161623980164,
+      "sequence": 162,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0029",
+      "occurredAt": 198.50796141257274,
+      "payload": {
+        "flowTime": 32.38978824928611
+      },
+      "sequence": 163,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0033",
+      "occurredAt": 198.50796141257274,
+      "sequence": 164,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0033",
+      "occurredAt": 200.10422260921746,
+      "payload": {
+        "flowTime": 15.028922640889562
+      },
+      "sequence": 165,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0036",
+      "occurredAt": 201.056081193178,
+      "sequence": 166,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0032",
+      "occurredAt": 203.16832973674008,
+      "sequence": 167,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0032",
+      "occurredAt": 203.16832973674008,
+      "sequence": 168,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0035",
+      "occurredAt": 203.16832973674008,
+      "sequence": 169,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0037",
+      "occurredAt": 206.96099254065902,
+      "sequence": 170,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0034",
+      "occurredAt": 207.05842392143785,
+      "sequence": 171,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0036",
+      "occurredAt": 207.05842392143785,
+      "sequence": 172,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0038",
+      "occurredAt": 208.3228202559591,
+      "sequence": 173,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0032",
+      "occurredAt": 208.48101875412206,
+      "payload": {
+        "flowTime": 27.32817665994304
+      },
+      "sequence": 174,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0034",
+      "occurredAt": 208.48101875412206,
+      "sequence": 175,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0036",
+      "occurredAt": 209.50784050722515,
+      "sequence": 176,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0037",
+      "occurredAt": 209.50784050722515,
+      "sequence": 177,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0035",
+      "occurredAt": 210.31040891079465,
+      "sequence": 178,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0038",
+      "occurredAt": 210.31040891079465,
+      "sequence": 179,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0039",
+      "occurredAt": 210.95773428500635,
+      "sequence": 180,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0034",
+      "occurredAt": 212.91185173557943,
+      "payload": {
+        "flowTime": 25.097793002280696
+      },
+      "sequence": 181,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0036",
+      "occurredAt": 212.91185173557943,
+      "sequence": 182,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0036",
+      "occurredAt": 213.25622045983675,
+      "payload": {
+        "flowTime": 12.200139266658766
+      },
+      "sequence": 183,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0035",
+      "occurredAt": 213.25622045983675,
+      "sequence": 184,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0037",
+      "occurredAt": 215.20857128846305,
+      "sequence": 185,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0039",
+      "occurredAt": 215.20857128846305,
+      "sequence": 186,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0038",
+      "occurredAt": 215.89899054379737,
+      "sequence": 187,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0035",
+      "occurredAt": 216.2490363701248,
+      "payload": {
+        "flowTime": 26.336324077412
+      },
+      "sequence": 188,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0037",
+      "occurredAt": 216.2490363701248,
+      "sequence": 189,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0039",
+      "occurredAt": 218.03810668432743,
+      "sequence": 190,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0037",
+      "occurredAt": 218.70758496406654,
+      "payload": {
+        "flowTime": 11.74659242340752
+      },
+      "sequence": 191,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0038",
+      "occurredAt": 218.70758496406654,
+      "sequence": 192,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0040",
+      "occurredAt": 219.71680248157728,
+      "sequence": 193,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0040",
+      "occurredAt": 219.71680248157728,
+      "sequence": 194,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0041",
+      "occurredAt": 221.14423971611188,
+      "sequence": 195,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0041",
+      "occurredAt": 221.14423971611188,
+      "sequence": 196,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0042",
+      "occurredAt": 221.5534113445712,
+      "sequence": 197,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0038",
+      "occurredAt": 224.11937504726484,
+      "payload": {
+        "flowTime": 15.796554791305738
+      },
+      "sequence": 198,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0039",
+      "occurredAt": 224.11937504726484,
+      "sequence": 199,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0039",
+      "occurredAt": 224.9233294444461,
+      "payload": {
+        "flowTime": 13.965595159439744
+      },
+      "sequence": 200,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0043",
+      "occurredAt": 225.45582166683295,
+      "sequence": 201,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0041",
+      "occurredAt": 226.92333444348492,
+      "sequence": 202,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0041",
+      "occurredAt": 226.92333444348492,
+      "sequence": 203,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0042",
+      "occurredAt": 226.92333444348492,
+      "sequence": 204,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0041",
+      "occurredAt": 228.8320870259604,
+      "payload": {
+        "flowTime": 7.687847309848507
+      },
+      "sequence": 205,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0044",
+      "occurredAt": 229.57037251858807,
+      "sequence": 206,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0042",
+      "occurredAt": 231.10304019074383,
+      "sequence": 207,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0042",
+      "occurredAt": 231.10304019074383,
+      "sequence": 208,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0043",
+      "occurredAt": 231.10304019074383,
+      "sequence": 209,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0042",
+      "occurredAt": 231.1148895175679,
+      "payload": {
+        "flowTime": 9.561478172996686
+      },
+      "sequence": 210,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0043",
+      "occurredAt": 234.41748880271118,
+      "sequence": 211,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0043",
+      "occurredAt": 234.41748880271118,
+      "sequence": 212,
+      "type": "job:inspect:start"
+    },
+    {
+      "entityId": "job-0044",
+      "occurredAt": 234.41748880271118,
+      "sequence": 213,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0044",
+      "occurredAt": 235.4884322407424,
+      "sequence": 214,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0045",
+      "occurredAt": 235.90635910806128,
+      "sequence": 215,
+      "type": "job:arrived"
+    },
+    {
+      "entityId": "job-0045",
+      "occurredAt": 235.90635910806128,
+      "sequence": 216,
+      "type": "job:process:start"
+    },
+    {
+      "entityId": "job-0045",
+      "occurredAt": 237.49985243556748,
+      "sequence": 217,
+      "type": "job:process:end"
+    },
+    {
+      "entityId": "job-0043",
+      "occurredAt": 239.0372376797202,
+      "payload": {
+        "flowTime": 13.581416012887246
+      },
+      "sequence": 218,
+      "type": "job:completed"
+    },
+    {
+      "entityId": "job-0044",
+      "occurredAt": 239.0372376797202,
+      "sequence": 219,
+      "type": "job:inspect:start"
+    }
+  ],
+  "finalState": {
+    "counts": {
+      "completed": 42,
+      "created": 45,
+      "wip": 3
+    },
+    "jobs": [
+      {
+        "arrival": 12.942360662472431,
+        "completedAt": 30.81550221207161,
+        "id": "job-0001",
+        "inspectStart": 28.549872639923294,
+        "processEnd": 28.549872639923294,
+        "processStart": 12.942360662472431
+      },
+      {
+        "arrival": 27.783508288264315,
+        "completedAt": 36.70166751712179,
+        "id": "job-0002",
+        "inspectStart": 34.545448288157644,
+        "processEnd": 34.059392163838695,
+        "processStart": 27.783508288264315
+      },
+      {
+        "arrival": 28.219750823763622,
+        "completedAt": 31.455071319782554,
+        "id": "job-0003",
+        "inspectStart": 30.81550221207161,
+        "processEnd": 29.527144994041095,
+        "processStart": 28.549872639923294
+      },
+      {
+        "arrival": 30.975796758970688,
+        "completedAt": 34.545448288157644,
+        "id": "job-0004",
+        "inspectStart": 32.7243584048651,
+        "processEnd": 32.7243584048651,
+        "processStart": 30.975796758970688
+      },
+      {
+        "arrival": 33.91589238342205,
+        "completedAt": 40.67680338632048,
+        "id": "job-0005",
+        "inspectStart": 36.70166751712179,
+        "processEnd": 34.54363535727626,
+        "processStart": 33.91589238342205
+      },
+      {
+        "arrival": 34.041286527617416,
+        "completedAt": 45.26179255861075,
+        "id": "job-0006",
+        "inspectStart": 40.67680338632048,
+        "processEnd": 37.8875650626092,
+        "processStart": 34.059392163838695
+      },
+      {
+        "arrival": 40.2307996931574,
+        "completedAt": 48.17238214364279,
+        "id": "job-0007",
+        "inspectStart": 45.26179255861075,
+        "processEnd": 40.64574021723563,
+        "processStart": 40.2307996931574
+      },
+      {
+        "arrival": 42.454400408741925,
+        "completedAt": 54.24190869981445,
+        "id": "job-0008",
+        "inspectStart": 49.963225794762316,
+        "processEnd": 49.963225794762316,
+        "processStart": 42.454400408741925
+      },
+      {
+        "arrival": 46.9017131803879,
+        "completedAt": 55.62175406780477,
+        "id": "job-0009",
+        "inspectStart": 54.24190869981445,
+        "processEnd": 50.05633289877276,
+        "processStart": 46.9017131803879
+      },
+      {
+        "arrival": 64.55856714417997,
+        "completedAt": 73.90084106750187,
+        "id": "job-0010",
+        "inspectStart": 72.12119854577149,
+        "processEnd": 72.12119854577149,
+        "processStart": 64.55856714417997
+      },
+      {
+        "arrival": 68.80227410030086,
+        "completedAt": 71.35746747440146,
+        "id": "job-0011",
+        "inspectStart": 69.42972641498024,
+        "processEnd": 69.42972641498024,
+        "processStart": 68.80227410030086
+      },
+      {
+        "arrival": 70.68951383013132,
+        "completedAt": 80.02595794395869,
+        "id": "job-0012",
+        "inspectStart": 76.941117889525,
+        "processEnd": 76.941117889525,
+        "processStart": 70.68951383013132
+      },
+      {
+        "arrival": 77.01723034663627,
+        "completedAt": 80.33739042175087,
+        "id": "job-0013",
+        "inspectStart": 80.02595794395869,
+        "processEnd": 78.39393416487054,
+        "processStart": 77.01723034663627
+      },
+      {
+        "arrival": 78.02187364353227,
+        "completedAt": 90.88787265604478,
+        "id": "job-0014",
+        "inspectStart": 89.86679916758445,
+        "processEnd": 89.86679916758445,
+        "processStart": 78.02187364353227
+      },
+      {
+        "arrival": 79.97534001439062,
+        "completedAt": 80.9441224330544,
+        "id": "job-0015",
+        "inspectStart": 80.82498844343377,
+        "processEnd": 80.82498844343377,
+        "processStart": 79.97534001439062
+      },
+      {
+        "arrival": 81.06368193160787,
+        "completedAt": 88.22260030778281,
+        "id": "job-0016",
+        "inspectStart": 87.0175616447127,
+        "processEnd": 87.0175616447127,
+        "processStart": 81.06368193160787
+      },
+      {
+        "arrival": 82.67549440638302,
+        "completedAt": 91.97848554486623,
+        "id": "job-0017",
+        "inspectStart": 90.88787265604478,
+        "processEnd": 90.2479657176814,
+        "processStart": 87.0175616447127
+      },
+      {
+        "arrival": 91.26794225720084,
+        "completedAt": 97.73876721031462,
+        "id": "job-0018",
+        "inspectStart": 96.84185648036006,
+        "processEnd": 96.84185648036006,
+        "processStart": 91.26794225720084
+      },
+      {
+        "arrival": 98.78393741579434,
+        "completedAt": 117.03551202886189,
+        "id": "job-0019",
+        "inspectStart": 109.50509059508838,
+        "processEnd": 109.50509059508838,
+        "processStart": 98.78393741579434
+      },
+      {
+        "arrival": 99.35049333952809,
+        "completedAt": 117.20814453194306,
+        "id": "job-0020",
+        "inspectStart": 117.03551202886189,
+        "processEnd": 111.69536428251105,
+        "processStart": 99.35049333952809
+      },
+      {
+        "arrival": 105.49085531301266,
+        "completedAt": 118.89377494862515,
+        "id": "job-0021",
+        "inspectStart": 118.82285483320511,
+        "processEnd": 115.79245416562453,
+        "processStart": 109.50509059508838
+      },
+      {
+        "arrival": 106.85007214696455,
+        "completedAt": 118.82285483320511,
+        "id": "job-0022",
+        "inspectStart": 117.20814453194306,
+        "processEnd": 112.97659890497947,
+        "processStart": 111.69536428251105
+      },
+      {
+        "arrival": 110.79262820934161,
+        "completedAt": 148.53848927421475,
+        "id": "job-0023",
+        "inspectStart": 144.39141057583493,
+        "processEnd": 138.8005665949645,
+        "processStart": 112.97659890497947
+      },
+      {
+        "arrival": 125.33732376329314,
+        "completedAt": 144.39141057583493,
+        "id": "job-0024",
+        "inspectStart": 133.47278259269387,
+        "processEnd": 133.47278259269387,
+        "processStart": 125.33732376329314
+      },
+      {
+        "arrival": 133.62949998431054,
+        "completedAt": 155.85707754680988,
+        "id": "job-0025",
+        "inspectStart": 154.43745531915008,
+        "processEnd": 154.43745531915008,
+        "processStart": 133.62949998431054
+      },
+      {
+        "arrival": 141.8023488213959,
+        "completedAt": 173.62021887518227,
+        "id": "job-0026",
+        "inspectStart": 172.8903671797092,
+        "processEnd": 172.8903671797092,
+        "processStart": 141.8023488213959
+      },
+      {
+        "arrival": 145.6697564748295,
+        "completedAt": 156.17793036600793,
+        "id": "job-0027",
+        "inspectStart": 155.94119983303662,
+        "processEnd": 155.94119983303662,
+        "processStart": 154.43745531915008
+      },
+      {
+        "arrival": 147.79408608531693,
+        "completedAt": 160.9890381473117,
+        "id": "job-0028",
+        "inspectStart": 160.33216277969095,
+        "processEnd": 160.33216277969095,
+        "processStart": 155.94119983303662
+      },
+      {
+        "arrival": 166.11817316328663,
+        "completedAt": 198.50796141257274,
+        "id": "job-0029",
+        "inspectStart": 195.0161623980164,
+        "processEnd": 187.15210502768863,
+        "processStart": 166.11817316328663
+      },
+      {
+        "arrival": 179.67681767587487,
+        "completedAt": 189.97407036324717,
+        "id": "job-0030",
+        "inspectStart": 184.94665191119208,
+        "processEnd": 184.94665191119208,
+        "processStart": 179.67681767587487
+      },
+      {
+        "arrival": 180.22312187439965,
+        "completedAt": 195.0161623980164,
+        "id": "job-0031",
+        "inspectStart": 189.97407036324717,
+        "processEnd": 186.98906689370668,
+        "processStart": 184.94665191119208
+      },
+      {
+        "arrival": 181.15284209417902,
+        "completedAt": 208.48101875412206,
+        "id": "job-0032",
+        "inspectStart": 203.16832973674008,
+        "processEnd": 203.16832973674008,
+        "processStart": 186.98906689370668
+      },
+      {
+        "arrival": 185.0752999683279,
+        "completedAt": 200.10422260921746,
+        "id": "job-0033",
+        "inspectStart": 198.50796141257274,
+        "processEnd": 191.26973823248474,
+        "processStart": 187.15210502768863
+      },
+      {
+        "arrival": 187.81405873329874,
+        "completedAt": 212.91185173557943,
+        "id": "job-0034",
+        "inspectStart": 208.48101875412206,
+        "processEnd": 207.05842392143785,
+        "processStart": 191.26973823248474
+      },
+      {
+        "arrival": 189.9127122927128,
+        "completedAt": 216.2490363701248,
+        "id": "job-0035",
+        "inspectStart": 213.25622045983675,
+        "processEnd": 210.31040891079465,
+        "processStart": 203.16832973674008
+      },
+      {
+        "arrival": 201.056081193178,
+        "completedAt": 213.25622045983675,
+        "id": "job-0036",
+        "inspectStart": 212.91185173557943,
+        "processEnd": 209.50784050722515,
+        "processStart": 207.05842392143785
+      },
+      {
+        "arrival": 206.96099254065902,
+        "completedAt": 218.70758496406654,
+        "id": "job-0037",
+        "inspectStart": 216.2490363701248,
+        "processEnd": 215.20857128846305,
+        "processStart": 209.50784050722515
+      },
+      {
+        "arrival": 208.3228202559591,
+        "completedAt": 224.11937504726484,
+        "id": "job-0038",
+        "inspectStart": 218.70758496406654,
+        "processEnd": 215.89899054379737,
+        "processStart": 210.31040891079465
+      },
+      {
+        "arrival": 210.95773428500635,
+        "completedAt": 224.9233294444461,
+        "id": "job-0039",
+        "inspectStart": 224.11937504726484,
+        "processEnd": 218.03810668432743,
+        "processStart": 215.20857128846305
+      },
+      {
+        "arrival": 219.71680248157728,
+        "completedAt": null,
+        "id": "job-0040",
+        "inspectStart": null,
+        "processEnd": null,
+        "processStart": 219.71680248157728
+      },
+      {
+        "arrival": 221.14423971611188,
+        "completedAt": 228.8320870259604,
+        "id": "job-0041",
+        "inspectStart": 226.92333444348492,
+        "processEnd": 226.92333444348492,
+        "processStart": 221.14423971611188
+      },
+      {
+        "arrival": 221.5534113445712,
+        "completedAt": 231.1148895175679,
+        "id": "job-0042",
+        "inspectStart": 231.10304019074383,
+        "processEnd": 231.10304019074383,
+        "processStart": 226.92333444348492
+      },
+      {
+        "arrival": 225.45582166683295,
+        "completedAt": 239.0372376797202,
+        "id": "job-0043",
+        "inspectStart": 234.41748880271118,
+        "processEnd": 234.41748880271118,
+        "processStart": 231.10304019074383
+      },
+      {
+        "arrival": 229.57037251858807,
+        "completedAt": null,
+        "id": "job-0044",
+        "inspectStart": 239.0372376797202,
+        "processEnd": 235.4884322407424,
+        "processStart": 234.41748880271118
+      },
+      {
+        "arrival": 235.90635910806128,
+        "completedAt": null,
+        "id": "job-0045",
+        "inspectStart": null,
+        "processEnd": 237.49985243556748,
+        "processStart": 235.90635910806128
+      }
+    ],
+    "resources": {
+      "inspection": {
+        "busyTime": 106.39856861580658,
+        "capacity": 1,
+        "queuePeak": 2
+      },
+      "processing": {
+        "busyTime": 309.87921713983366,
+        "capacity": 2,
+        "queuePeak": 1
+      }
+    },
+    "runtime": "simpy",
+    "time": 240.0,
+    "totalFlowTime": 573.1927794033959
+  },
+  "formatVersion": 1,
+  "plugins": [
+    {
+      "id": "simpy",
+      "version": "4.1.1"
+    },
+    {
+      "configHash": "3402e5c6",
+      "id": "scene-adapter-simpy",
+      "version": "0.1.0"
+    }
+  ],
+  "sceneHash": "3402e5c6",
+  "sceneId": "simpy-two-stage-cell",
+  "seed": 23,
+  "stateHash": "c6a3412c",
+  "step": 1,
+  "steps": 240
+}

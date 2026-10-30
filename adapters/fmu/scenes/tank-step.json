@@ -1,0 +1,18 @@
+{
+  "adapter": "fmi.co-simulation.v1",
+  "sceneId": "fmi-tank-step",
+  "fmu": "adapters/fmu/build/tank.fmu",
+  "startTime": 0,
+  "stopTime": 120,
+  "step": 1,
+  "seed": 0,
+  "variables": { "input": "inflow", "output": "level" },
+  "parameters": { "outflow_coeff": 0.25, "tank_capacity": 10 },
+  "inputs": [
+    { "at": 0, "value": 0.6 },
+    { "at": 60, "value": 1.4 }
+  ],
+  "limits": { "min": 0, "max": 9 },
+  "sampleEvery": 10,
+  "minimumSamples": 5
+}

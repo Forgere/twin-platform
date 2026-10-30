@@ -1,0 +1,13 @@
+{
+  "adapter": "openscenario.importer.v1",
+  "sceneId": "osc-follow-on-opendrive",
+  "source": "adapters/openscenario/scenes/follow-and-accelerate.xosc",
+  "opendrive": "adapters/opendrive/scenes/two-road-curve.xodr",
+  "duration": 10,
+  "step": 0.5,
+  "seed": 0,
+  "maxSpeed": 30,
+  "minGap": 5,
+  "sampleEvery": 2,
+  "minimumSamples": 5
+}

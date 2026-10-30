@@ -1,0 +1,14 @@
+{
+  "name": "@twin-platform/scene-runner",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "typecheck": "tsc --noEmit -p tsconfig.json" },
+  "dependencies": {
+    "@twin-platform/scene-audit": "workspace:*",
+    "@twin-platform/scene-schema": "workspace:*",
+    "@twin-platform/scene-spec": "workspace:*",
+    "@twin-platform/world-kernel": "workspace:*"
+  }
+}

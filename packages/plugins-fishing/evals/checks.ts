@@ -1,4 +1,7 @@
 import { TwinWorld, type WorldEvent } from '@twin-platform/world-kernel';
+import type { EvalResult } from '@twin-platform/scene-spec';
+
+export type { EvalResult } from '@twin-platform/scene-spec';
 import { calculateRigState, type RigZone } from '../src/fishingCore';
 import { applyFishingDecision } from '../src/environment';
 import { createFishSimBehavior, fishingModeOf } from '../src/fishSim';
@@ -20,12 +23,6 @@ import { num, str } from '../src/values';
  * - 每条 eval 的 detail 里给出关键数字，人看一眼就知道模型在说什么；
  * - 全部确定性：没有 Date.now / Math.random，重跑结果一致。
  */
-
-export interface EvalResult {
-  readonly id: number;
-  readonly pass: boolean;
-  readonly detail: string;
-}
 
 const RIG = 'rig-01';
 

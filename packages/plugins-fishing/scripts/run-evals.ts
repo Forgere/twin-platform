@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
-import { CHECKS, type EvalResult } from '../evals/checks.ts';
+import { runEvalCases } from '@twin-platform/scene-audit';
+import { CHECKS } from '../evals/checks.ts';
 
 /**
  * fish evals 跑分器（借鉴 machine-skill 的 evals/evals.json + 审查纪律）。
@@ -22,15 +23,8 @@ interface EvalCase {
 const evalsPath = new URL('../evals/evals.json', import.meta.url);
 const { evals }: { readonly evals: readonly EvalCase[] } = JSON.parse(readFileSync(evalsPath, 'utf-8'));
 
-const results: EvalResult[] = evals.map((item) => {
-  const check = CHECKS[item.id];
-  if (!check) return { id: item.id, pass: false, detail: `缺少检查函数（evals/checks.ts 没有 id=${item.id}）` };
-  try {
-    return check();
-  } catch (error) {
-    return { id: item.id, pass: false, detail: `检查抛错：${error instanceof Error ? error.message : String(error)}` };
-  }
-});
+const run = runEvalCases(evals, CHECKS);
+const results = run.results;
 
 const width = Math.max(...results.map((item) => item.detail.length), 40);
 for (const item of evals) {
@@ -42,7 +36,7 @@ for (const item of evals) {
   void width;
 }
 
-const passed = results.filter((item) => item.pass).length;
+const passed = run.passed;
 console.log(`\n${'─'.repeat(72)}`);
 console.log(`evals: ${passed}/${results.length} 通过`);
 if (passed !== results.length) {

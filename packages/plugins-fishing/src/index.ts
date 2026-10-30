@@ -21,6 +21,7 @@ export * from './fishSim';
 export * from './biteSignals';
 export * from './rigPhase';
 export * from './template';
+export * from './invariants';
 export * from './rigPosture';
 export * from './environment';
 export * from './evaluator';

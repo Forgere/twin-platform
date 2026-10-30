@@ -1,0 +1,40 @@
+{
+  "actions": [],
+  "eventHash": "741638a5",
+  "events": [],
+  "finalState": {
+    "entities": [
+      {
+        "attrs": {
+          "count": 0,
+          "label": "hello"
+        },
+        "dataSource": "sim",
+        "id": "box",
+        "kind": "box",
+        "transform": {
+          "position": [
+            0,
+            0,
+            0
+          ]
+        }
+      }
+    ],
+    "mode": "sim",
+    "rngState": 1,
+    "sceneId": "hello-cli",
+    "seed": 1,
+    "sequence": 1,
+    "step": 0.016666666666666666,
+    "time": 1.9999999999999978
+  },
+  "formatVersion": 1,
+  "plugins": [],
+  "sceneHash": "4e030252",
+  "sceneId": "hello-cli",
+  "seed": 1,
+  "stateHash": "bc4cb572",
+  "step": 0.016666666666666666,
+  "steps": 120
+}

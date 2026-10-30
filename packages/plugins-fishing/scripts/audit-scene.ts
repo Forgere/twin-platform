@@ -7,6 +7,7 @@ import { buildFishingScene } from '../src/template.ts';
 import { FISHING_ACTIONS, type FishingActionId } from '../src/actionSpace.ts';
 import { BITE_SIGNAL_POOL, biteSignalWeights, liftWindowOf } from '../src/biteSignals.ts';
 import { num, str } from '../src/values.ts';
+import { runEvalCases } from '@twin-platform/scene-audit';
 import { CHECKS } from '../evals/checks.ts';
 
 /**
@@ -268,20 +269,13 @@ function auditProfiles(): string {
 // ---------------------------------------------------------------------------
 
 function auditEvals(): { passed: number; total: number; lines: string[] } {
-  const lines: string[] = [];
-  let passed = 0;
-  let total = 0;
-  for (const [id, check] of Object.entries(CHECKS)) {
-    total += 1;
-    try {
-      const result = check();
-      if (result.pass) passed += 1;
-      lines.push(`| #${id} | ${result.pass ? 'PASS' : 'FAIL'} | ${result.detail} |`);
-    } catch (error) {
-      lines.push(`| #${id} | ERROR | ${error instanceof Error ? error.message : String(error)} |`);
-    }
-  }
-  return { passed, total, lines };
+  const cases = Object.keys(CHECKS).map((id) => ({ id: Number(id), prompt: '' }));
+  const run = runEvalCases(cases, CHECKS);
+  return {
+    passed: run.passed,
+    total: run.total,
+    lines: run.results.map((result) => `| #${result.id} | ${result.pass ? 'PASS' : 'FAIL'} | ${result.detail} |`),
+  };
 }
 
 // ---------------------------------------------------------------------------

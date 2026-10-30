@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "id": "hello-package",
+  "name": "Scene package 示例（静态场景）",
+  "metadata": { "purpose": "演示 scene package 目录约定：输入齐备 + 黄金基线可复核。" },
+  "entities": [
+    {
+      "id": "box",
+      "kind": "box",
+      "transform": { "position": [0, 0, 0] },
+      "capabilities": [],
+      "visual": { "kind": "box", "color": "#cbd5e1", "size": [1, 1, 1] },
+      "attrs": { "label": "hello", "count": 0 }
+    }
+  ]
+}

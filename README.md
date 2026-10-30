@@ -9,7 +9,8 @@ Twin Platform 的长期目标是成为**可验证仿真场景（Verifiable Simul
 
 当前仓库已包含参考运行时 `world-kernel`、版本化场景格式 `scene-schema`、插件契约 `plugin-sdk`，
 以及两套跨领域参考实现：**物流工厂插件**（证明工业不变量）与**钓鱼场景插件**（证明随机行为也能被验证）。
-战略与落地路线见 [开源方向与行动计划](./docs/开源方向与行动计划.md)。
+外部 runtime adapter 进一步证明同一套验证链不只服务内核：`adapters/simpy` 既跑内置离散事件模型，也能经静态预检与受限沙箱执行任意 SimPy 模型文件，`adapters/fmu` 用 ctypes 真加载 FMI 2.0 Co-Simulation FMU 二进制，`adapters/openscenario` 导入 ASAM OpenSCENARIO 1.x 场景 XML 的显式子集；三者都产出同一套 trace，并接受公共审计、差分与 CI 门禁；`adapters/introspector` 再提供不执行外部代码的通用 introspection，自动抽取模型事实并生成可运行场景草案；`adapters/opendrive` 负责 OpenDRIVE 路网求解，把 `LanePosition` 真解算成世界坐标并支持车道级跨道路换路；`examples/packages/` 给出 scene package 目录约定，`packages/plugin-conformance` 提供插件自检套件。
+战略与落地路线见 [开源方向与行动计划](./docs/开源方向与行动计划.md)，公共 trace / run / audit / replay / diff / report 接口见 [可验证场景公共层](./docs/可验证场景.md)。
 
 | | |
 |---|---|

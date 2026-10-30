@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "id": "hello-cli",
+  "name": "CLI 黄金基线示例（静态场景）",
+  "metadata": { "purpose": "给 scene diff / replay 门禁当最小黄金基线：没有随机、没有渲染，跨平台逐字节一致。" },
+  "entities": [
+    {
+      "id": "box",
+      "kind": "box",
+      "transform": { "position": [0, 0, 0] },
+      "capabilities": [],
+      "visual": { "kind": "box", "color": "#cbd5e1", "size": [1, 1, 1] },
+      "attrs": { "label": "hello", "count": 0 }
+    }
+  ]
+}

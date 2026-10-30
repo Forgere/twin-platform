@@ -36,6 +36,11 @@ Name your signals/memos/effects (the `{ name: "..." }` option) — attribution r
 Bun workspaces: `apps/*`、`packages/*`、`plugins/*`。
 
 - `packages/scene-schema` — 版本化场景契约 + 校验 + 迁移。
+- `packages/scene-spec` — 可验证场景契约（trace / audit / eval / 差分），不依赖内核。
+- `packages/scene-runner` — headless run / replay / diff（参考内核的 adapter）。
+- `packages/scene-audit` — 通用不变量执行器、eval harness、HTML 与 JUnit 报告。
+- `packages/scene-cli` — `bun run scene`：`run / audit / replay / diff / report / verify / package` + 黄金基线门禁。
+- `packages/plugin-conformance` — 插件 conformance kit：manifest / 同步激活 / 能力一致 / 确定性 / 源码卫生自检。
 - `packages/world-kernel` — 世界内核，零 UI / Three / DOM 依赖。
 - `packages/plugin-sdk` — 插件 manifest、能力、生命周期与故障隔离（`SafeBehavior`）。
 - `packages/studio-sdk` — 浏览器展示接口（会话端口、UI 插槽、三维 Adapter）；`/three`、`/theme` 提供共享展示工具，不进纯内核依赖图。
@@ -49,6 +54,11 @@ Bun workspaces: `apps/*`、`packages/*`、`plugins/*`。
 - `packages/storage-testkit` — 各 Adapter 共用的仓储契约测试。
 - `packages/replay-core` — 会话录制（`SessionRecorder`）+ 确定性时间轴（`ReplayController`）。
 - `packages/data-source-csv` — CSV 外部数据源 Adapter。
+- `adapters/simpy` — 外部 Python + SimPy runtime：内置模型（`simpy.factory.v1`）与通用执行器（`simpy.generic.v1`，静态预检 + 受限沙箱执行任意模型文件），产出公共 SceneTrace / AuditReport。
+- `adapters/fmu` — 外部 FMI 2.0 Co-Simulation runtime：`ctypes` 加载真实 FMU 二进制，产出同一套证据。
+- `adapters/openscenario` — OpenSCENARIO 1.x importer：导入外部场景 XML 的显式子集并确定性执行；`adapters/scene_spec.py` 是三个 adapter 共用的 canonical JSON / 哈希实现。
+- `adapters/introspector` — 通用 introspector：静态识别外部模型工件（不执行外部代码），产出模型事实与场景草案。
+- `adapters/opendrive` — OpenDRIVE 路网求解：`LanePosition` 解算、车道宽度、路网连通性与路由，供 OpenSCENARIO importer 使用。
 - `apps/studio` — Solid 工作台，只消费内核的 `FrameDelta`，不自己推演状态。
 - `apps/server` — REST API（`/api/*`）+ 同源托管 Studio；`TWIN_API_TOKEN` 开共享鉴权。
 - `apps/worker` — Cloudflare Worker：静态资产 + `/api/*` 反代，**注入** `Authorization`。
@@ -64,6 +74,18 @@ Bun workspaces: `apps/*`、`packages/*`、`plugins/*`。
 bun install          # 在 WSL 里执行（会重建 workspace 软链）
 bun run test         # bun test packages + apps/server + apps/worker —— 包与服务端的单元测试
 bun run typecheck    # Studio + 全部包 + apps（server / worker）
+bun run scene        # 可验证场景 CLI：run / audit / replay / diff / report / verify / package（见 docs/可验证场景.md）
+bun run test:simpy   # 外部 SimPy adapter 的 Python 单测（先装 adapters/simpy/requirements.txt）
+bun run test:fmu     # 外部 FMI adapter 的 Python 单测（需要 C 编译器）
+bun run build:fmu    # 编译参考水箱 FMU（--out-dir / --fmu）
+bun run scene:fmu    # 运行外部 FMI 场景，参数同 adapters/fmu/run.py
+bun run test:openscenario   # 外部 OpenSCENARIO importer 的 Python 单测（只用标准库）
+bun run scene:openscenario  # 运行导入的 OpenSCENARIO 场景，参数同 adapters/openscenario/run.py
+bun run test:introspect     # 通用 introspector 的 Python 单测（只用标准库）
+bun run scene:introspect    # 对外部工件做 introspection，参数同 adapters/introspector/run.py
+bun run test:opendrive      # OpenDRIVE 路网求解的 Python 单测（只用标准库）
+bun run scene:opendrive     # 运行 OpenDRIVE 路网查询，参数同 adapters/opendrive/run.py
+bun run scene:simpy  # 运行外部 SimPy 模型，参数同 adapters/simpy/run.py
 bun run dev          # Studio 开发服务器
 bun run dev:server   # apps/server（默认 :8787，设 TWIN_API_TOKEN 才开鉴权）
 bun run dev:worker   # apps/worker 的 wrangler dev（默认 :8787，上游读 apps/worker/.dev.vars）

@@ -11,10 +11,12 @@
   },
   "dependencies": {
     "@twin-platform/plugin-sdk": "workspace:*",
+    "@twin-platform/scene-audit": "workspace:*",
     "@twin-platform/scene-schema": "workspace:*",
     "@twin-platform/world-kernel": "workspace:*"
   },
   "devDependencies": {
-    "@twin-platform/analytics-core": "workspace:*"
+    "@twin-platform/analytics-core": "workspace:*",
+    "@twin-platform/scene-runner": "workspace:*"
   }
 }

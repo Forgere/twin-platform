@@ -1,0 +1,6 @@
+{
+  "seed": 1,
+  "step": 0.016666666666666666,
+  "seconds": 2,
+  "observation": { "requiredSeconds": 2, "minimumSamples": 1 }
+}

@@ -1,0 +1,7 @@
+{
+  "maxWip": 8,
+  "produceInterval": 1,
+  "highWater": 6,
+  "externalLanes": 4,
+  "aisles": 2
+}
