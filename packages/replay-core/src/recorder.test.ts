@@ -116,5 +116,23 @@ describe('SessionRecorder', () => {
 
     expect(first.session.id).not.toBe(second.session.id);
     expect(await storage.sessions.list('replay-line')).toHaveLength(2);
+    // 同内容的场景只登记一次：版本历史里不该出现"每次起仿真一行"的重复文档。
+    expect(await storage.scenes.listVersions('replay-line')).toHaveLength(1);
+  });
+
+  test('场景内容变了才新增版本，录制器不替场景发布', async () => {
+    const storage = createMemoryStorage();
+    const world = makeWorld();
+    await new SessionRecorder(world, storage, { sessionId: 's-a', now: () => 'fixed' }).start();
+
+    const before = world.scene.entities[0]!.transform;
+    world.applySceneOps([
+      { type: 'setTransform', entityId: 'belt-01', before, after: { position: [1.5, 0, 0] } },
+    ]);
+    await new SessionRecorder(world, storage, { sessionId: 's-b', now: () => 'fixed' }).start();
+
+    const versions = await storage.scenes.listVersions('replay-line');
+    expect(versions.map((item) => item.version)).toEqual([1, 2]);
+    expect((await storage.scenes.getVersion('replay-line', 2))?.entities[0]?.transform.position).toEqual([1.5, 0, 0]);
   });
 });

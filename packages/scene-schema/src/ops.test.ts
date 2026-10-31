@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { parseSceneDocument, serializeSceneDocument } from './io';
-import { applySceneOps, sameTransform, SceneOpError, type SceneOp } from './ops';
+import { applySceneOps, parseSceneOps, sameTransform, SceneOpError, type SceneOp } from './ops';
 import type { TwinScene } from './index';
 
 const makeScene = (): TwinScene => ({
@@ -116,5 +116,36 @@ describe('sameTransform', () => {
     expect(sameTransform({ position: [1, 2, 3] }, { position: [1, 2, 3] })).toBe(true);
     expect(sameTransform({ position: [1, 2, 3] }, { position: [1, 2, 3], rotation: [0, 0, 0] })).toBe(false);
     expect(sameTransform({ position: [1, 2, 3] }, { position: [1, 2, 3.0000001] })).toBe(false);
+  });
+});
+
+describe('parseSceneOps', () => {
+  test('合法 JSON 解析成 ops，并复制数组', () => {
+    const raw = [
+      { type: 'setTransform', entityId: 'rack-01', before: { position: [4, 0, 6] }, after: { position: [5, 0, 6], rotation: [0, 0, 0] } },
+    ];
+    const parsed = parseSceneOps(raw);
+
+    expect(parsed.ok).toBe(true);
+    expect(parsed.ops).toEqual(raw);
+    expect(parsed.ops[0]!.after.position).not.toBe(raw[0]!.after.position);
+  });
+
+  test('脏输入逐条给路径，不会让 applySceneOps 抛 TypeError', () => {
+    const parsed = parseSceneOps([
+      null,
+      { type: 'delete', entityId: 'rack-01' },
+      { type: 'setTransform', entityId: '', before: { position: [0, 0, 0] }, after: { position: ['1', 0, 0] } },
+    ]);
+
+    expect(parsed.ok).toBe(false);
+    expect(parsed.issues.map((issue) => issue.path)).toEqual([
+      '$.ops[0]',
+      '$.ops[1].type',
+      '$.ops[1].before',
+      '$.ops[1].after',
+      '$.ops[2].entityId',
+      '$.ops[2].after.position',
+    ]);
   });
 });

@@ -122,3 +122,59 @@ export function applySceneOps(scene: TwinScene, ops: readonly SceneOp[]): TwinSc
   if (issues.length > 0) throw new SceneOpError(issues);
   return next;
 }
+
+const finiteVector = (value: unknown): value is TwinVector3 =>
+  Array.isArray(value) && value.length === 3 && value.every((item) => typeof item === 'number' && Number.isFinite(item));
+
+const transformIssues = (value: unknown, path: string): SceneValidationIssue[] => {
+  if (!value || typeof value !== 'object') return [{ path, message: '位姿必须是对象。' }];
+  const transform = value as Record<string, unknown>;
+  const issues: SceneValidationIssue[] = [];
+  if (!finiteVector(transform.position)) issues.push({ path: `${path}.position`, message: '必须是三个有限数字。' });
+  for (const key of ['rotation', 'scale'] as const) {
+    if (transform[key] !== undefined && !finiteVector(transform[key])) {
+      issues.push({ path: `${path}.${key}`, message: '省略或给三个有限数字。' });
+    }
+  }
+  return issues;
+};
+
+/**
+ * 解析网络/文件送来的 ops：先证明它是合法的 `SceneOp[]`，再交给 `applySceneOps`。
+ *
+ * `applySceneOps` 的入参类型是 TS 类型，挡不住 JSON 里的 `null`、字符串坐标、
+ * 缺字段。服务端必须自己把结构问题转成 422，否则脏输入会以 TypeError 的形态冒出来。
+ */
+export function parseSceneOps(raw: unknown): { ok: boolean; ops: SceneOp[]; issues: SceneValidationIssue[] } {
+  if (!Array.isArray(raw)) {
+    return { ok: false, ops: [], issues: [{ path: '$', message: 'ops 必须是数组。' }] };
+  }
+  const issues: SceneValidationIssue[] = [];
+  const ops: SceneOp[] = [];
+  raw.forEach((item, index) => {
+    const path = `$.ops[${index}]`;
+    const local: SceneValidationIssue[] = [];
+    if (!item || typeof item !== 'object') {
+      issues.push({ path, message: '每条操作必须是对象。' });
+      return;
+    }
+    const op = item as Record<string, unknown>;
+    if (op.type !== 'setTransform') local.push({ path: `${path}.type`, message: '当前只支持 setTransform。' });
+    if (typeof op.entityId !== 'string' || op.entityId.length === 0) {
+      local.push({ path: `${path}.entityId`, message: '必须是非空实体 id。' });
+    }
+    local.push(...transformIssues(op.before, `${path}.before`));
+    local.push(...transformIssues(op.after, `${path}.after`));
+    if (local.length > 0) {
+      issues.push(...local);
+      return;
+    }
+    ops.push({
+      type: 'setTransform',
+      entityId: String(op.entityId),
+      before: copyTransform(op.before as TwinTransform),
+      after: copyTransform(op.after as TwinTransform),
+    });
+  });
+  return { ok: issues.length === 0, ops, issues };
+}

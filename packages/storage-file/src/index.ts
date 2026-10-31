@@ -1,6 +1,6 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import type { TwinScene } from '@twin-platform/scene-schema';
+import { applySceneOps, type SceneOp, type TwinScene } from '@twin-platform/scene-schema';
 import type { WorldEvent, WorldSnapshot } from '@twin-platform/world-kernel';
 import type {
   EntityStateRecord,
@@ -13,10 +13,12 @@ import type {
   ReplaySession,
   SceneRepository,
   SceneSummary,
+  SceneVersionSummary,
   SessionRepository,
   SnapshotRepository,
   TwinStorage,
 } from '@twin-platform/storage-contracts';
+import { SceneVersionConflictError } from '@twin-platform/storage-contracts';
 
 /**
  * 文件仓储：把整套状态落成一个 JSON 文件。
@@ -30,11 +32,17 @@ import type {
  * 否则同一份数据在不同后端会渲染出不同顺序——那是契约级 bug，不是实现细节。
  */
 
-const DATA_VERSION = 1;
+const DATA_VERSION = 2;
+
+type FileVersion =
+  | { version: number; kind: 'snapshot'; scene: TwinScene; createdAt: string }
+  | { version: number; kind: 'ops'; ops: SceneOp[]; createdAt: string };
 
 interface FileStorageData {
   version: number;
   scenes: Record<string, { scene: TwinScene; updatedAt: string }>;
+  /** sceneId → 版本历史（按 version 升序）。阶段 K 新增。 */
+  sceneHistory: Record<string, FileVersion[]>;
   /** sceneId → 事件流（按 sequence 升序）。 */
   events: Record<string, WorldEvent[]>;
   /** sceneId → 快照流（按 sequence 升序）。 */
@@ -52,6 +60,7 @@ const clone = <T,>(value: T): T => structuredClone(value);
 const emptyData = (): FileStorageData => ({
   version: DATA_VERSION,
   scenes: {},
+  sceneHistory: {},
   events: {},
   snapshots: {},
   sessions: {},
@@ -94,30 +103,113 @@ export interface FileStorage extends TwinStorage {
 class FileSceneRepositoryImpl implements FileSceneRepository {
   constructor(private readonly store: Store) {}
 
+  private history(sceneId: string): FileVersion[] {
+    return (this.store.data.sceneHistory[sceneId] ??= []);
+  }
+
+  private static currentVersion(history: readonly FileVersion[]): number {
+    return history[history.length - 1]?.version ?? 0;
+  }
+
+  /** 取最近一份不晚于 target 的快照，再重放它之后的 ops。 */
+  private static reconstruct(history: readonly FileVersion[], target: number): TwinScene | null {
+    let scene: TwinScene | undefined;
+    let snapshotVersion = 0;
+    for (const row of history) {
+      if (row.version > target) break;
+      if (row.kind === 'snapshot') {
+        scene = row.scene;
+        snapshotVersion = row.version;
+      }
+    }
+    if (!scene) return null;
+    let rebuilt = clone(scene);
+    for (const row of history) {
+      if (row.kind !== 'ops' || row.version <= snapshotVersion || row.version > target) continue;
+      rebuilt = applySceneOps(rebuilt, row.ops);
+    }
+    return rebuilt;
+  }
+
+  private summary(id: string): SceneSummary {
+    const entry = this.store.data.scenes[id];
+    const history = this.history(id);
+    return {
+      id,
+      name: entry?.scene.name ?? '',
+      version: FileSceneRepositoryImpl.currentVersion(history),
+      updatedAt: entry?.updatedAt ?? '',
+    };
+  }
+
   async getScene(id: string): Promise<TwinScene | null> {
     const entry = this.store.data.scenes[id];
-    return entry ? clone(entry.scene) : null;
+    if (!entry) return null;
+    return FileSceneRepositoryImpl.reconstruct(this.history(id), FileSceneRepositoryImpl.currentVersion(this.history(id)));
   }
 
   async putScene(scene: TwinScene): Promise<SceneSummary> {
     const updatedAt = new Date().toISOString();
+    const history = this.history(scene.id);
     this.store.data.scenes[scene.id] = { scene: clone(scene), updatedAt };
+    history.push({
+      version: FileSceneRepositoryImpl.currentVersion(history) + 1,
+      kind: 'snapshot',
+      scene: clone(scene),
+      createdAt: updatedAt,
+    });
     this.store.touch();
-    return { id: scene.id, name: scene.name, version: scene.version, updatedAt };
+    return this.summary(scene.id);
+  }
+
+  async appendOps(sceneId: string, baseVersion: number, ops: readonly SceneOp[]): Promise<SceneSummary> {
+    const entry = this.store.data.scenes[sceneId];
+    const history = this.history(sceneId);
+    const current = FileSceneRepositoryImpl.currentVersion(history);
+    if (!entry || baseVersion !== current) throw new SceneVersionConflictError(sceneId, baseVersion, current);
+    if (ops.length === 0) return this.summary(sceneId);
+
+    const next = applySceneOps(entry.scene, ops);
+    const updatedAt = new Date().toISOString();
+    this.store.data.scenes[sceneId] = { scene: next, updatedAt };
+    history.push({
+      version: current + 1,
+      kind: 'ops',
+      ops: ops.map((op) => clone(op)),
+      createdAt: updatedAt,
+    });
+    this.store.touch();
+    return this.summary(sceneId);
+  }
+
+  async listVersions(sceneId: string): Promise<SceneVersionSummary[]> {
+    const entry = this.store.data.scenes[sceneId];
+    if (!entry) return [];
+    return this.history(sceneId).map((row) => ({
+      sceneId,
+      version: row.version,
+      kind: row.kind,
+      opCount: row.kind === 'ops' ? row.ops.length : 0,
+      name: entry.scene.name,
+      createdAt: row.createdAt,
+    }));
+  }
+
+  async getVersion(sceneId: string, version: number): Promise<TwinScene | null> {
+    if (!this.store.data.scenes[sceneId] || !Number.isInteger(version) || version < 1) return null;
+    const history = this.history(sceneId);
+    if (version > FileSceneRepositoryImpl.currentVersion(history)) return null;
+    return FileSceneRepositoryImpl.reconstruct(history, version);
   }
 
   async listScenes(): Promise<SceneSummary[]> {
-    return Object.entries(this.store.data.scenes).map(([id, entry]) => ({
-      id,
-      name: entry.scene.name,
-      version: entry.scene.version,
-      updatedAt: entry.updatedAt,
-    }));
+    return Object.keys(this.store.data.scenes).map((id) => this.summary(id));
   }
 
   async remove(id: string): Promise<boolean> {
     if (!this.store.data.scenes[id]) return false;
     delete this.store.data.scenes[id];
+    delete this.store.data.sceneHistory[id];
     delete this.store.data.events[id];
     delete this.store.data.snapshots[id];
     delete this.store.data.state[id];
@@ -359,7 +451,17 @@ class Store {
     try {
       const text = await readFile(this.path, 'utf8');
       const parsed = JSON.parse(text) as Partial<FileStorageData>;
-      this.data = { ...emptyData(), ...parsed, version: DATA_VERSION };
+      const data = { ...emptyData(), ...parsed, version: DATA_VERSION };
+      // v1 → v2：旧文件只有当前文档，没有历史。把每份现有场景补成 v1 快照，
+      // 之后第一次 putScene 会自然长出 v2；不补的话 getVersion(1) 会是空的。
+      data.sceneHistory = data.sceneHistory ?? {};
+      for (const [id, entry] of Object.entries(data.scenes)) {
+        if ((data.sceneHistory[id]?.length ?? 0) > 0) continue;
+        data.sceneHistory[id] = [
+          { version: 1, kind: 'snapshot', scene: clone(entry.scene), createdAt: entry.updatedAt },
+        ];
+      }
+      this.data = data;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
       // 文件不存在是正常首次启动，留一份空数据即可。
