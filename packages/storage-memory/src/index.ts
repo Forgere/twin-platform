@@ -1,4 +1,4 @@
-import type { TwinScene } from '@twin-platform/scene-schema';
+import { applySceneOps, type SceneOp, type TwinScene } from '@twin-platform/scene-schema';
 import type { WorldEvent, WorldSnapshot } from '@twin-platform/world-kernel';
 import type {
   EntityStateRecord,
@@ -11,10 +11,12 @@ import type {
   ReplaySession,
   SceneRepository,
   SceneSummary,
+  SceneVersionSummary,
   SessionRepository,
   SnapshotRepository,
   TwinStorage,
 } from '@twin-platform/storage-contracts';
+import { SceneVersionConflictError } from '@twin-platform/storage-contracts';
 
 /**
  * 内存仓储：浏览器演示、单元测试、以及"不装数据库也能跑"的默认实现。
@@ -29,31 +31,124 @@ import type {
 
 const clone = <T,>(value: T): T => structuredClone(value);
 
+type MemoryVersion =
+  | { version: number; kind: 'snapshot'; scene: TwinScene; createdAt: string }
+  | { version: number; kind: 'ops'; ops: SceneOp[]; createdAt: string };
+
+interface MemorySceneEntry {
+  scene: TwinScene;
+  updatedAt: string;
+  /** 按 version 升序。快照存整文档，ops 只存动作。 */
+  versions: MemoryVersion[];
+}
+
 class MemorySceneRepository implements SceneRepository {
-  private readonly scenes = new Map<string, { scene: TwinScene; updatedAt: string }>();
+  private readonly scenes = new Map<string, MemorySceneEntry>();
 
   clear(): void {
     this.scenes.clear();
   }
 
+  private static nextVersion(entry: MemorySceneEntry): number {
+    return (entry.versions[entry.versions.length - 1]?.version ?? 0) + 1;
+  }
+
+  private static currentVersion(entry: MemorySceneEntry): number {
+    return entry.versions[entry.versions.length - 1]?.version ?? 0;
+  }
+
+  /** 取最近一份不晚于 target 的快照，再重放它之后的 ops。 */
+  private static reconstruct(entry: MemorySceneEntry, target: number): TwinScene | null {
+    let scene: TwinScene | undefined;
+    let snapshotVersion = 0;
+    for (const row of entry.versions) {
+      if (row.version > target) break;
+      if (row.kind === 'snapshot') {
+        scene = row.scene;
+        snapshotVersion = row.version;
+      }
+    }
+    if (!scene) return null;
+    let rebuilt = clone(scene);
+    for (const row of entry.versions) {
+      if (row.kind !== 'ops' || row.version <= snapshotVersion || row.version > target) continue;
+      rebuilt = applySceneOps(rebuilt, row.ops);
+    }
+    return rebuilt;
+  }
+
+  private static summary(entry: MemorySceneEntry): SceneSummary {
+    return {
+      id: entry.scene.id,
+      name: entry.scene.name,
+      version: MemorySceneRepository.currentVersion(entry),
+      updatedAt: entry.updatedAt,
+    };
+  }
+
   async getScene(id: string): Promise<TwinScene | null> {
     const entry = this.scenes.get(id);
-    return entry ? clone(entry.scene) : null;
+    if (!entry) return null;
+    return MemorySceneRepository.reconstruct(entry, MemorySceneRepository.currentVersion(entry));
   }
 
   async putScene(scene: TwinScene): Promise<SceneSummary> {
     const updatedAt = new Date().toISOString();
-    this.scenes.set(scene.id, { scene: clone(scene), updatedAt });
-    return { id: scene.id, name: scene.name, version: scene.version, updatedAt };
+    const existing = this.scenes.get(scene.id);
+    const entry: MemorySceneEntry = existing ?? { scene: clone(scene), updatedAt, versions: [] };
+    entry.scene = clone(scene);
+    entry.updatedAt = updatedAt;
+    entry.versions.push({
+      version: MemorySceneRepository.nextVersion(entry),
+      kind: 'snapshot',
+      scene: clone(scene),
+      createdAt: updatedAt,
+    });
+    this.scenes.set(scene.id, entry);
+    return MemorySceneRepository.summary(entry);
+  }
+
+  async appendOps(sceneId: string, baseVersion: number, ops: readonly SceneOp[]): Promise<SceneSummary> {
+    const entry = this.scenes.get(sceneId);
+    const current = entry ? MemorySceneRepository.currentVersion(entry) : 0;
+    if (!entry || baseVersion !== current) throw new SceneVersionConflictError(sceneId, baseVersion, current);
+    if (ops.length === 0) return MemorySceneRepository.summary(entry);
+
+    const next = applySceneOps(entry.scene, ops);
+    const updatedAt = new Date().toISOString();
+    entry.scene = next;
+    entry.updatedAt = updatedAt;
+    entry.versions.push({
+      version: MemorySceneRepository.nextVersion(entry),
+      kind: 'ops',
+      ops: ops.map((op) => clone(op)),
+      createdAt: updatedAt,
+    });
+    return MemorySceneRepository.summary(entry);
+  }
+
+  async listVersions(sceneId: string): Promise<SceneVersionSummary[]> {
+    const entry = this.scenes.get(sceneId);
+    if (!entry) return [];
+    return entry.versions.map((row) => ({
+      sceneId,
+      version: row.version,
+      kind: row.kind,
+      opCount: row.kind === 'ops' ? row.ops.length : 0,
+      name: entry.scene.name,
+      createdAt: row.createdAt,
+    }));
+  }
+
+  async getVersion(sceneId: string, version: number): Promise<TwinScene | null> {
+    const entry = this.scenes.get(sceneId);
+    if (!entry || !Number.isInteger(version) || version < 1) return null;
+    if (version > MemorySceneRepository.currentVersion(entry)) return null;
+    return MemorySceneRepository.reconstruct(entry, version);
   }
 
   async listScenes(): Promise<SceneSummary[]> {
-    return [...this.scenes.entries()].map(([id, entry]) => ({
-      id,
-      name: entry.scene.name,
-      version: entry.scene.version,
-      updatedAt: entry.updatedAt,
-    }));
+    return [...this.scenes.values()].map(MemorySceneRepository.summary);
   }
 }
 

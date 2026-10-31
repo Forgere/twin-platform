@@ -10,10 +10,15 @@ import { DEFAULT_PLUGIN_IDS, entryFor, resolvePlugins } from '../plugins/catalog
 import { TwinSceneController, type CameraPreset, type TwinEntityView } from '../scene/TwinSceneController';
 import { selectionCard, type SelectionCard } from '../scene/selectionCard';
 import type { ThemeName } from '../scene/theme';
-import { parseSceneDocument, sceneFileName, serializeSceneDocument, type TwinScene } from '@twin-platform/scene-schema';
+import { diffScenes, parseSceneDocument, sceneFileName, serializeSceneDocument, type TwinScene } from '@twin-platform/scene-schema';
 import { createHttpStorage, pingServer } from '@twin-platform/storage-http';
 import { resolveServerUrl } from '../scene/serverUrl';
-import ScenePanel, { type SceneExportPayload, type SceneImportOutcome, type ServerState } from './ScenePanel';
+import ScenePanel, {
+  type SceneExportPayload,
+  type SceneHistoryState,
+  type SceneImportOutcome,
+  type ServerState,
+} from './ScenePanel';
 import DataSourcePanel from './DataSourcePanel';
 import EventLogPanel from './EventLogPanel';
 import TimelineBar, { type TimelineAuditMark, type TimelineLens } from './TimelineBar';
@@ -476,8 +481,11 @@ export default function TwinViewport() {
     // 换会话立刻重算一次：不等下一拍，否则新场景会在旧结论下停最多 600ms。
     auditBeat = 0;
     setLocateNote(undefined);
+    setSceneHistory(undefined);
     setAudit(auditScene(next.world, runtimeInvariantsFor(next.world.scene)));
   };
+
+  const [sceneHistory, setSceneHistory] = createSignal<SceneHistoryState>();
 
   /**
    * 换会话的统一入口：**先对齐事件序号，再让世界开始跑**。
@@ -491,6 +499,7 @@ export default function TwinViewport() {
    * @param next 已经构造好但**尚未开跑**的会话。
    * @param persisted 服务端仓储；不传（离线、纯内存）就没有历史要接，直接跑。
    */
+
   const adoptSession = async (next: StudioSession, persisted?: ReturnType<typeof createHttpStorage>): Promise<void> => {
     replaceSession(next);
     if (!persisted) return; // 内存仓储：构造时已经自动开跑。
@@ -579,6 +588,77 @@ export default function TwinViewport() {
         current ? { ...current, note: `读取列表失败：${error instanceof Error ? error.message : String(error)}` } : current,
       );
     }
+  };
+
+  /** 打开某个场景的版本历史（已展开则收起）。 */
+  const toggleSceneHistory = async (id: string): Promise<void> => {
+    if (untrack(sceneHistory)?.sceneId === id) {
+      setSceneHistory(undefined);
+      return;
+    }
+    await openSceneHistory(id);
+  };
+
+  const openSceneHistory = async (id: string): Promise<void> => {
+    const storage = serverStorage();
+    if (!storage) return;
+    setSceneHistory({ sceneId: id, versions: [], busy: true });
+    try {
+      const versions = await storage.scenes.listVersions(id);
+      setSceneHistory((current) => (current && current.sceneId === id ? { ...current, versions, busy: false } : current));
+    } catch (error) {
+      setSceneHistory((current) =>
+        current && current.sceneId === id
+          ? { ...current, busy: false, note: `读取版本失败：${error instanceof Error ? error.message : String(error)}` }
+          : current,
+      );
+    }
+  };
+
+  /** 对比"当前文档 → 选中版本"：列出的就是回滚会改的东西。 */
+  const showVersionDiff = async (id: string, version: number): Promise<void> => {
+    const storage = serverStorage();
+    const current = untrack(sceneHistory);
+    if (!storage || !current || current.sceneId !== id) return;
+    setSceneHistory({ ...current, selected: version, diff: undefined, busy: true });
+    try {
+      const [target, latest] = await Promise.all([
+        storage.scenes.getVersion(id, version),
+        storage.scenes.getScene(id),
+      ]);
+      if (!target || !latest) throw new Error(`版本 v${version} 不存在。`);
+      setSceneHistory((state) =>
+        state && state.sceneId === id
+          ? { ...state, selected: version, diff: diffScenes(latest, target), busy: false }
+          : state,
+      );
+    } catch (error) {
+      setSceneHistory((state) =>
+        state && state.sceneId === id
+          ? { ...state, busy: false, note: `读取版本失败：${error instanceof Error ? error.message : String(error)}` }
+          : state,
+      );
+    }
+  };
+
+  /**
+   * 回滚：把旧版本的文档**作为新版本**写回去，历史只增不减。
+   * 回滚后重建会话，事件序号仍然先对齐再开跑（走 `adoptSession`）。
+   */
+  const rollbackSceneVersion = async (id: string, version: number): Promise<void> => {
+    const storage = serverStorage();
+    if (!storage) return;
+    await withBusy('回滚', async () => {
+      const scene = await storage.scenes.getVersion(id, version);
+      if (!scene) throw new Error(`服务端上没有 v${version}。`);
+      const summary = await storage.scenes.putScene(scene);
+      const next = new StudioSession(scene, storage, resolvePlugins(activePlugins()), { autoPlay: false });
+      rememberScene(scene);
+      await adoptSession(next, storage);
+      return `已回滚到 v${version}，当前版本 v${summary.version}。`;
+    });
+    // replaceSession 清空了历史面板，这里按回滚后的场景重新展开。
+    await openSceneHistory(id);
   };
 
   const withBusy = async (note: string, action: () => Promise<string>): Promise<void> => {
@@ -1566,6 +1646,10 @@ export default function TwinViewport() {
                         }}
                         onDeleteFromServer={deleteFromServer}
                         onRefreshServer={refreshServerScenes}
+                        history={sceneHistory()}
+                        onListVersions={toggleSceneHistory}
+                        onShowVersionDiff={showVersionDiff}
+                        onRollbackVersion={rollbackSceneVersion}
                       />
                     </Show>
                   </div>

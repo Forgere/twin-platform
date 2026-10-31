@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { parseSceneDocument, type TwinScene } from '@twin-platform/scene-schema';
+import { parseSceneDocument, parseSceneOps, SceneOpError, type TwinScene } from '@twin-platform/scene-schema';
+import { SceneVersionConflictError } from '@twin-platform/storage-contracts';
 import { authorizeApi, readApiToken } from './auth';
 import { createServerStorage, removeScene, type ServerStorage } from './storage';
 import { handleJevDecide, jevStatus } from './jev';
@@ -107,6 +108,34 @@ const server = Bun.serve({
         return json({ error: '场景校验失败。', issues: parsed.issues }, 422);
       }
       return json(await storage.scenes.putScene(parsed.scene));
+    }
+
+    const opsMatch = path.match(/^\/api\/scenes\/([\w.-]+)\/ops$/);
+    if (opsMatch && request.method === 'POST') {
+      const id = decodeURIComponent(opsMatch[1]!);
+      const body = await readJson<{ baseVersion?: unknown; ops?: unknown }>(request);
+      if (!body || typeof body.baseVersion !== 'number' || !Number.isInteger(body.baseVersion)) {
+        return fail('baseVersion 必须是整数。');
+      }
+      const parsed = parseSceneOps(body.ops ?? []);
+      if (!parsed.ok) return json({ error: 'ops 校验失败。', issues: parsed.issues }, 422);
+      try {
+        return json(await storage.scenes.appendOps(id, body.baseVersion, parsed.ops));
+      } catch (error) {
+        if (error instanceof SceneVersionConflictError) {
+          return json({ error: error.message, sceneId: error.sceneId, baseVersion: error.baseVersion, currentVersion: error.currentVersion }, 409);
+        }
+        if (error instanceof SceneOpError) return json({ error: 'ops 应用失败。', issues: error.issues }, 422);
+        throw error;
+      }
+    }
+
+    const versionsMatch = path.match(/^\/api\/scenes\/([\w.-]+)\/versions(?:\/(\d+))?$/);
+    if (versionsMatch && request.method === 'GET') {
+      const id = decodeURIComponent(versionsMatch[1]!);
+      if (!versionsMatch[2]) return json(await storage.scenes.listVersions(id));
+      const scene = await storage.scenes.getVersion(id, Number(versionsMatch[2]));
+      return scene ? json(scene) : fail('场景版本不存在。', 404);
     }
 
     const sceneMatch = path.match(/^\/api\/scenes\/([\w.-]+)$/);

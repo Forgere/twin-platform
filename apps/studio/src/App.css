@@ -593,11 +593,34 @@ select {
 .scene-server-url { color: var(--ink-mute); font-family: var(--mono); font-size: 0.66rem; font-weight: 400; }
 .scene-server-note { margin: 8px 0 0; color: var(--ink-soft); font-size: 0.72rem; line-height: 1.5; }
 .scene-server-list { margin: 9px 0 0; padding: 0; list-style: none; display: grid; gap: 1px; }
-.scene-server-list li { display: flex; align-items: center; gap: 6px; height: var(--row); }
+.scene-server-row { display: flex; align-items: center; gap: 6px; height: var(--row); }
 .scene-server-load { flex: 1 1 auto; min-width: 0; height: 100%; padding: 0 8px; font-size: 0.74rem; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: transparent; border-color: transparent; }
 .scene-server-load:hover { background: var(--hover); }
-.scene-server-meta { flex: none; color: var(--ink-mute); font-family: var(--mono); font-size: 0.66rem; font-variant-numeric: tabular-nums; }
+.scene-server-meta { flex: none; padding: 2px 6px; color: var(--ink-mute); font-family: var(--mono); font-size: 0.66rem; font-variant-numeric: tabular-nums; background: transparent; border-color: transparent; }
+.scene-server-meta:hover { color: var(--ink); background: var(--hover); }
+.scene-server-meta-open { color: var(--accent); background: var(--accent-tint); border-color: var(--accent-line); }
 .scene-server-del { flex: none; width: 22px; height: 22px; padding: 0; font-size: 0.7rem; color: var(--bad); background: transparent; border-color: transparent; }
+
+/* 版本历史：缩进一条细线，明确从属于上面那个场景 */
+.scene-versions { margin: 2px 0 6px 8px; padding-left: 8px; border-left: 1px solid var(--line); }
+.scene-version-list { margin: 4px 0 0; padding: 0; list-style: none; display: grid; gap: 1px; }
+.scene-version { display: flex; align-items: center; gap: 4px; }
+.scene-version-main { flex: 1 1 auto; min-width: 0; display: flex; align-items: baseline; gap: 7px; height: var(--row); padding: 0 6px; font-size: 0.7rem; text-align: left; background: transparent; border-color: transparent; }
+.scene-version-main:hover { background: var(--hover); }
+.scene-version.is-selected .scene-version-main { background: var(--accent-tint); border-color: var(--accent-line); }
+.scene-version-no { flex: none; color: var(--ink); font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.scene-version-kind { flex: none; color: var(--ink-mute); font-size: 0.66rem; }
+.scene-version-time { flex: 1 1 auto; min-width: 0; color: var(--ink-mute); font-family: var(--mono); font-size: 0.62rem; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scene-version-rollback { flex: none; padding: 2px 7px; color: var(--accent); font-size: 0.66rem; background: transparent; border-color: var(--accent-line); }
+.scene-version-rollback:hover { background: var(--accent-tint); }
+.scene-version-diff { margin: 5px 0 4px; padding: 7px 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); }
+.scene-version-diff-head { margin: 0 0 4px; color: var(--ink-soft); font-size: 0.68rem; }
+.scene-version-diff-scene { margin: 0 0 4px; color: var(--ink-soft); font-size: 0.66rem; }
+.scene-version-diff ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 1px; font-family: var(--mono); font-size: 0.64rem; line-height: 1.45; }
+.scene-version-diff .diff-add { color: var(--good); }
+.scene-version-diff .diff-remove { color: var(--bad); }
+.scene-version-diff .diff-change { color: var(--ink-soft); }
+.scene-version-diff-empty { margin: 0; color: var(--ink-mute); font-size: 0.66rem; }
 .scene-server-offline { margin: 11px 0 0; color: var(--ink-mute); font-size: 0.7rem; line-height: 1.5; }
 .scene-server-offline code { font-family: var(--mono); }
 

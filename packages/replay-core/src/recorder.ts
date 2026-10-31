@@ -1,3 +1,4 @@
+import { sameScene } from '@twin-platform/scene-schema';
 import type { EntityStateRecord, MetricRollup, ReplaySession, TwinStorage } from '@twin-platform/storage-contracts';
 import type { FrameDelta, TwinWorld, WorldEvent } from '@twin-platform/world-kernel';
 
@@ -53,9 +54,18 @@ export class SessionRecorder {
     };
   }
 
-  /** 登记会话并落下 t=0 的初始快照——没有它，seek 回 0 就只能从头重算。 */
+  /**
+   * 登记会话并落下 t=0 的初始快照——没有它，seek 回 0 就只能从头重算。
+   *
+   * 场景**只在缺失或内容变了**时写：录制器是"搬运工"，不是"发布者"。
+   * 每开一次仿真就 putScene 一次，postgres 下会为同一个场景插一整行重复
+   * 文档（阶段 K 的版本历史里全是噪音）。内容相同就沿用现有修订号。
+   */
   async start(): Promise<ReplaySession> {
-    await this.storage.scenes.putScene(this.world.scene);
+    const stored = await this.storage.scenes.getScene(this.sceneId);
+    if (!stored || !sameScene(stored, this.world.scene)) {
+      await this.storage.scenes.putScene(this.world.scene);
+    }
     await this.storage.sessions.put(this.session);
     await this.storage.snapshots.put(this.sceneId, this.world.snapshot());
     this.lastSnapshotStep = this.world.stepCount;

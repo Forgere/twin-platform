@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
-import type { TwinScene } from '@twin-platform/scene-schema';
+import type { SceneOp, TwinScene } from '@twin-platform/scene-schema';
 import type { WorldEvent, WorldSnapshot } from '@twin-platform/world-kernel';
+import { SceneVersionConflictError } from '@twin-platform/storage-contracts';
 import type { EntityStateRecord, MetricRollup, ReplaySession, TwinStorage } from '@twin-platform/storage-contracts';
 
 /**
@@ -89,6 +90,75 @@ export function runStorageContractTests(name: string, create: () => StorageTestH
       expect(summaries).toHaveLength(1);
       expect(summaries[0]?.id).toBe(contractScene.id);
       expect(await storage.scenes.getScene('missing')).toBeNull();
+    });
+
+    test('布局 ops：版本递增、乐观锁、可逐版重建', async () => {
+      const { storage } = await create();
+      const first = await storage.scenes.putScene(contractScene);
+      expect(first.version).toBe(1);
+
+      const before = contractScene.entities[0]!.transform;
+      const after = { position: [2.5, 0, 0] as [number, number, number], rotation: [0, 0.5, 0] as [number, number, number] };
+      const op: SceneOp = { type: 'setTransform', entityId: 'belt-01', before, after };
+
+      const second = await storage.scenes.appendOps(contractScene.id, 1, [op]);
+      expect(second.version).toBe(2);
+      expect((await storage.scenes.getScene(contractScene.id))?.entities[0]?.transform).toEqual(after);
+
+      // 旧版本必须逐位还原，不能只留一个"当前文档"。
+      expect((await storage.scenes.getVersion(contractScene.id, 1))?.entities[0]?.transform).toEqual(before);
+      expect((await storage.scenes.getVersion(contractScene.id, 2))?.entities[0]?.transform).toEqual(after);
+      expect(await storage.scenes.getVersion(contractScene.id, 99)).toBeNull();
+
+      const versions = await storage.scenes.listVersions(contractScene.id);
+      expect(versions.map((item) => item.version)).toEqual([1, 2]);
+      expect(versions.map((item) => item.kind)).toEqual(['snapshot', 'ops']);
+      expect(versions[1]?.opCount).toBe(1);
+
+      // 基于旧版本写：必须冲突，且当前文档一条都不改。
+      const stale = storage.scenes.appendOps(contractScene.id, 1, [op]);
+      await expect(stale).rejects.toBeInstanceOf(SceneVersionConflictError);
+      await stale.catch((error: SceneVersionConflictError) => {
+        expect(error.baseVersion).toBe(1);
+        expect(error.currentVersion).toBe(2);
+      });
+      expect((await storage.scenes.getScene(contractScene.id))?.entities[0]?.transform).toEqual(after);
+
+      // 空 ops 不制造版本行。
+      expect((await storage.scenes.appendOps(contractScene.id, 2, [])).version).toBe(2);
+      expect(await storage.scenes.listVersions(contractScene.id)).toHaveLength(2);
+    });
+
+    test('整文档快照与 ops 交错时，每个版本仍可精确重建', async () => {
+      const { storage } = await create();
+      await storage.scenes.putScene(contractScene);
+      const before = contractScene.entities[0]!.transform;
+      const moved = { position: [4, 0, 0] as [number, number, number] };
+      await storage.scenes.appendOps(contractScene.id, 1, [
+        { type: 'setTransform', entityId: 'belt-01', before, after: moved },
+      ]);
+
+      const published: TwinScene = {
+        ...contractScene,
+        entities: [{ ...contractScene.entities[0]!, transform: moved }],
+      };
+      expect((await storage.scenes.putScene(published)).version).toBe(3);
+
+      const movedAgain = { position: [8, 0, 0] as [number, number, number] };
+      await storage.scenes.appendOps(contractScene.id, 3, [
+        { type: 'setTransform', entityId: 'belt-01', before: moved, after: movedAgain },
+      ]);
+
+      expect((await storage.scenes.getVersion(contractScene.id, 2))?.entities[0]?.transform).toEqual(moved);
+      expect((await storage.scenes.getVersion(contractScene.id, 3))?.entities[0]?.transform).toEqual(moved);
+      expect((await storage.scenes.getVersion(contractScene.id, 4))?.entities[0]?.transform).toEqual(movedAgain);
+      expect((await storage.scenes.listScenes())[0]?.version).toBe(4);
+      expect((await storage.scenes.listVersions(contractScene.id)).map((item) => item.kind)).toEqual([
+        'snapshot',
+        'ops',
+        'snapshot',
+        'ops',
+      ]);
     });
 
     test('事件按 sequence 严格单调写入，重复回放会报错', async () => {

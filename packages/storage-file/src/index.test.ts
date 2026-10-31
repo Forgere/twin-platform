@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdtemp, rm, readFile } from 'node:fs/promises';
+import { mkdtemp, rm, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { contractScene, runStorageContractTests } from '@twin-platform/storage-testkit';
@@ -121,9 +121,37 @@ describe('createFileStorage / 文件实现自身的行为', () => {
       await storage.scenes.putScene(contractScene);
       await storage.flush();
 
-      const parsed = JSON.parse(await readFile(path, 'utf8')) as { version: number; scenes: unknown };
-      expect(parsed.version).toBe(1);
+      const parsed = JSON.parse(await readFile(path, 'utf8')) as {
+        version: number;
+        scenes: unknown;
+        sceneHistory: Record<string, { version: number; kind: string }[]>;
+      };
+      expect(parsed.version).toBe(2);
       expect(Object.keys(parsed.scenes)).toEqual(['contract-scene']);
+      expect(parsed.sceneHistory['contract-scene']).toEqual([{ version: 1, kind: 'snapshot', scene: contractScene, createdAt: expect.any(String) }]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('读取 v1 文件时给每份现有场景补一条 v1 快照', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'twin-file-m-'));
+    const path = join(dir, 'twin.json');
+    try {
+      await writeFile(
+        path,
+        JSON.stringify({
+          version: 1,
+          scenes: { 'contract-scene': { scene: contractScene, updatedAt: '2026-10-01T00:00:00.000Z' } },
+        }),
+        'utf8',
+      );
+      const storage = createFileStorage({ path, autoFlush: false });
+      await storage.ready();
+
+      expect((await storage.scenes.listVersions('contract-scene')).map((item) => item.version)).toEqual([1]);
+      expect((await storage.scenes.listScenes())[0]?.version).toBe(1);
+      expect((await storage.scenes.getVersion('contract-scene', 1))?.name).toBe(contractScene.name);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

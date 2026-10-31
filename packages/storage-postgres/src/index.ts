@@ -1,4 +1,4 @@
-import type { TwinScene } from '@twin-platform/scene-schema';
+import { applySceneOps, type SceneOp, type TwinScene } from '@twin-platform/scene-schema';
 import type { WorldEvent, WorldSnapshot } from '@twin-platform/world-kernel';
 import type {
   EntityStateRecord,
@@ -11,10 +11,12 @@ import type {
   ReplaySession,
   SceneRepository,
   SceneSummary,
+  SceneVersionSummary,
   SessionRepository,
   SnapshotRepository,
   TwinStorage,
 } from '@twin-platform/storage-contracts';
+import { SceneVersionConflictError } from '@twin-platform/storage-contracts';
 
 /**
  * PostgreSQL 仓储实现。
@@ -163,23 +165,52 @@ export class PostgresSceneRepository implements SceneRepository {
     private readonly name: (table: string) => string,
   ) {}
 
+  /** 当前修订号 = 快照与 ops 两张表的最大 version。 */
+  private async currentVersion(sceneId: string): Promise<number> {
+    const rows = await this.sql.query(
+      `select coalesce(max(version), 0) as version
+       from (
+         select version from ${this.name('scene_versions')} where scene_id = $1
+         union all
+         select version from ${this.name('scene_ops')} where scene_id = $1
+       ) versions`,
+      [sceneId],
+    );
+    return num(rows[0]?.version);
+  }
+
   async getScene(id: string): Promise<TwinScene | null> {
     const rows = await this.sql.query(
-      `select payload from ${this.name('scene_versions')} where scene_id = $1 order by version desc limit 1`,
+      `select payload, version from ${this.name('scene_versions')} where scene_id = $1 order by version desc limit 1`,
       [id],
     );
     const row = rows[0];
-    return row ? json<TwinScene>(row.payload) : null;
+    if (!row) return null;
+    return this.replayFrom(json<TwinScene>(row.payload), id, num(row.version), 2_147_483_647);
+  }
+
+  private async replayFrom(scene: TwinScene, sceneId: string, afterVersion: number, upTo: number): Promise<TwinScene> {
+    const rows = await this.sql.query(
+      `select ops from ${this.name('scene_ops')}
+       where scene_id = $1 and version > $2 and version <= $3
+       order by version asc`,
+      [sceneId, afterVersion, upTo],
+    );
+    return rows.reduce((current, row) => applySceneOps(current, json<SceneOp[]>(row.ops)), scene);
   }
 
   async putScene(scene: TwinScene): Promise<SceneSummary> {
     const rows = await this.sql.query(
-      `insert into ${this.name('scene_versions')} (scene_id, version, name, schema_version, payload)
-       values (
-         $1,
-         coalesce((select max(version) + 1 from ${this.name('scene_versions')} where scene_id = $1), 1),
-         $2, $3, $4::jsonb
+      `with current as (
+         select coalesce(max(version), 0) as version
+         from (
+           select version from ${this.name('scene_versions')} where scene_id = $1
+           union all
+           select version from ${this.name('scene_ops')} where scene_id = $1
+         ) versions
        )
+       insert into ${this.name('scene_versions')} (scene_id, version, name, schema_version, payload)
+       select $1, current.version + 1, $2, $3, $4::jsonb from current
        returning version, created_at`,
       [scene.id, scene.name, scene.version, JSON.stringify(scene)],
     );
@@ -187,15 +218,113 @@ export class PostgresSceneRepository implements SceneRepository {
     return {
       id: scene.id,
       name: scene.name,
-      version: num(row?.version ?? scene.version),
+      version: num(row?.version ?? 1),
       updatedAt: iso(row?.created_at ?? new Date()),
     };
+  }
+
+  async appendOps(sceneId: string, baseVersion: number, ops: readonly SceneOp[]): Promise<SceneSummary> {
+    const current = await this.currentVersion(sceneId);
+    if (baseVersion !== current) throw new SceneVersionConflictError(sceneId, baseVersion, current);
+    if (ops.length === 0) {
+      const scenes = await this.listScenes();
+      const found = scenes.find((scene) => scene.id === sceneId);
+      if (!found) throw new SceneVersionConflictError(sceneId, baseVersion, 0);
+      return found;
+    }
+
+    const scene = await this.getScene(sceneId);
+    if (!scene) throw new SceneVersionConflictError(sceneId, baseVersion, 0);
+    const next = applySceneOps(scene, ops);
+
+    // where 条件再检查一次版本：读与写之间若有人抢先追加，这里插不进去。
+    const rows = await this.sql.query(
+      `with current as (
+         select coalesce(max(version), 0) as version
+         from (
+           select version from ${this.name('scene_versions')} where scene_id = $1
+           union all
+           select version from ${this.name('scene_ops')} where scene_id = $1
+         ) versions
+       )
+       insert into ${this.name('scene_ops')} (scene_id, version, base_version, ops)
+       select $1, current.version + 1, $2, $3::jsonb from current
+       where current.version = $2
+       returning version, created_at`,
+      [sceneId, baseVersion, JSON.stringify(ops)],
+    );
+    const row = rows[0];
+    if (!row) throw new SceneVersionConflictError(sceneId, baseVersion, await this.currentVersion(sceneId));
+    return {
+      id: sceneId,
+      name: next.name,
+      version: num(row.version),
+      updatedAt: iso(row.created_at),
+    };
+  }
+
+  async listVersions(sceneId: string): Promise<SceneVersionSummary[]> {
+    const rows = await this.sql.query(
+      `select scene_id, version, kind, op_count, name, created_at
+       from (
+         select scene_id, version, 'snapshot'::text as kind, 0 as op_count, name, created_at
+         from ${this.name('scene_versions')}
+         where scene_id = $1
+         union all
+         select o.scene_id, o.version, 'ops'::text as kind, jsonb_array_length(o.ops) as op_count, sv.name, o.created_at
+         from ${this.name('scene_ops')} o
+         join lateral (
+           select name from ${this.name('scene_versions')}
+           where scene_id = o.scene_id
+           order by version desc
+           limit 1
+         ) sv on true
+         where o.scene_id = $1
+       ) history
+       order by version asc`,
+      [sceneId],
+    );
+    return rows.map((row) => ({
+      sceneId: str(row.scene_id),
+      version: num(row.version),
+      kind: str(row.kind) === 'ops' ? 'ops' : 'snapshot',
+      opCount: num(row.op_count),
+      name: str(row.name),
+      createdAt: iso(row.created_at),
+    }));
+  }
+
+  async getVersion(sceneId: string, version: number): Promise<TwinScene | null> {
+    if (!Number.isInteger(version) || version < 1) return null;
+    if (version > (await this.currentVersion(sceneId))) return null;
+    const rows = await this.sql.query(
+      `select payload, version from ${this.name('scene_versions')}
+       where scene_id = $1 and version <= $2
+       order by version desc
+       limit 1`,
+      [sceneId, version],
+    );
+    const row = rows[0];
+    if (!row) return null;
+    return this.replayFrom(json<TwinScene>(row.payload), sceneId, num(row.version), version);
   }
 
   async listScenes(): Promise<SceneSummary[]> {
     const rows = await this.sql.query(
       `select distinct on (scene_id) scene_id, name, version, created_at
-       from ${this.name('scene_versions')}
+       from (
+         select scene_id, version, name, created_at
+         from ${this.name('scene_versions')}
+         union all
+         select o.scene_id, o.version, sv.name, o.created_at
+         from ${this.name('scene_ops')} o
+         join lateral (
+           select name from ${this.name('scene_versions')}
+           where scene_id = o.scene_id
+           order by version desc
+           limit 1
+         ) sv on true
+       ) history
        order by scene_id, version desc`,
     );
     return rows.map((row) => ({
@@ -210,6 +339,7 @@ export class PostgresSceneRepository implements SceneRepository {
     const rows = await this.sql.query(`delete from ${this.name('scene_versions')} where scene_id = $1 returning scene_id`, [id]);
     if (rows.length === 0) return false;
     // 级联清理：场景版本是父行，其余都是它的派生数据。
+    await this.sql.query(`delete from ${this.name('scene_ops')} where scene_id = $1`, [id]);
     await this.sql.query(`delete from ${this.name('twin_events')} where scene_id = $1`, [id]);
     await this.sql.query(`delete from ${this.name('world_snapshots')} where scene_id = $1`, [id]);
     await this.sql.query(`delete from ${this.name('entity_state_latest')} where scene_id = $1`, [id]);

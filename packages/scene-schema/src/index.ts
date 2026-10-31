@@ -353,4 +353,11 @@ export {
  * 而本模块只是 re-export `ops`，顶层不互相执行。
  */
 export type { SceneOp, SetTransformOp } from './ops';
-export { applySceneOps, sameTransform, SceneOpError } from './ops';
+export { applySceneOps, parseSceneOps, sameTransform, SceneOpError } from './ops';
+
+/**
+ * 版本差异：给历史列表 / 回滚预览用。与 `ops` 的区别是"结果差在哪"而不是
+ * "要做什么"，所以它只读、不参与应用。
+ */
+export type { SceneDiff, SceneEntityChange } from './diff';
+export { diffScenes, sameScene, sameValue } from './diff';

@@ -1,4 +1,4 @@
-import type { TwinScene } from '@twin-platform/scene-schema';
+import type { SceneOp, TwinScene } from '@twin-platform/scene-schema';
 import type { WorldEvent, WorldSnapshot } from '@twin-platform/world-kernel';
 import type {
   EntityStateRecord,
@@ -11,10 +11,12 @@ import type {
   ReplaySession,
   SceneRepository,
   SceneSummary,
+  SceneVersionSummary,
   SessionRepository,
   SnapshotRepository,
   TwinStorage,
 } from '@twin-platform/storage-contracts';
+import { SceneVersionConflictError } from '@twin-platform/storage-contracts';
 
 /**
  * HTTP 仓储：浏览器里的 `TwinStorage`，全部走 fetch 调服务端。
@@ -163,6 +165,25 @@ class HttpSceneRepository implements SceneRepository {
 
   async putScene(scene: TwinScene): Promise<SceneSummary> {
     return this.transport.send<SceneSummary>('POST', '/api/scenes', scene);
+  }
+
+  async appendOps(sceneId: string, baseVersion: number, ops: readonly SceneOp[]): Promise<SceneSummary> {
+    try {
+      return await this.transport.send<SceneSummary>('POST', `/api/scenes/${encode(sceneId)}/ops`, { baseVersion, ops });
+    } catch (error) {
+      // 服务端 409 只给消息文本，当前版本从列表取——冲突是罕见路径，多一次 GET 不亏。
+      if (httpStatus(error) !== 409) throw error;
+      const current = (await this.listScenes()).find((scene) => scene.id === sceneId)?.version ?? 0;
+      throw new SceneVersionConflictError(sceneId, baseVersion, current);
+    }
+  }
+
+  async listVersions(sceneId: string): Promise<SceneVersionSummary[]> {
+    return (await this.transport.get<SceneVersionSummary[]>(`/api/scenes/${encode(sceneId)}/versions`)) ?? [];
+  }
+
+  async getVersion(sceneId: string, version: number): Promise<TwinScene | null> {
+    return this.transport.get<TwinScene>(`/api/scenes/${encode(sceneId)}/versions/${version}`);
   }
 
   async listScenes(): Promise<SceneSummary[]> {

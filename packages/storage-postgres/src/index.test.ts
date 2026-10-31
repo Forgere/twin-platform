@@ -140,18 +140,41 @@ describe('createPostgresStorage / SQL 生成', () => {
     expect(executor.sql).toContain('twin.scene_versions');
   });
 
-  test('场景写入取最新版本号 +1，而不是覆盖', async () => {
+  test('场景写入取两表最大修订号 +1，而不是覆盖', async () => {
     const executor = new FakeExecutor(() => [{ version: 3, created_at: '2026-09-07T00:00:00.000Z' }]);
     const storage = createPostgresStorage(executor);
     const summary = await storage.scenes.putScene({ version: 1, id: 'line-a', name: '产线 A', entities: [] });
 
-    expect(executor.sql).toContain('coalesce((select max(version) + 1');
+    expect(executor.sql).toContain('union all');
+    expect(executor.sql).toContain('select version from scene_ops');
+    expect(executor.sql).toContain('current.version + 1');
     expect(summary).toEqual({ id: 'line-a', name: '产线 A', version: 3, updatedAt: '2026-09-07T00:00:00.000Z' });
+  });
+
+  test('布局 ops 用版本号条件保证 CAS：不匹配就不插入', async () => {
+    const scene = { version: 1, id: 'line-a', name: '产线 A', entities: [{ id: 'belt-01', kind: 'unknown', transform: { position: [0, 0, 0] }, capabilities: [] }] };
+    const executor = new FakeExecutor((sql) => {
+      if (sql.includes('insert into scene_ops')) return [{ version: 3, created_at: '2026-09-07T00:00:00.000Z' }];
+      if (sql.includes('coalesce(max(version), 0)')) return [{ version: 2 }];
+      if (sql.includes('select payload, version from scene_versions')) return [{ payload: scene, version: 1 }];
+      if (sql.includes('select ops from scene_ops')) return [];
+      return [];
+    });
+    const storage = createPostgresStorage(executor);
+    const summary = await storage.scenes.appendOps('line-a', 2, [
+      { type: 'setTransform', entityId: 'belt-01', before: { position: [0, 0, 0] }, after: { position: [1, 0, 0] } },
+    ]);
+    expect(summary.version).toBe(3);
+    expect(executor.sql).toContain('insert into scene_ops');
+    expect(executor.sql).toContain('where current.version = $2');
+    await expect(storage.scenes.appendOps('line-a', 1, [])).rejects.toThrow(/版本冲突/);
   });
 });
 
 describe('迁移脚本', () => {
   const sql = readFileSync(join(import.meta.dir, '..', 'migrations', '001_init.sql'), 'utf8');
+
+  const opsSql = readFileSync(join(import.meta.dir, '..', 'migrations', '002_scene_ops.sql'), 'utf8');
 
   test('覆盖行动计划里约定的全部表', () => {
     for (const table of [
@@ -167,6 +190,12 @@ describe('迁移脚本', () => {
     ]) {
       expect(sql).toContain(`create table if not exists ${table}`);
     }
+  });
+
+  test('阶段 K 迁移补 scene_ops，并删除从未使用的 published 列', () => {
+    expect(opsSql).toContain('create table if not exists scene_ops');
+    expect(opsSql).toContain('primary key (scene_id, version)');
+    expect(opsSql).toContain('drop column if exists published');
   });
 
   test('事件表按 received_at 分区，并有默认分区兜底', () => {
@@ -187,7 +216,7 @@ const driver = await import('pg')
 
 if (url && driver) {
   const pool = new driver.Pool({ connectionString: url });
-  const resetSql = `truncate table twin_events, world_snapshots, replay_sessions, entity_state_latest, metric_rollups, scene_versions`;
+  const resetSql = `truncate table twin_events, world_snapshots, replay_sessions, entity_state_latest, metric_rollups, scene_versions, scene_ops`;
 
   await pool.query(readFileSync(join(import.meta.dir, '..', 'migrations', '001_init.sql'), 'utf8'));
 
@@ -248,13 +277,13 @@ if (pgliteMod) {
 
   runStorageContractTests('postgres/pglite', async () => {
     // 清空全部派生数据（逐表 delete，PGlite 不支持 truncate 分区父表，也非标准多表 delete）。
-    for (const table of ['twin_events', 'world_snapshots', 'replay_sessions', 'entity_state_latest', 'metric_rollups', 'scene_versions']) {
+    for (const table of ['twin_events', 'world_snapshots', 'replay_sessions', 'entity_state_latest', 'metric_rollups', 'scene_versions', 'scene_ops']) {
       await executor.query(`delete from ${table}`);
     }
     return {
       storage: createPostgresStorage(executor),
       async reset() {
-        for (const table of ['twin_events', 'world_snapshots', 'replay_sessions', 'entity_state_latest', 'metric_rollups', 'scene_versions']) {
+        for (const table of ['twin_events', 'world_snapshots', 'replay_sessions', 'entity_state_latest', 'metric_rollups', 'scene_versions', 'scene_ops']) {
           await executor.query(`delete from ${table}`);
         }
       },

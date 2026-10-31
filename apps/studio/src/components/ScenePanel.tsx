@@ -1,11 +1,12 @@
 import { createSignal, For, Show } from 'solid-js';
 import type {
+  SceneDiff,
   SceneDocumentIssue,
   SceneSummary,
   TwinScene,
 } from '@twin-platform/scene-schema';
+import type { SceneSummary as StoredSceneSummary, SceneVersionSummary } from '@twin-platform/storage-contracts';
 import type { SceneSource } from '../scene/studioSession';
-import type { SceneSummary as StoredSceneSummary } from '@twin-platform/storage-contracts';
 import Icon from './Icon';
 
 /**
@@ -47,6 +48,18 @@ export interface ServerState {
   note?: string;
 }
 
+/** 场景版本历史：展开哪个场景、选中哪一版、相对当前差在哪。 */
+export interface SceneHistoryState {
+  sceneId: string;
+  versions: SceneVersionSummary[];
+  /** 正在对比的版本；undefined 表示只看列表。 */
+  selected?: number;
+  /** 当前文档 → 选中版本 的差异（即"回滚会改什么"）。 */
+  diff?: SceneDiff;
+  busy: boolean;
+  note?: string;
+}
+
 export interface ScenePanelProps {
   sceneId: string;
   sceneName: string;
@@ -70,6 +83,14 @@ export interface ScenePanelProps {
   onDeleteFromServer?: (id: string) => Promise<void>;
   /** 刷新服务端场景列表。 */
   onRefreshServer?: () => Promise<void>;
+  /** 版本历史；undefined 表示没有展开任何场景。 */
+  history?: SceneHistoryState;
+  /** 展开 / 收起某个场景的版本列表。 */
+  onListVersions?: (id: string) => Promise<void>;
+  /** 对比某个版本与当前文档。 */
+  onShowVersionDiff?: (id: string, version: number) => Promise<void>;
+  /** 回滚到某个版本（追加一个新版本，不删历史）。 */
+  onRollbackVersion?: (id: string, version: number) => Promise<void>;
 }
 
 const formatBounds = (summary: SceneSummary): string => {
@@ -77,6 +98,12 @@ const formatBounds = (summary: SceneSummary): string => {
   if (!bounds) return '—';
   const size = bounds.min.map((value, axis) => (bounds.max[axis]! - value).toFixed(1));
   return `${size[0]} × ${size[1]} × ${size[2]} m`;
+};
+
+/** 版本时间只显示到秒：历史列表是"什么时候改的"，不是审计证据。 */
+const formatWhen = (iso: string): string => {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? iso : date.toLocaleString([], { hour12: false });
 };
 
 export default function ScenePanel(props: ScenePanelProps) {
@@ -227,27 +254,128 @@ export default function ScenePanel(props: ScenePanelProps) {
             <ul class="scene-server-list">
               <For each={props.server?.scenes ?? []}>
                 {(scene) => (
-                  <li>
-                    <button
-                      type="button"
-                      class="scene-server-load"
-                      disabled={props.server?.busy}
-                      title={`加载 ${scene.id}`}
-                      onClick={() => void props.onLoadFromServer?.(scene.id)}
-                    >
-                      {scene.name}
-                    </button>
-                    <span class="scene-server-meta">v{scene.version}</span>
-                    <button
-                      type="button"
-                      class="scene-server-del"
-                      aria-label={`删除 ${scene.name}`}
-                      disabled={props.server?.busy}
-                      title="从服务端删除"
-                      onClick={() => void props.onDeleteFromServer?.(scene.id)}
-                    >
-                      <Icon name="close" size={11} />
-                    </button>
+                  <li class="scene-server-item">
+                    <div class="scene-server-row">
+                      <button
+                        type="button"
+                        class="scene-server-load"
+                        disabled={props.server?.busy}
+                        title={`加载 ${scene.id}`}
+                        onClick={() => void props.onLoadFromServer?.(scene.id)}
+                      >
+                        {scene.name}
+                      </button>
+                      <button
+                        type="button"
+                        class={{
+                          'scene-server-meta': true,
+                          'scene-server-meta-open': props.history?.sceneId === scene.id,
+                        }}
+                        disabled={props.server?.busy}
+                        title="版本历史"
+                        onClick={() => void props.onListVersions?.(scene.id)}
+                      >
+                        v{scene.version}
+                      </button>
+                      <button
+                        type="button"
+                        class="scene-server-del"
+                        aria-label={`删除 ${scene.name}`}
+                        disabled={props.server?.busy}
+                        title="从服务端删除"
+                        onClick={() => void props.onDeleteFromServer?.(scene.id)}
+                      >
+                        <Icon name="close" size={11} />
+                      </button>
+                    </div>
+
+                    <Show when={props.history?.sceneId === scene.id}>
+                      <div class="scene-versions">
+                        <Show when={props.history?.note}>
+                          <p class="scene-server-note">{props.history?.note}</p>
+                        </Show>
+                        <Show
+                          when={(props.history?.versions.length ?? 0) > 0}
+                          fallback={
+                            <p class="scene-server-note">
+                              {props.history?.busy ? '读取版本…' : '没有版本历史。'}
+                            </p>
+                          }
+                        >
+                          <ul class="scene-version-list">
+                            <For each={props.history?.versions ?? []}>
+                              {(version) => (
+                                <li
+                                  class={{
+                                    'scene-version': true,
+                                    'is-selected': props.history?.selected === version.version,
+                                  }}
+                                >
+                                  <button
+                                    type="button"
+                                    class="scene-version-main"
+                                    disabled={props.history?.busy}
+                                    title={`对比 v${version.version}`}
+                                    onClick={() => void props.onShowVersionDiff?.(scene.id, version.version)}
+                                  >
+                                    <span class="scene-version-no">v{version.version}</span>
+                                    <span class="scene-version-kind">
+                                      {version.kind === 'ops' ? `${version.opCount} 条 ops` : '快照'}
+                                    </span>
+                                    <time class="scene-version-time">{formatWhen(version.createdAt)}</time>
+                                  </button>
+                                  <Show when={version.version !== scene.version}>
+                                    <button
+                                      type="button"
+                                      class="scene-version-rollback"
+                                      disabled={props.history?.busy}
+                                      onClick={() => void props.onRollbackVersion?.(scene.id, version.version)}
+                                    >
+                                      回滚
+                                    </button>
+                                  </Show>
+                                </li>
+                              )}
+                            </For>
+                          </ul>
+                        </Show>
+
+                        <Show when={props.history?.diff}>
+                          {(diff) => (
+                            <div class="scene-version-diff">
+                              <p class="scene-version-diff-head">
+                                回滚到 v{props.history?.selected} 会改动：
+                              </p>
+                              <Show when={diff().sceneFields.length > 0}>
+                                <p class="scene-version-diff-scene">场景字段：{diff().sceneFields.join('、')}</p>
+                              </Show>
+                              <ul>
+                                <For each={diff().added}>{(id) => <li class="diff-add">+ {id}</li>}</For>
+                                <For each={diff().removed}>{(id) => <li class="diff-remove">− {id}</li>}</For>
+                                <For each={diff().changed}>
+                                  {(item) => (
+                                    <li class="diff-change">
+                                      ~ {item.id}：{item.fields.join('、')}
+                                    </li>
+                                  )}
+                                </For>
+                              </ul>
+                              <Show
+                                when={
+                                  diff().added.length +
+                                    diff().removed.length +
+                                    diff().changed.length +
+                                    diff().sceneFields.length ===
+                                  0
+                                }
+                              >
+                                <p class="scene-version-diff-empty">内容相同。</p>
+                              </Show>
+                            </div>
+                          )}
+                        </Show>
+                      </div>
+                    </Show>
                   </li>
                 )}
               </For>

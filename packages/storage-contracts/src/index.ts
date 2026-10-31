@@ -1,4 +1,4 @@
-import type { TwinScene, TwinTransform, TwinValue } from '@twin-platform/scene-schema';
+import type { SceneOp, TwinScene, TwinTransform, TwinValue } from '@twin-platform/scene-schema';
 import type { DataMode, EntityDataSource, WorldEvent, WorldSnapshot } from '@twin-platform/world-kernel';
 
 /**
@@ -12,6 +12,14 @@ import type { DataMode, EntityDataSource, WorldEvent, WorldSnapshot } from '@twi
  * PostgreSQL 时调用方全得改。
  */
 
+/**
+ * 场景摘要。
+ *
+ * `version` 是**文档修订号**：第一次 `putScene` 为 1，之后每次 `putScene` /
+ * `appendOps` 都 +1。它与场景 JSON 里的 `scene.version`（schema 版本）是两件事，
+ * 后者只描述文档格式。阶段 K 之前 postgres 返回行号、file/memory 返回 schema 版本，
+ * 同一个字段三种含义；现在统一为修订号。
+ */
 export interface SceneSummary {
   id: string;
   name: string;
@@ -19,9 +27,58 @@ export interface SceneSummary {
   updatedAt: string;
 }
 
+/** 版本历史里的一行：整文档快照，或一批布局 ops。 */
+export interface SceneVersionSummary {
+  sceneId: string;
+  version: number;
+  kind: 'snapshot' | 'ops';
+  /** 该版本包含的 ops 条数；快照为 0。 */
+  opCount: number;
+  name: string;
+  createdAt: string;
+}
+
+/**
+ * 乐观锁冲突：调用方基于 `baseVersion` 写 ops，但库里的当前版本已经变了。
+ *
+ * 这是**正常并发**，不是数据损坏。服务端映射成 HTTP 409，前端提示用户
+ * 重新加载或 rebase；绝不能静默覆盖别人的改动。
+ */
+export class SceneVersionConflictError extends Error {
+  readonly sceneId: string;
+  readonly baseVersion: number;
+  readonly currentVersion: number;
+
+  constructor(sceneId: string, baseVersion: number, currentVersion: number) {
+    super(`场景 ${sceneId} 版本冲突：基于 v${baseVersion}，当前 v${currentVersion}。`);
+    this.name = 'SceneVersionConflictError';
+    this.sceneId = sceneId;
+    this.baseVersion = baseVersion;
+    this.currentVersion = currentVersion;
+  }
+}
+
 export interface SceneRepository {
   getScene(id: string): Promise<TwinScene | null>;
+  /**
+   * 整文档写入：导入、发布、回滚点。
+   *
+   * 每次调用产生一个新版本（新场景为 v1，已存在则当前版本 +1），并落一份完整快照。
+   * 高频的布局改动走 `appendOps`，不要用它。
+   */
   putScene(scene: TwinScene): Promise<SceneSummary>;
+  /**
+   * 追加一批布局 ops（阶段 K 的编辑通道）。
+   *
+   * - `baseVersion` 必须等于当前修订号，否则抛 `SceneVersionConflictError`；
+   * - 整批 ops 要么全部应用、要么全部不应用（结果必须过场景校验）；
+   * - 空 ops 不产生新版本，直接返回当前摘要。
+   */
+  appendOps(sceneId: string, baseVersion: number, ops: readonly SceneOp[]): Promise<SceneSummary>;
+  /** 版本历史，按 version 升序。 */
+  listVersions(sceneId: string): Promise<SceneVersionSummary[]>;
+  /** 重建指定版本；版本不存在或超出范围返回 null。 */
+  getVersion(sceneId: string, version: number): Promise<TwinScene | null>;
   listScenes(): Promise<SceneSummary[]>;
 }
 
