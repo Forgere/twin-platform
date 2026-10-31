@@ -25,11 +25,9 @@ describe('场景画像消费展示插件数据', () => {
   test('没有匹配的展示插件时沿用物流画像', () => {
     const profile = sceneProfileOf({ plugins: ['example', 'logistics'] });
     expect(profile.id).toBe('logistics');
-    expect(inspectorTabs(profile).map((tab) => tab.id)).toEqual([
-      'entity', 'audit', 'metrics', 'compare', 'data', 'events', 'scene', 'plugins',
-    ]);
-    // 工厂示例落地在审计页：打开就看“契不契”，而不是先看模型。
-    expect(defaultTab(profile)).toBe('audit');
+    expect(inspectorTabs(profile).map((tab) => tab.id)).toEqual(['entity', 'plugins']);
+    // 默认落地在实体列表页
+    expect(defaultTab(profile)).toBe('entity');
   });
 
   test('没有已知插件时使用通用画像', () => {

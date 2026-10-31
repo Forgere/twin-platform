@@ -6,6 +6,7 @@ import type {
 } from '@twin-platform/scene-schema';
 import type { SceneSource } from '../scene/studioSession';
 import type { SceneSummary as StoredSceneSummary } from '@twin-platform/storage-contracts';
+import Icon from './Icon';
 
 /**
  * 场景面板：把"布局"从代码里解放出来的那一层 UI。
@@ -139,7 +140,7 @@ export default function ScenePanel(props: ScenePanelProps) {
 
       <Show when={props.unknownKinds.length > 0}>
         <p class="scene-warn">
-          ⚠️ 有 {props.unknownKinds.length} 类设备没有行为认领：{props.unknownKinds.join('、')}
+          <Icon name="alert" size={13} /> 有 {props.unknownKinds.length} 类设备没有行为认领：{props.unknownKinds.join('、')}
           。它们会渲染出来但不会动——需要在插件里补对应行为。
         </p>
       </Show>
@@ -170,8 +171,7 @@ export default function ScenePanel(props: ScenePanelProps) {
       />
 
       <div
-        class="scene-drop"
-        classList={{ 'scene-drop-on': dragging() }}
+        class={{ 'scene-drop': true, 'scene-drop-on': dragging() }}
         onDragOver={(event) => {
           event.preventDefault();
           setDragging(true);
@@ -241,11 +241,12 @@ export default function ScenePanel(props: ScenePanelProps) {
                     <button
                       type="button"
                       class="scene-server-del"
+                      aria-label={`删除 ${scene.name}`}
                       disabled={props.server?.busy}
                       title="从服务端删除"
                       onClick={() => void props.onDeleteFromServer?.(scene.id)}
                     >
-                      ✕
+                      <Icon name="close" size={11} />
                     </button>
                   </li>
                 )}
@@ -263,10 +264,10 @@ export default function ScenePanel(props: ScenePanelProps) {
       </Show>
 
       <Show when={result()}>
-        <div class="scene-result" classList={{ 'scene-result-bad': !result()?.ok }}>
+        <div class={{ 'scene-result': true, 'scene-result-bad': !result()?.ok }}>
           <Show when={result()?.ok}>
             <p>
-              ✓ 已载入 <strong>{result()?.name}</strong>：{result()?.summary?.entities} 个实体，
+              <Icon name="check" size={12} /> 已载入 <strong>{result()?.name}</strong>：{result()?.summary?.entities} 个实体，
               动体 {result()?.summary?.moving}，数据绑定 {result()?.summary?.bound}
             </p>
           </Show>
@@ -278,7 +279,7 @@ export default function ScenePanel(props: ScenePanelProps) {
           </Show>
 
           <Show when={!result()?.ok}>
-            <p>✗ 未能载入：</p>
+            <p><Icon name="alert" size={12} /> 未能载入：</p>
             <ul class="scene-issues">
               <For each={result()?.issues ?? []}>
                 {(issue) => (

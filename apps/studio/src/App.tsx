@@ -11,8 +11,16 @@ export default function App() {
     <Router>
       {(props) => (
         <>
-          <Title>Twin Platform</Title>
-          <Loading fallback={<main>加载场景中…</main>}>{props.children}</Loading>
+          <Title>Twin Studio · 数字孪生工作台</Title>
+          <Loading
+            fallback={
+              <main class="boot" role="status" aria-live="polite">
+                加载场景中…
+              </main>
+            }
+          >
+            {props.children}
+          </Loading>
         </>
       )}
     </Router>

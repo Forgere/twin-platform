@@ -1,4 +1,4 @@
-import { createSignal, For, Show } from 'solid-js';
+import { createSignal, For, Show, untrack } from 'solid-js';
 import type { ScenarioDiff } from '@twin-platform/scenario-compare';
 
 /**
@@ -9,22 +9,57 @@ import type { ScenarioDiff } from '@twin-platform/scenario-compare';
  * 直接列出指标差与事件差。UI 只负责收参数、展示结果，不碰推演与指标算法。
  */
 export default function ScenarioComparePanel(props: {
+  currentTime?: number;
   onCompare: (forkAt: number, horizon: number, zoneB: number) => ScenarioDiff;
+  onForkMark?: (forkAt: number) => void;
 }) {
-  const [forkAt, setForkAt] = createSignal(0);
+  const [forkAt, setForkAt] = createSignal(untrack(() => (props.currentTime !== undefined ? Math.floor(props.currentTime) : 0)));
   const [horizon, setHorizon] = createSignal(20);
   const [zoneB, setZoneB] = createSignal(4);
   const [diff, setDiff] = createSignal<ScenarioDiff>();
 
-  const run = () => setDiff(props.onCompare(forkAt(), horizon(), zoneB()));
+  const setNow = () => {
+    if (props.currentTime !== undefined) {
+      const now = Number(props.currentTime.toFixed(1));
+      setForkAt(now);
+      props.onForkMark?.(now);
+    }
+  };
+
+  const run = () => {
+    props.onForkMark?.(forkAt());
+    setDiff(props.onCompare(forkAt(), horizon(), zoneB()));
+  };
 
   return (
-    <section aria-label="方案分叉对比">
-      <h2>方案对比</h2>
+    <section aria-label="方案分叉对比" class="scenario-compare-panel">
+      <div class="compare-intro">
+        <p class="muted">
+          从指定时刻分叉推演基准方案 A 与调整方案 B（如修改打包批量），对比推演周期内的指标 delta 与事件分布。
+        </p>
+      </div>
+
       <div class="compare-form">
         <label>
-          分叉时刻 (s)
-          <input type="number" min="0" step="1" value={forkAt()} onInput={(event) => setForkAt(Number(event.currentTarget.value))} />
+          <span class="compare-label-row">
+            <span>分叉时刻 (s)</span>
+            <Show when={props.currentTime !== undefined}>
+              <button type="button" class="btn-text-action" onClick={setNow} title="设为时间轴当前时刻">
+                取当前时刻 ({props.currentTime?.toFixed(1)}s)
+              </button>
+            </Show>
+          </span>
+          <input
+            type="number"
+            min="0"
+            step="0.5"
+            value={forkAt()}
+            onInput={(event) => {
+              const val = Number(event.currentTarget.value);
+              setForkAt(val);
+              props.onForkMark?.(val);
+            }}
+          />
         </label>
         <label>
           推演时长 (s)
@@ -34,15 +69,15 @@ export default function ScenarioComparePanel(props: {
           方案B打包批量 (个小件/托盘)
           <input type="number" min="1" step="1" value={zoneB()} onInput={(event) => setZoneB(Number(event.currentTarget.value))} />
         </label>
-        <button type="button" onClick={run}>
-          分叉对比
+        <button type="button" class="btn-primary" onClick={run}>
+          分叉推演对比
         </button>
       </div>
 
       <Show when={diff()}>
         {(result) => (
-          <>
-            <h3>指标差（B − A）</h3>
+          <div class="compare-results">
+            <h3>指标差（方案 B − 方案 A）</h3>
             <ul class="metric-rows">
               <For each={result().metricDeltas}>
                 {(metric) => (
@@ -58,7 +93,7 @@ export default function ScenarioComparePanel(props: {
               </For>
             </ul>
 
-            <h3>事件差（B − A）</h3>
+            <h3>事件差（方案 B − 方案 A）</h3>
             <ul class="metric-rows">
               <For each={result().eventDeltas}>
                 {(metric) => (
@@ -73,7 +108,7 @@ export default function ScenarioComparePanel(props: {
                 )}
               </For>
             </ul>
-          </>
+          </div>
         )}
       </Show>
     </section>

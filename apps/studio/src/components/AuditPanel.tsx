@@ -1,5 +1,6 @@
 import { createSignal, For, Show } from 'solid-js';
 import type { AuditStatus } from '@twin-platform/scene-spec';
+import Icon from './Icon';
 import type { AuditTarget, SceneAuditView } from '../scene/sceneAudit';
 
 /**
@@ -12,13 +13,13 @@ import type { AuditTarget, SceneAuditView } from '../scene/sceneAudit';
  * 3. **说清窗口**：结论只覆盖 t=from..to 这一段，写在面板顶上，不写在脚注里。
  */
 
-const MARK: Readonly<Record<AuditStatus, string>> = { pass: '✔', fail: '✖', error: '⚠' };
 const STATUS_TEXT: Readonly<Record<AuditStatus, string>> = { pass: '通过', fail: '失败', error: '执行出错' };
 
 export interface AuditPanelProps {
   readonly audit: SceneAuditView;
-  /** 定位造成的时间线分叉提醒；空表示无异常。 */
+  /** 定位造成的时间线分叉/回溯提示；空表示无异常。 */
   readonly notice?: string;
+  readonly onCloseNotice?: () => void;
   /** 点违例上的定位：宿主负责 seek 到那一刻、把相机飞到那个实体。 */
   readonly onLocate: (target: AuditTarget) => void;
 }
@@ -49,7 +50,7 @@ export default function AuditPanel(props: AuditPanelProps) {
   };
 
   return (
-    <section aria-label="场景审计">
+    <section class="audit-panel" aria-label="场景审计">
       <h2>审计</h2>
 
       <div class={props.audit.passed ? 'audit-verdict audit-ok' : 'audit-verdict audit-bad'}>
@@ -60,7 +61,24 @@ export default function AuditPanel(props: AuditPanelProps) {
       </div>
       <p class="audit-window">{window_()}</p>
 
-      <Show when={props.notice}>{(note) => <p class="audit-fork">{note()}</p>}</Show>
+      <Show when={props.notice}>
+        {(note) => (
+          <div class="audit-fork" role="status">
+            <span class="audit-fork-text">{note()}</span>
+            <Show when={props.onCloseNotice}>
+              <button
+                type="button"
+                class="audit-fork-close"
+                aria-label="关闭回溯提示"
+                title="关闭提示"
+                onClick={props.onCloseNotice}
+              >
+                <Icon name="close" size={11} />
+              </button>
+            </Show>
+          </div>
+        )}
+      </Show>
 
       <Show when={props.audit.warnings.length > 0}>
         <ul class="audit-warnings">
@@ -71,7 +89,7 @@ export default function AuditPanel(props: AuditPanelProps) {
       {/* 全绿的时候也不能是一个死面板：给一条“去看现场”，把最后一条事件放回画面上。 */}
       <Show when={props.audit.latest}>{(latest) => (
         <button type="button" class="audit-latest" title={latest().evidence} onClick={() => props.onLocate(latest())}>
-          ⏱ 去看最后一条事件{latest().at === undefined ? '' : ` · t=${(latest().at ?? 0).toFixed(2)}s`}
+          <Icon name="locate" size={12} /> 去看最后一条事件{latest().at === undefined ? '' : ` · t=${(latest().at ?? 0).toFixed(2)}s`}
         </button>
       )}</Show>
 
@@ -90,7 +108,7 @@ export default function AuditPanel(props: AuditPanelProps) {
               <li class={`audit-check audit-${check.status}`}>
                 <div class="audit-check-head">
                   <span class="audit-mark" aria-hidden="true">
-                    {MARK[check.status]}
+                    <Icon name={check.status === 'pass' ? 'check' : 'alert'} size={12} />
                   </span>
                   <span class="audit-title">{check.description}</span>
                   <span class="audit-status">{STATUS_TEXT[check.status]}</span>
@@ -113,7 +131,8 @@ export default function AuditPanel(props: AuditPanelProps) {
                             title={target().evidence}
                             onClick={() => props.onLocate(target())}
                           >
-                            {target().at === undefined ? '⤿ 选中实体' : `⏱ 回到 t=${(target().at ?? 0).toFixed(2)}s`}
+                            <Icon name="locate" size={12} />
+                            {target().at === undefined ? '选中实体' : `回到 t=${(target().at ?? 0).toFixed(2)}s`}
                           </button>
                         )}
                       </Show>
@@ -135,7 +154,7 @@ export default function AuditPanel(props: AuditPanelProps) {
       </p>
       <div class="audit-actions">
         <button type="button" onClick={() => void copyReport()}>
-          📋 复制 AuditReport
+          <Icon name="copy" size={12} /> 复制 AuditReport
         </button>
         <button type="button" onClick={() => setShowRaw((open) => !open)} aria-expanded={showRaw() ? 'true' : 'false'}>
           {showRaw() ? '收起原始 JSON' : '原始 JSON'}

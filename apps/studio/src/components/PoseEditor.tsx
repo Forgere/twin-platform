@@ -1,5 +1,6 @@
 import { createEffect, createSignal, For, Show } from 'solid-js';
 import type { TwinTransform, TwinVector3 } from '@twin-platform/scene-schema';
+import Icon from './Icon';
 
 /**
  * 布局位姿编辑器：位置三轴（米）+ 朝向（绕 Y，弧度）。
@@ -136,7 +137,7 @@ export default function PoseEditor(props: {
       <Show when={props.locked}>
         {(reason) => (
           <p class="pose-lock" title={reason()}>
-            🔒 {reason()}
+            <Icon name="shield" size={12} /> {reason()}
           </p>
         )}
       </Show>

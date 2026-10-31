@@ -19,6 +19,7 @@ export type StudioRequest = (path: string, init?: RequestInit) => Promise<Respon
 
 export interface InspectorTab {
   readonly id: string;
+  /** Studio 线性图标名（如 `cube` / `plug`）；认不出时原样当作字形渲染。 */
   readonly icon: string;
   readonly label: string;
 }

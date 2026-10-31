@@ -4,7 +4,7 @@ import { presentationFor } from '../plugins/presentations';
 import { createWorkspace, type WorkspaceHandle } from '../plugins/workspace';
 import { requestApi } from '../plugins/requestApi';
 import type { WorldEvent } from '@twin-platform/world-kernel';
-import type { LineMetrics } from '@twin-platform/analytics-core';
+import { seriesLatest, seriesTotal, type LineMetrics } from '@twin-platform/analytics-core';
 import { StudioSession, type StudioTelemetry } from '../scene/studioSession';
 import { DEFAULT_PLUGIN_IDS, entryFor, resolvePlugins } from '../plugins/catalog';
 import { TwinSceneController, type CameraPreset, type TwinEntityView } from '../scene/TwinSceneController';
@@ -13,18 +13,20 @@ import type { ThemeName } from '../scene/theme';
 import { parseSceneDocument, sceneFileName, serializeSceneDocument, type TwinScene } from '@twin-platform/scene-schema';
 import { createHttpStorage, pingServer } from '@twin-platform/storage-http';
 import { resolveServerUrl } from '../scene/serverUrl';
-import type { SceneSummary as StoredSceneSummary } from '@twin-platform/storage-contracts';
 import ScenePanel, { type SceneExportPayload, type SceneImportOutcome, type ServerState } from './ScenePanel';
 import DataSourcePanel from './DataSourcePanel';
 import EventLogPanel from './EventLogPanel';
-import TimelineBar, { type TimelineAuditMark } from './TimelineBar';
+import TimelineBar, { type TimelineAuditMark, type TimelineLens } from './TimelineBar';
 import PluginsPanel from './PluginsPanel';
 import { defaultTab, inspectorTabs, sceneProfileOf, type SceneProfile } from '../scene/sceneProfile';
-import MetricsPanel from './MetricsPanel';
 import AuditPanel from './AuditPanel';
 import ScenarioComparePanel from './ScenarioComparePanel';
 import { runtimeInvariantsFor } from '@twin-platform/plugins-logistics';
 import { auditScene, auditSpots, type AuditTarget, type SceneAuditView } from '../scene/sceneAudit';
+import Icon, { isIconName } from './Icon';
+import { VIEWPORT_BACKDROP } from '../viewportBackdrop';
+import { FOCUSABLE_SELECTOR, handleTabKeys, isTypingTarget, trapTabKey } from '../ui/keyboard';
+import { ENTITY_STATUS_LABEL, entityStatus, type EntityStatus } from '../scene/entityStatus';
 
 /**
  * Studio 主视口。
@@ -38,28 +40,41 @@ import { auditScene, auditSpots, type AuditTarget, type SceneAuditView } from '.
  * - 右侧检视区是**互斥标签页**，一次只显示一个面板；实体页内设备/物料也是互斥切换；
  *   标签组由领域展示插件或通用回退画像提供；
  * - 领域应用挂到舞台与视口插槽，通用视口不解释领域状态；
- * - 画布上常驻的只有左上角一列小按钮，其余（遥测浮层、仿真控制条、区域列表）
- *   默认全部收起，点了才展开，把画面尽量让给场景。
+ * - 画布上常驻的只有左上角一列小按钮与底部时间轴，其余（遥测浮层、区域列表）
+ *   默认收起，点了才展开，把画面尽量让给场景。
  */
 
 type EntityFilter = 'device' | 'cargo';
 
-/** 属于"物料"的实体类型，其余都算设备。 */
-const CARGO_KINDS = new Set(['parcel', 'pallet']);
+/** 属于"物料"的实体类型，其余都算设备。静态成员表用 Record，不用 Set。 */
+const CARGO_KINDS: Record<string, true> = { parcel: true, pallet: true };
 
 /** 画布操作提示：只在区域浮层底部出现，不再常驻占一条高度。 */
 const VIEW_HINT = '单指旋转 · 双指缩放/平移 · 轻点选中；鼠标拖动旋转、右键平移、滚轮缩放';
 
+/** 胶囊浮岛的时间读数：`mm:ss.d`，位数固定，跳动时不抖。 */
+const clockText = (seconds: number): string =>
+  `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${(seconds % 60).toFixed(1).padStart(4, '0')}s`;
+
+/**
+ * 把「键：值」一行拆成属性网格的两列（`describeEntityState` 的行都是这个格式）。
+ * 没有冒号的整行进值列，键列留空。
+ */
+function splitStateLine(line: string): [string, string] {
+  const at = line.indexOf('：');
+  return at > 0 ? [line.slice(0, at), line.slice(at + 1)] : ['', line];
+}
+
 /** 区域 / 机位：点工具条上的相机按钮呼出。 */
-const REGIONS: { id: CameraPreset; icon: string; label: string }[] = [
-  { id: 'overview', icon: '🌐', label: '全局' },
-  { id: 'infeed', icon: '📥', label: '入料' },
-  { id: 'inspection', icon: '🔎', label: '质检' },
-  { id: 'sorter', icon: '🔀', label: '分拣' },
-  { id: 'warehouse', icon: '🏗️', label: '立库' },
-  { id: 'aisle', icon: '🚋', label: '巷道' },
-  { id: 'outfeed', icon: '📤', label: '出库' },
-  { id: 'external', icon: '🔗', label: '外部' },
+const REGIONS: { id: CameraPreset; label: string }[] = [
+  { id: 'overview', label: '全局' },
+  { id: 'infeed', label: '入料' },
+  { id: 'inspection', label: '质检' },
+  { id: 'sorter', label: '分拣' },
+  { id: 'warehouse', label: '立库' },
+  { id: 'aisle', label: '巷道' },
+  { id: 'outfeed', label: '出库' },
+  { id: 'external', label: '外部' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -69,6 +84,26 @@ const REGIONS: { id: CameraPreset; icon: string; label: string }[] = [
 
 const PLUGIN_MEMORY_KEY = 'twin.plugins.v1';
 const SCENE_MEMORY_KEY = 'twin.scene.v1';
+const THEME_MEMORY_KEY = 'twin.theme.v1';
+
+/** 恢复上次的设备涂装；值不合法就回落到默认档。 */
+function restoreTheme(): ThemeName {
+  if (typeof localStorage === 'undefined') return 'pastel';
+  try {
+    return localStorage.getItem(THEME_MEMORY_KEY) === 'industrial' ? 'industrial' : 'pastel';
+  } catch {
+    return 'pastel';
+  }
+}
+
+function rememberTheme(name: ThemeName): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(THEME_MEMORY_KEY, name);
+  } catch {
+    // 配额满 / 隐私模式：记不住就不记。
+  }
+}
 
 /** 恢复上次的插件集；id 逐个校验，旧配置里的已删插件不会把页面卡死。 */
 function restorePluginIds(): readonly string[] {
@@ -141,15 +176,52 @@ export default function TwinViewport() {
   const [selected, setSelected] = createSignal<TwinEntityView>();
   const [entities, setEntities] = createSignal<TwinEntityView[]>([]);
   const [tab, setTab] = createSignal(untrack(() => defaultTab(profile())), { name: 'studio.inspectorTab' });
+  /** 每个检视页记住自己的滚动位置：切回来时人还在原处，不被重置到顶部。 */
+  let tabPanelEl: HTMLDivElement | undefined;
+  const tabScroll = new Map<string, number>();
+  const selectTab = (id: string): void => {
+    const current = tab();
+    if (id === current) return;
+    if (tabPanelEl) tabScroll.set(current, tabPanelEl.scrollTop);
+    setTab(id);
+    flush();
+    if (tabPanelEl) tabPanelEl.scrollTop = tabScroll.get(id) ?? 0;
+  };
   const [mobileInspector, setMobileInspector] = createSignal(false, { name: 'studio.mobileInspector' });
   const [filter, setFilter] = createSignal<EntityFilter>('device');
   /** 遥测浮层：默认**收起**，点工具条的小按钮才显示（"隐藏浮层"的默认值）。 */
   const [hud, setHud] = createSignal(false);
-  /** 仿真控制条：不常用，默认收起；点工具条按钮或画布左下角的时间胶囊才展开。 */
-  const [controls, setControls] = createSignal(false);
   /** 区域 / 机位浮层：点相机按钮呼出，选完即关。 */
   const [regions, setRegions] = createSignal(false);
-  const [theme, setTheme] = createSignal<ThemeName>('pastel');
+  const [theme, setTheme] = createSignal<ThemeName>(restoreTheme());
+  /**
+   * 渲染节拍的**实测**值：由控制器的 `onStats` 回调（半秒一个窗口）喂进来。
+   * 初值 0 = 还没测到；HUD 在 0 的时候不显示帧率，宁缺毋假。
+   */
+  const [stats, setStats] = createSignal({ fps: 0, frameMs: 0 }, { name: 'studio.stats' });
+  /** 卡片头上的复制微反馈：记下刚复制了什么，1.6s 后自己消失。 */
+  const [copied, setCopied] = createSignal<string>();
+  let copiedTimer: ReturnType<typeof setTimeout> | undefined;
+  const markCopied = (note: string): void => {
+    setCopied(note);
+    clearTimeout(copiedTimer);
+    copiedTimer = setTimeout(() => setCopied(undefined), 1600);
+  };
+  /** 时间轴展开抽屉透镜：审计 / 事件 / 方案对比 */
+  const [activeTimelineLens, setActiveTimelineLens] = createSignal<TimelineLens>();
+  /** 方案对比分叉时刻（秒），在时间轴上画出分叉指示 */
+  const [compareFork, setCompareFork] = createSignal<number>();
+  /**
+   * 右上角指标浮岛：桌面默认展开（三块独立磨砂卡，不挡画布主体）；
+   * 手机档画布只有两三百像素高，默认收起，要看点工具栏再展开。
+   */
+  const [metricsFloating, setMetricsFloating] = createSignal(
+    window.matchMedia?.('(max-width: 760px)').matches !== true,
+  );
+  /** 场景与插件悬浮切换层 */
+  const [switchPopover, setSwitchPopover] = createSignal<'scene' | 'plugins' | false>(false);
+  /** 剩余配置弹窗：外部数据源 / 场景高级文件管理 */
+  const [configModal, setConfigModal] = createSignal<'data' | 'scene' | false>(false);
   const [view, setView] = createSignal<{
     time: number;
     duration: number;
@@ -201,6 +273,7 @@ export default function TwinViewport() {
       document.execCommand('copy');
       document.body.removeChild(area);
     }
+    markCopied(note);
     const current = menu();
     if (current) setMenu({ ...current, note });
   };
@@ -209,6 +282,126 @@ export default function TwinViewport() {
     event.preventDefault();
     setMenu({ x: event.clientX, y: event.clientY, entity });
   };
+
+  /**
+   * 浮层的焦点契约：打开时把焦点送进去，关闭时送回触发它的控件。
+   * 弹窗用 `container`（先让读屏念标题），轻量浮层用 `first`（直接落到第一项）。
+   */
+  let modalEl: HTMLDivElement | undefined;
+  let menuEl: HTMLDivElement | undefined;
+  let regionsEl: HTMLDivElement | undefined;
+  let switchEl: HTMLDivElement | undefined;
+  const useOverlayFocus = (
+    isOpen: () => boolean,
+    root: () => HTMLElement | undefined,
+    initial: 'first' | 'container' = 'first',
+  ): void => {
+    let wasOpen = false;
+    let returnFocus: HTMLElement | null = null;
+    createEffect(
+      () => isOpen(),
+      (open) => {
+        if (open && !wasOpen) {
+          wasOpen = true;
+          returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+          queueMicrotask(() => {
+            const el = root();
+            if (!el) return;
+            if (initial === 'container') el.focus();
+            else {
+              const first = el.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
+              if (first) first.focus();
+              else el.focus();
+            }
+          });
+        } else if (!open && wasOpen) {
+          wasOpen = false;
+          returnFocus?.focus();
+          returnFocus = null;
+        }
+      },
+    );
+  };
+  useOverlayFocus(() => Boolean(configModal()), () => modalEl, 'container');
+  useOverlayFocus(() => Boolean(menu()), () => menuEl);
+  useOverlayFocus(() => regions(), () => regionsEl);
+  useOverlayFocus(() => Boolean(switchPopover()), () => switchEl);
+
+  /** Esc 的关闭顺序：先关最上层的临时层，再关常驻面板；永远只做一件事。 */
+  const closeTopLayer = (): boolean => {
+    if (menu()) {
+      setMenu(null);
+      return true;
+    }
+    if (configModal()) {
+      setConfigModal(false);
+      return true;
+    }
+    if (switchPopover()) {
+      setSwitchPopover(false);
+      return true;
+    }
+    if (regions()) {
+      setRegions(false);
+      return true;
+    }
+    if (activeTimelineLens()) {
+      setActiveTimelineLens(undefined);
+      return true;
+    }
+    if (selected()) {
+      setSelected(undefined);
+      return true;
+    }
+    // 指标浮岛默认就是开的：它是常驻卡，排在临时层后面。
+    if (metricsFloating()) {
+      setMetricsFloating(false);
+      return true;
+    }
+    if (mobileInspector()) {
+      setMobileInspector(false);
+      return true;
+    }
+    return false;
+  };
+
+  /**
+   * 全局键盘：Esc 逐层关闭；空格播放/暂停；左右单步。
+   *
+   * 播放键只在焦点不落在控件上时接管——按钮上的空格属于按钮自己，
+   * 否则一次空格会同时点击按钮和切换播放。
+   */
+  const onWindowKeyDown = (event: KeyboardEvent): void => {
+    if (event.defaultPrevented) return;
+    if (event.key === 'Escape') {
+      if (closeTopLayer()) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      return;
+    }
+    if (event.metaKey || event.ctrlKey || event.altKey) return;
+    if (isTypingTarget(event.target)) return;
+    if (menu() || configModal()) return;
+
+    if (event.code === 'Space' || event.key === ' ') {
+      event.preventDefault();
+      const controller = session().controller;
+      if (controller.playing) controller.pause();
+      else controller.play();
+      return;
+    }
+    if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
+      event.preventDefault();
+      const controller = session().controller;
+      const frames = event.shiftKey ? 30 : 1;
+      controller.pause();
+      if (event.key === 'ArrowRight') controller.stepFrames(frames);
+      else void seekTo(Math.max(0, view().time - frames * session().world.stepSize));
+    }
+  };
+  if (typeof window !== 'undefined') window.addEventListener('keydown', onWindowKeyDown);
+  onCleanup(() => window.removeEventListener('keydown', onWindowKeyDown));
 
   /**
    * 在同一个挂载点上（重新）建三维控制器。换场景与首次挂载共用这条路径。
@@ -227,7 +420,7 @@ export default function TwinViewport() {
         // 点中场景里的东西就把实体页翻出来，不然选中了也看不见。
         // 但从审计面板定位过来的例外：证据面板得留在原地，只有相机飞过去。
         if (entity && !locating) {
-          setTab('entity');
+          selectTab('entity');
           setMobileInspector(true);
         }
       },
@@ -236,12 +429,19 @@ export default function TwinViewport() {
         controller: target.controller,
         presentation: presentationFor(target)?.createScene,
         // 数字孪生只看不改：不传 onDragCommit，画布上的物体不可拖拽。
+        // 帧率/帧耗时走真实测量，胶囊浮岛只报控制器测到的数。
+        onStats: setStats,
       },
     );
     // 插件可提供领域取景；否则按包围盒自动取景。
     controller.setCameraPreset('overview');
     setEntities(controller.entities);
-    setTheme(controller.themeName);
+    // 涂装是用户偏好：上次选的工业档在重建控制器后也要接着用。
+    const activeTheme = untrack(theme);
+    controller.setTheme(activeTheme);
+    setTheme(activeTheme);
+    // 视口底色与界面同色（明亮档），否则视口边缘会露出一圈不同色的框。
+    controller.setBackdrop(VIEWPORT_BACKDROP);
     // 新建的控制器是一张白纸：把当前审计结论立刻画上去，不等下一次面板重算。
     stopTour();
     controller.setAuditSpots(untrack(spots));
@@ -269,6 +469,8 @@ export default function TwinViewport() {
     // 以下一律用 next，不读 session()（见 buildController 的注释）。
     buildController(next);
     setTab(defaultTab(profileFor(next)));
+    tabScroll.clear();
+    if (tabPanelEl) tabPanelEl.scrollTop = 0;
     setMobileInspector(false);
     setWorkspace(workspaceFor(next));
     // 换会话立刻重算一次：不等下一拍，否则新场景会在旧结论下停最多 600ms。
@@ -540,11 +742,14 @@ export default function TwinViewport() {
       }
       // seek 往回跳 = 分叉：事件游标回掤，旧时间线之后的记录按契约截断。
       if (!quiet) {
-        setLocateNote(
-          target.at < before - 1e-6
-            ? `已回放到 t=${target.at.toFixed(2)}s（原 t=${before.toFixed(2)}s）：这是分叉回放，之后的事件已按契约截断，审计按新的证据窗口重算。`
-            : undefined,
-        );
+        if (target.at < before - 1e-6) {
+          setLocateNote(
+            `已回溯至 t=${target.at.toFixed(2)}s（基准 t=${before.toFixed(2)}s）· 观察窗已按回溯时刻同步重算`,
+          );
+          setActiveTimelineLens('audit');
+        } else {
+          setLocateNote(undefined);
+        }
       }
     }
     if (target.entityId) {
@@ -699,9 +904,15 @@ export default function TwinViewport() {
     tick();
     const all = controller ? controller.listEntities() : entities();
     return filter() === 'device'
-      ? all.filter((entity) => !CARGO_KINDS.has(entity.kind))
-      : all.filter((entity) => CARGO_KINDS.has(entity.kind));
+      ? all.filter((entity) => CARGO_KINDS[entity.kind] !== true)
+      : all.filter((entity) => CARGO_KINDS[entity.kind] === true);
   };
+
+  /**
+   * 列表行的状态点：只读世界真实 attrs（背压 > 忙 > 任务 > 卡车 > 设备态），读不到就是空闲。
+   * 只允许在 JSX 里调（那是追踪作用域）；在 <For> 的回调体里直接读 session() 会被诊断判为未跟踪。
+   */
+  const statusOf = (id: string): EntityStatus => entityStatus(session().world.getEntity(id));
 
   return (
     <main class={mobileInspector() ? 'studio-shell studio-inspecting' : 'studio-shell'}>
@@ -709,6 +920,7 @@ export default function TwinViewport() {
         <span class="brand">TWIN STUDIO</span>
         {/* 标题跟着场景走：导入外部布局后，这里显示的就是那个场景的名字。 */}
         <h1>{session().world.scene.name}</h1>
+        {/* 界面只有明亮一档：暗色档暂缓，不做半成品，所以这里没有明暗切换。 */}
         <button
           type="button"
           class="mobile-inspector-toggle"
@@ -722,11 +934,12 @@ export default function TwinViewport() {
 
       <div class="studio-grid">
         <section class="viewport-panel">
-          <div class="viewport-frame">
+          {/* 透镜抽屉展开时，画布底部的胶囊与实体卡让位：抽屉自带播放条，且卡片会压住审计正文。 */}
+          <div class={activeTimelineLens() ? 'viewport-frame lens-open' : 'viewport-frame'}>
             <div class="scene-stage">
             <div ref={mountViewport} class="viewport" aria-label="数字孪生三维场景" />
 
-            {/* 画布左上角一列小按钮：区域 / 遥测 / 主题 / 仿真控制，各自点了才展开内容。 */}
+            {/* 画布左上角药丸工具条：区域 / 指标看板 / 场景插件 / 涂装 / 遥测 / 巡演 / 配置 */}
             <div class="vp-toolbar" aria-label="视图工具">
               <button
                 type="button"
@@ -736,19 +949,39 @@ export default function TwinViewport() {
                 title={`选择区域 / 机位（${VIEW_HINT}）`}
                 onClick={() => setRegions(!regions())}
               >
-                📷
+                <Icon name="camera" />
               </button>
-              <Show when={profile().id === 'logistics'}>
               <button
                 type="button"
-                class={hud() ? 'vp-btn vp-btn-on' : 'vp-btn'}
-                aria-pressed={hud() ? 'true' : 'false'}
-                aria-label="显示 / 隐藏遥测浮层"
-                title={hud() ? '隐藏浮层' : '显示浮层'}
-                onClick={() => setHud(!hud())}
+                class={metricsFloating() ? 'vp-btn vp-btn-on' : 'vp-btn'}
+                aria-pressed={metricsFloating() ? 'true' : 'false'}
+                aria-label="指标看板悬浮窗"
+                title={metricsFloating() ? '关闭指标看板' : '弹出指标看板'}
+                onClick={() => setMetricsFloating(!metricsFloating())}
               >
-                📡
+                <Icon name="bars" />
               </button>
+              <button
+                type="button"
+                class={switchPopover() ? 'vp-btn vp-btn-on' : 'vp-btn'}
+                aria-pressed={switchPopover() ? 'true' : 'false'}
+                aria-label="场景与插件切换"
+                title="场景与插件悬浮切换"
+                onClick={() => setSwitchPopover(switchPopover() ? false : 'scene')}
+              >
+                <Icon name="folder" />
+              </button>
+              <Show when={profile().id === 'logistics'}>
+                <button
+                  type="button"
+                  class={hud() ? 'vp-btn vp-btn-on' : 'vp-btn'}
+                  aria-pressed={hud() ? 'true' : 'false'}
+                  aria-label="显示 / 隐藏遥测浮层"
+                  title={hud() ? '隐藏浮层' : '显示浮层'}
+                  onClick={() => setHud(!hud())}
+                >
+                  <Icon name="radar" />
+                </button>
               </Show>
               <button
                 type="button"
@@ -760,11 +993,11 @@ export default function TwinViewport() {
                   const next: ThemeName = theme() === 'pastel' ? 'industrial' : 'pastel';
                   controller?.setTheme(next);
                   setTheme(next);
+                  rememberTheme(next);
                 }}
               >
-                🎨
+                <Icon name="palette" />
               </button>
-              {/* 审计是张伟要给的主角：有违例就把入口摆在画布上，点开按时间顺序演一遍。 */}
               <Show when={spots().length > 0}>
                 <button
                   type="button"
@@ -778,41 +1011,39 @@ export default function TwinViewport() {
                   }
                   onClick={() => (tourIndex() >= 0 ? stopTour() : void runTour())}
                 >
-                  {tourIndex() >= 0 ? '✖' : '⚖'}
+                  <Icon name={tourIndex() >= 0 ? 'close' : 'shield'} />
                   <span class="vp-badge">{spots().length}</span>
                 </button>
               </Show>
               <button
                 type="button"
-                class={controls() ? 'vp-btn vp-btn-on' : 'vp-btn'}
-                aria-pressed={controls() ? 'true' : 'false'}
-                aria-label="显示 / 隐藏仿真控制条"
-                title={controls() ? '收起仿真控制条' : '展开仿真控制条'}
-                onClick={() => setControls(!controls())}
+                class={configModal() ? 'vp-btn vp-btn-on' : 'vp-btn'}
+                aria-pressed={configModal() ? 'true' : 'false'}
+                aria-label="系统与数据配置"
+                title="数据源与场景高级配置"
+                onClick={() => setConfigModal(configModal() ? false : 'data')}
               >
-                ⏱
+                <Icon name="settings" />
               </button>
-              <button
-                type="button"
-                class={tab() === 'scene' ? 'vp-btn vp-btn-on' : 'vp-btn'}
-                aria-pressed={tab() === 'scene' ? 'true' : 'false'}
-                aria-label="场景导入导出"
-                title={`场景导入 / 导出（当前：${session().sceneSource === 'imported' ? '外部导入' : '插件模板'}）`}
-                onClick={() => {
-                  const closing = tab() === 'scene' && mobileInspector();
-                  setTab(closing ? defaultTab(profile()) : 'scene');
-                  setMobileInspector(!closing);
-                }}
-              >
-                🗂
-              </button>
+            </div>
+
+            {/* 时间胶囊浮岛：画布底部正中，只放一眼要看的东西。
+                帧率/帧耗时是控制器每半秒实测的，没测到就整块不显示——不摆假数字。 */}
+            <div class="vp-hud" aria-label="播放状态">
+              <span class="hud-dot" data-playing={view().playing ? 'true' : 'false'} />
+              <b class="hud-time">{clockText(view().time)}</b>
+              <Show when={stats().fps > 0}>
+                <span class="hud-sep" />
+                <span class="hud-metric">{stats().fps.toFixed(0)} FPS</span>
+                <span class="hud-metric muted">帧 {stats().frameMs.toFixed(1)}ms</span>
+              </Show>
             </div>
 
             {/* 区域列表：点相机呼出，选一个就飞过去并关掉，不常驻占高度。 */}
             <Show when={regions()}>
               <>
                 <div class="vp-backdrop" onPointerDown={() => setRegions(false)} />
-                <div class="vp-popover" aria-label="选择区域">
+                <div class="vp-popover" aria-label="选择区域" ref={(el) => (regionsEl = el)}>
                   <div class="vp-popover-head">区域 / 机位</div>
                   <div class="vp-regions">
                     <For each={regionPresets()}>
@@ -825,7 +1056,7 @@ export default function TwinViewport() {
                             setRegions(false);
                           }}
                         >
-                          <span aria-hidden="true">{region.icon}</span> {region.label}
+                          {region.label}
                         </button>
                       )}
                     </For>
@@ -836,9 +1067,8 @@ export default function TwinViewport() {
             </Show>
 
             <Show when={hud() && profile().id === 'logistics'}>
-
               <div class="telemetry-hud" aria-label="仿真遥测">
-                <h3>📡 Sim Telemetry · t = {view().time.toFixed(1)}s</h3>
+                <h3>Sim Telemetry · t = {view().time.toFixed(1)}s</h3>
                 <div class="telemetry-grid">
                   <div class="tele-cell">
                     <span class="tele-label">在制小件</span>
@@ -929,19 +1159,6 @@ export default function TwinViewport() {
               </div>
             </Show>
 
-            {/* 控制条收起时，左下角只留一枚时间胶囊；点它（或工具条 ⏱）才展开完整控制条。 */}
-            <Show when={!controls()}>
-              <button
-                type="button"
-                class="vp-clock"
-                title="展开仿真控制条"
-                onClick={() => setControls(true)}
-              >
-                <span class="status-dot" />
-                t {view().time.toFixed(1)}s
-                <em>{view().playing ? `▶ ${view().speed}×` : '⏸'}</em>
-              </button>
-            </Show>
             <Dynamic component={workspace()?.views.Stage} />
             </div>
 
@@ -982,83 +1199,483 @@ export default function TwinViewport() {
                 </div>
               )}
             </Show>
+            {/* 设备详情：选中实体时浮在画布**右下角**，不抢右上角的指标视线 */}
+            <Show when={selected()}>
+              {(entity) => {
+                const card = selectedCard;
+                return (
+                  <aside class="floating-entity-card" aria-label="设备详情悬浮窗">
+                    <div class="ed-head">
+                      <span
+                        class="ed-title"
+                        onContextMenu={(event) => openMenu(event, entity())}
+                        title="右键可复制名字 / ID"
+                      >
+                        {card()?.label ?? entity().label}
+                      </span>
+                      <span class="ed-actions">
+                        <button
+                          type="button"
+                          class="icon-btn"
+                          aria-label="复制实体 ID"
+                          title="复制实体 ID"
+                          onClick={() => void copyText(entity().id, '已复制 ID')}
+                        >
+                          <Icon name="copy" size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          class="icon-btn"
+                          aria-label="在场景中定位"
+                          title="在场景中定位"
+                          onClick={() => controller?.focusEntity(entity().id)}
+                        >
+                          <Icon name="locate" size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          class="icon-btn ed-close-btn"
+                          aria-label="关闭设备详情"
+                          title="关闭详情卡"
+                          onClick={() => setSelected(undefined)}
+                        >
+                          <Icon name="close" size={13} />
+                        </button>
+                      </span>
+                    </div>
+                    <div class="ed-sub">
+                      <span class="ed-kind">{card()?.kind ?? entity().kind}</span>
+                      <span class="ed-id">{entity().id}</span>
+                    </div>
+                    <div class="ed-sub">
+                      <span class={entity().partId ? 'part-id' : 'part-id is-none'}>
+                        partId：{entity().partId ?? '—'}
+                      </span>
+                      <span class="badge-src">来源 mesh.name</span>
+                      <Show when={entity().partId}>
+                        <button
+                          type="button"
+                          class="icon-btn"
+                          aria-label="复制件号"
+                          title="复制件号"
+                          onClick={() => void copyText(entity().partId ?? '', '已复制件号')}
+                        >
+                          <Icon name="copy" size={13} />
+                        </button>
+                      </Show>
+                      <Show when={copied()}>
+                        <span class="ed-copied">{copied()}</span>
+                      </Show>
+                    </div>
+                    <Show when={(card()?.stateLines.length ?? 0) > 0}>
+                      <dl class="entity-state">
+                        <For each={card()?.stateLines}>
+                          {(line) => {
+                            const [key, value] = splitStateLine(line);
+                            return (
+                              <>
+                                <dt>{key}</dt>
+                                <dd>{value}</dd>
+                              </>
+                            );
+                          }}
+                        </For>
+                      </dl>
+                    </Show>
+                    <span class="code-path">渲染来源：{card()?.codePath ?? '—'}</span>
+                  </aside>
+                );
+              }}
+            </Show>
+
+            {/* 右上角指标浮岛：三块各自独立的磨砂玻璃卡，不堆进一张大卡片。
+                数字全部来自 session().metrics()（analytics-core 实算），没有就不摆。 */}
+            <Show when={metricsFloating()}>
+              <div class="metric-pods" aria-label="产线指标看板">
+                <div class="metric-pod">
+                  <div class="pod-head">
+                    <span class="pod-title">
+                      <Icon name="bars" size={12} />
+                      产线实时
+                    </span>
+                    <button
+                      type="button"
+                      class="pod-close"
+                      aria-label="关闭指标看板"
+                      title="收起指标浮岛"
+                      onClick={() => setMetricsFloating(false)}
+                    >
+                      <Icon name="close" size={12} />
+                    </button>
+                  </div>
+                  <div class="pod-kpis">
+                    <div class="pod-kpi">
+                      <b>{seriesTotal(metrics().throughput).toFixed(0)}</b>
+                      <span>吞吐（件）</span>
+                    </div>
+                    <div class="pod-kpi">
+                      <b>{seriesLatest(metrics().backlog).toFixed(0)}</b>
+                      <span>积压（件）</span>
+                    </div>
+                  </div>
+                </div>
+
+                <Show when={metrics().utilization.length > 0}>
+                  <div class="metric-pod">
+                    <div class="pod-head">
+                      <span class="pod-title">设备利用率</span>
+                    </div>
+                    <ul class="pod-rows">
+                      <For each={metrics().utilization.slice(0, 4)}>
+                        {(row) => (
+                          <li>
+                            <span class="pod-name">{row.entityId}</span>
+                            <span class="pod-bar" aria-hidden="true">
+                              <span style={{ width: `${Math.min(row.utilization, 1) * 100}%` }} />
+                            </span>
+                            <span class="pod-num">{(row.utilization * 100).toFixed(0)}%</span>
+                          </li>
+                        )}
+                      </For>
+                    </ul>
+                  </div>
+                </Show>
+
+                <Show when={metrics().downtime.length > 0}>
+                  <div class="metric-pod">
+                    <div class="pod-head">
+                      <span class="pod-title">停机</span>
+                    </div>
+                    <ul class="pod-rows">
+                      <For each={metrics().downtime.slice(0, 3)}>
+                        {(row) => (
+                          <li>
+                            <span class="pod-name">{row.entityId}</span>
+                            <span class="pod-num">
+                              {row.downtime.toFixed(1)}s · {row.occurrences} 次
+                            </span>
+                          </li>
+                        )}
+                      </For>
+                    </ul>
+                  </div>
+                </Show>
+              </div>
+            </Show>
+
+            {/* 场景与插件悬浮切换层 */}
+            <Show when={switchPopover()}>
+              <>
+                <div class="vp-backdrop" onPointerDown={() => setSwitchPopover(false)} />
+                <div class="floating-switch-popover" aria-label="场景与插件切换" ref={(el) => (switchEl = el)}
+                  onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); setSwitchPopover(false); } trapTabKey(e, switchEl); }}>
+                  <div class="floating-switch-head">
+                    <div
+                      class="segmented"
+                      role="tablist"
+                      aria-label="场景与插件"
+                      onKeyDown={(e) =>
+                        handleTabKeys(
+                          e,
+                          ['scene', 'plugins'] as const,
+                          switchPopover() || undefined,
+                          (id) => setSwitchPopover(id),
+                        )
+                      }
+                    >
+                      <button
+                        type="button"
+                        role="tab"
+                        class={switchPopover() === 'scene' ? 'seg seg-active' : 'seg'}
+                        aria-selected={switchPopover() === 'scene' ? 'true' : 'false'}
+                        tabindex={switchPopover() === 'scene' ? 0 : -1}
+                        onClick={() => setSwitchPopover('scene')}
+                      >
+                        场景预设
+                      </button>
+                      <button
+                        type="button"
+                        role="tab"
+                        class={switchPopover() === 'plugins' ? 'seg seg-active' : 'seg'}
+                        aria-selected={switchPopover() === 'plugins' ? 'true' : 'false'}
+                        tabindex={switchPopover() === 'plugins' ? 0 : -1}
+                        onClick={() => setSwitchPopover('plugins')}
+                      >
+                        插件生态
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      class="icon-btn"
+                      aria-label="关闭切换面板"
+                      onClick={() => setSwitchPopover(false)}
+                    >
+                      <Icon name="close" size={13} />
+                    </button>
+                  </div>
+
+                  <div class="floating-switch-body">
+                    <Show when={switchPopover() === 'scene'}>
+                      <div class="switch-scene-section">
+                        <div class="switch-scene-info">
+                          <span class="switch-info-label">当前场景</span>
+                          <strong class="switch-info-name">{session().world.scene.name}</strong>
+                          <span class="switch-info-meta">
+                            ID: {session().world.scene.id} · 来源: {session().sceneSource === 'imported' ? '外部导入' : '内置模板'}
+                          </span>
+                        </div>
+                        <div class="switch-actions">
+                          <button
+                            type="button"
+                            class="btn-secondary"
+                            onClick={() => {
+                              resetScene();
+                              setSwitchPopover(false);
+                            }}
+                          >
+                            还原为默认模板场景
+                          </button>
+                          <button
+                            type="button"
+                            class="btn-secondary"
+                            onClick={() => {
+                              setSwitchPopover(false);
+                              setConfigModal('scene');
+                            }}
+                          >
+                            导入 / 导出 / 云端同步…
+                          </button>
+                        </div>
+                      </div>
+                    </Show>
+
+                    <Show when={switchPopover() === 'plugins'}>
+                      <div class="switch-plugins-section">
+                        <PluginsPanel host={session().host} activeIds={activePlugins()} onChange={applyPlugins} />
+                      </div>
+                    </Show>
+                  </div>
+                </div>
+              </>
+            </Show>
+
+            {/* 剩余配置弹窗：外部数据源与场景高级文件/服务端管理 */}
+            <Show when={configModal()}>
+              <>
+                <div class="studio-modal-backdrop" onPointerDown={() => setConfigModal(false)} />
+                <div
+                  class="studio-modal"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label="数据与场景高级配置"
+                  tabindex={-1}
+                  ref={(el) => (modalEl = el)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      e.preventDefault();
+                      setConfigModal(false);
+                    }
+                    trapTabKey(e, modalEl);
+                  }}
+                >
+                  <div class="studio-modal-head">
+                    <div
+                      class="modal-tabs"
+                      role="tablist"
+                      onKeyDown={(e) =>
+                        handleTabKeys(
+                          e,
+                          ['data', 'scene'] as const,
+                          configModal() || undefined,
+                          (id) => setConfigModal(id),
+                        )
+                      }
+                    >
+                      <button
+                        type="button"
+                        role="tab"
+                        class={configModal() === 'data' ? 'modal-tab is-active' : 'modal-tab'}
+                        aria-selected={configModal() === 'data' ? 'true' : 'false'}
+                        tabindex={configModal() === 'data' ? 0 : -1}
+                        onClick={() => setConfigModal('data')}
+                      >
+                        <Icon name="database" size={14} />
+                        <span>外部数据源</span>
+                      </button>
+                      <button
+                        type="button"
+                        role="tab"
+                        class={configModal() === 'scene' ? 'modal-tab is-active' : 'modal-tab'}
+                        aria-selected={configModal() === 'scene' ? 'true' : 'false'}
+                        tabindex={configModal() === 'scene' ? 0 : -1}
+                        onClick={() => setConfigModal('scene')}
+                      >
+                        <Icon name="folder" size={14} />
+                        <span>场景管理与云端</span>
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      class="icon-btn modal-close"
+                      aria-label="关闭配置弹窗"
+                      onClick={() => setConfigModal(false)}
+                    >
+                      <Icon name="close" size={14} />
+                    </button>
+                  </div>
+
+                  <div class="studio-modal-body">
+                    <Show when={configModal() === 'data'}>
+                      <DataSourcePanel
+                        onLoad={(text) => {
+                          const loaded = session().loadCsv(text);
+                          void seekTo(0).then(() => session().controller.play());
+                          setConfigModal(false);
+                          return loaded;
+                        }}
+                        onReset={() => {
+                          session().useSimulation();
+                          void seekTo(0);
+                          setConfigModal(false);
+                        }}
+                      />
+                    </Show>
+
+                    <Show when={configModal() === 'scene'}>
+                      <ScenePanel
+                        sceneId={session().world.scene.id}
+                        sceneName={session().world.scene.name}
+                        source={session().sceneSource}
+                        summary={session().describeScene()}
+                        unknownKinds={session().drivableKinds().unknown}
+                        onImport={(raw) => {
+                          const res = importScene(raw);
+                          if (res.ok) setConfigModal(false);
+                          return res;
+                        }}
+                        onExport={exportScene}
+                        onReset={() => {
+                          resetScene();
+                          setConfigModal(false);
+                        }}
+                        server={server()}
+                        onSaveToServer={saveToServer}
+                        onLoadFromServer={async (id) => {
+                          await loadFromServer(id);
+                          setConfigModal(false);
+                        }}
+                        onDeleteFromServer={deleteFromServer}
+                        onRefreshServer={refreshServerScenes}
+                      />
+                    </Show>
+                  </div>
+                </div>
+              </>
+            </Show>
           </div>
 
-          {/* 仿真控制不常用：默认不渲染，明确点开才出现。 */}
-          <Show when={controls()}>
-            <TimelineBar
-              time={view().time}
-              duration={view().duration}
-              playing={view().playing}
-              speed={view().speed}
-              onPlay={() => session().controller.play()}
-              onPause={() => session().controller.pause()}
-              onSpeed={(speed) => session().controller.setSpeed(speed)}
-              onSeek={(time) => void seekTo(time)}
-              onStep={(steps) => session().controller.stepFrames(steps)}
-              onCollapse={() => setControls(false)}
-              marks={auditMarks()}
-              activeMarkId={auditMarkId()}
-            />
-          </Show>
+          <TimelineBar
+            time={view().time}
+            duration={view().duration}
+            playing={view().playing}
+            speed={view().speed}
+            onPlay={() => session().controller.play()}
+            onPause={() => session().controller.pause()}
+            onSpeed={(speed) => session().controller.setSpeed(speed)}
+            onSeek={(time) => void seekTo(time)}
+            onStep={(steps) => session().controller.stepFrames(steps)}
+            marks={auditMarks()}
+            activeMarkId={auditMarkId()}
+            activeLens={activeTimelineLens()}
+            onLensChange={setActiveTimelineLens}
+            failingCount={audit().counts.fail + audit().counts.error}
+            eventCount={view().events.length}
+            compareForkAt={compareFork()}
+            recentEvents={view().events}
+          >
+            <Show when={activeTimelineLens() === 'audit'}>
+              <div class="tl-drawer-audit">
+                <Show when={spots().length > 0}>
+                  <div class="tl-audit-tour-bar">
+                    <button
+                      type="button"
+                      class="btn-sm btn-secondary"
+                      onClick={() => (tourIndex() >= 0 ? stopTour() : void runTour())}
+                    >
+                      <Icon name={tourIndex() >= 0 ? 'close' : 'shield'} size={12} />
+                      <span>{tourIndex() >= 0 ? '结束审计巡演' : `依次回到 ${spots().length} 处违例现场`}</span>
+                    </button>
+                  </div>
+                </Show>
+                <AuditPanel
+                  audit={audit()}
+                  notice={locateNote()}
+                  onCloseNotice={() => setLocateNote(undefined)}
+                  onLocate={(target) => void locate(target)}
+                />
+              </div>
+            </Show>
+
+            <Show when={activeTimelineLens() === 'events'}>
+              <EventLogPanel events={view().events} stored={view().stored} />
+            </Show>
+
+            <Show when={activeTimelineLens() === 'compare'}>
+              <ScenarioComparePanel
+                currentTime={view().time}
+                onCompare={(forkAt, horizon, zoneB) => session().compare(forkAt, horizon, zoneB)}
+                onForkMark={(forkAt) => setCompareFork(forkAt)}
+              />
+            </Show>
+          </TimelineBar>
         </section>
 
         <aside id="studio-inspector" class="inspector" aria-label="场景控制与实体详情">
-          <div class="tab-bar" role="tablist" aria-label="检视面板">
-            <For each={tabs()}>
-              {(item) => (
-                <button
-                  type="button"
-                  role="tab"
-                  class={tab() === item.id ? 'tab tab-active' : 'tab'}
-                  aria-selected={tab() === item.id ? 'true' : 'false'}
-                  onClick={() => setTab(item.id)}
-                >
-                  <span aria-hidden="true">{item.icon}</span>
-                  {item.label}
-                </button>
-              )}
-            </For>
+          {/* 标签条：左侧是互斥页签，右侧「更多」打开高级配置弹窗。 */}
+          <div class="tab-bar">
+            <div
+              class="tab-list"
+              role="tablist"
+              aria-label="检视面板"
+              onKeyDown={(e) => handleTabKeys(e, tabs().map((t) => t.id), tab(), selectTab)}
+            >
+              <For each={tabs()}>
+                {(item) => {
+                  // 页签自带 icon 字符串：是本站图标名就用线性图标，否则退回它的字形。
+                  const glyph = isIconName(item.icon) ? item.icon : undefined;
+                  return (
+                    <button
+                      type="button"
+                      role="tab"
+                      class={tab() === item.id ? 'tab tab-active' : 'tab'}
+                      aria-selected={tab() === item.id ? 'true' : 'false'}
+                      aria-label={item.label}
+                      title={item.label}
+                      onClick={() => selectTab(item.id)}
+                      tabindex={tab() === item.id ? 0 : -1}
+                    >
+                      {glyph ? <Icon name={glyph} /> : <span aria-hidden="true">{item.icon}</span>}
+                    </button>
+                  );
+                }}
+              </For>
+            </div>
+            <button
+              type="button"
+              class="tab tab-more"
+              aria-label="更多功能"
+              title="外部数据源 / 场景文件与云端同步"
+              onClick={() => setConfigModal('data')}
+            >
+              <Icon name="more" />
+            </button>
           </div>
 
           {/* 六个面板互斥：同一时刻只有一个被渲染，不会堆成一长条。 */}
-          <div class="tab-panel">
+          <div class="tab-panel" ref={(el) => (tabPanelEl = el)}>
             <Show when={tab() === 'entity'}>
-              {/* 卡片放最上面 + sticky（App.css），实体列表再长也不会把它顶出屏幕；
-                  列表自己限高滚动，滚动发生在卡片下方。 */}
-              <section class="entity-detail" aria-live="polite">
-                <h2>🎯 当前选择</h2>
-                <Show when={selected()} fallback={<p>点击场景中的设备或物料，或从下方列表选择。</p>}>
-                  {(entity) => {
-                    // 卡片数据只从 selectionCard() 取（工具 / AI 同款），它每拍现算，
-                    // 所以下面一律用普通表达式消费，不能再套一层 <Show when={卡片}>。
-                    const card = selectedCard;
-                    return (
-                      <>
-                        <strong onContextMenu={(event) => openMenu(event, entity())} title="右键可复制名字 / ID">
-                          {card()?.label ?? entity().label}
-                        </strong>
-                        <span>
-                          {card()?.kind ?? entity().kind} · {entity().id}
-                        </span>
-                        <span class="part-id">partId：{entity().partId ?? '—'}</span>
-                        <Show when={(card()?.stateLines.length ?? 0) > 0}>
-                          <dl class="entity-state">
-                            <For each={card()?.stateLines}>
-                              {(line) => <dd>{line}</dd>}
-                            </For>
-                          </dl>
-                        </Show>
-                        <span class="code-path">渲染来源：{card()?.codePath ?? '—'}</span>
-                        <button type="button" onClick={() => controller?.focusEntity(entity().id)}>
-                          聚焦此实体
-                        </button>
-                      </>
-                    );
-                  }}
-                </Show>
-              </section>
-
+              {/* 选中详情已搬到画布右下角的悬浮卡（.floating-entity-card）：
+                  同一份数据不在这里再铺一遍。这里只留“挑实体”。 */}
               <div class="segmented" role="group" aria-label="实体类别">
                 <button
                   type="button"
@@ -1083,65 +1700,20 @@ export default function TwinViewport() {
                   {(entity) => (
                     <button
                       type="button"
-                      class={selected()?.id === entity.id ? 'selected' : undefined}
+                      class={{ selected: selected()?.id === entity.id }}
                       onClick={() => controller?.selectEntity(entity.id)}
                       onContextMenu={(event) => openMenu(event, entity)}
-                      title="左键选中，右键复制名字 / ID"
+                      title={`${entity.label} · ${ENTITY_STATUS_LABEL[statusOf(entity.id)]}（右键可复制）`}
                     >
-                      {entity.label}
+                      <span class={{ 'st-dot': true, [`st-${statusOf(entity.id)}`]: true }} aria-hidden="true" />
+                      <span class="st-name">{entity.label}</span>
+                      <span class="st-id">{entity.id}</span>
                     </button>
                   )}
                 </For>
               </div>
             </Show>
 
-            <Show when={tab() === 'audit'}>
-              <AuditPanel audit={audit()} notice={locateNote()} onLocate={(target) => void locate(target)} />
-            </Show>
-
-            <Show when={tab() === 'metrics'}>
-              <MetricsPanel metrics={metrics()} />
-            </Show>
-
-            <Show when={tab() === 'compare'}>
-              <ScenarioComparePanel onCompare={(forkAt, horizon, zoneB) => session().compare(forkAt, horizon, zoneB)} />
-            </Show>
-
-            <Show when={tab() === 'data'}>
-              <DataSourcePanel
-                onLoad={(text) => {
-                  const loaded = session().loadCsv(text);
-                  void seekTo(0).then(() => session().controller.play());
-                  return loaded;
-                }}
-                onReset={() => {
-                  session().useSimulation();
-                  void seekTo(0);
-                }}
-              />
-            </Show>
-
-            <Show when={tab() === 'scene'}>
-              <ScenePanel
-                sceneId={session().world.scene.id}
-                sceneName={session().world.scene.name}
-                source={session().sceneSource}
-                summary={session().describeScene()}
-                unknownKinds={session().drivableKinds().unknown}
-                onImport={importScene}
-                onExport={exportScene}
-                onReset={resetScene}
-                server={server()}
-                onSaveToServer={saveToServer}
-                onLoadFromServer={loadFromServer}
-                onDeleteFromServer={deleteFromServer}
-                onRefreshServer={refreshServerScenes}
-              />
-            </Show>
-
-            <Show when={tab() === 'events'}>
-              <EventLogPanel events={view().events} stored={view().stored} />
-            </Show>
 
             <Dynamic component={workspace()?.views.panels?.[tab()]} />
 
@@ -1166,25 +1738,33 @@ export default function TwinViewport() {
             />
             <div
               class="ctx-menu"
+              role="menu"
+              aria-label={`${menu()?.entity.label ?? ''} 操作`}
+              ref={(el) => (menuEl = el)}
               style={{
-                left: `${Math.max(8, Math.min(state().x, window.innerWidth - 200))}px`,
-                top: `${Math.max(8, Math.min(state().y, window.innerHeight - 180))}px`,
+                left: `${Math.max(8, Math.min((menu()?.x ?? 0), window.innerWidth - 200))}px`,
+                top: `${Math.max(8, Math.min((menu()?.y ?? 0), window.innerHeight - 180))}px`,
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') { e.preventDefault(); setMenu(null); }
+                trapTabKey(e, menuEl);
               }}
             >
               <div class="ctx-title" title={state().entity.id}>
                 {state().entity.label}
               </div>
-              <button type="button" onClick={() => void copyText(state().entity.label, '已复制名字')}>
-                📋 复制名字
+              <button type="button" role="menuitem" onClick={() => void copyText(state().entity.label, '已复制名字')}>
+                复制名字
               </button>
-              <button type="button" onClick={() => void copyText(state().entity.id, '已复制 ID')}>
-                🏷️ 复制 ID
+              <button type="button" role="menuitem" onClick={() => void copyText(state().entity.id, '已复制 ID')}>
+                复制 ID
               </button>
               <button
                 type="button"
+                role="menuitem"
                 onClick={() => void copyText(controller?.codePath(state().entity.id) ?? '', '已复制渲染来源')}
               >
-                🧭 复制渲染来源
+                复制渲染来源
               </button>
               <Show when={state().note}>
                 <div class="ctx-note">{state().note}</div>

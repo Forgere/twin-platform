@@ -69,11 +69,10 @@ describe('<PoseEditor />', () => {
   });
 
   test('锁定时输入框禁用并展示内核给的原因', () => {
-    const { input, getByText } = setup({ position: [1, 2, 3] }, '位姿由路径决定（声明了 motion），要改得改路径。');
+    const { input, container } = setup({ position: [1, 2, 3] }, '位姿由路径决定（声明了 motion），要改得改路径。');
 
     expect(input('位置 X').disabled).toBe(true);
     expect(input('朝向 Y').disabled).toBe(true);
-    expect(getByText(/🔒/)).toBeTruthy();
-    expect(getByText(/路径/)).toBeTruthy();
+    expect(container.querySelector('.pose-lock')?.textContent).toContain('位姿由路径决定');
   });
 });

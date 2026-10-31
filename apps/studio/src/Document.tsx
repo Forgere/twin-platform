@@ -15,7 +15,9 @@ export default function Document(props: ParentProps) {
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
         <link rel="icon" href="/favicon.ico" />
-        <title>Solid App</title>
+        {/* 只有明亮一档：声明 light，原生滚动条 / 下拉框才不会被浏览器涂成深色。 */}
+        <meta name="color-scheme" content="light" />
+        <title>Twin Studio · 数字孪生工作台</title>
         <HydrationScript />
       </head>
       <body>{props.children}</body>

@@ -52,6 +52,14 @@ export interface TwinSceneControllerOptions {
    * @returns 这条编辑是否被接受；false 时渲染层自己把网格吸附回世界状态。
    */
   onDragCommit?: (entityId: string, position: TwinVector3) => boolean;
+  /**
+   * 渲染节拍的真实测量：约每 500ms 一次，只报实测值。
+   *
+   * `fps` 是这半秒内真实跑完的帧数除以墙钟时间；`frameMs` 是每帧**渲染自身**
+   * 的 CPU 耗时均值（performance.now 夹住帧体，不含 vsync 等待）。
+   * 不传就完全不测——不编造帧率，宁可没有读数。
+   */
+  onStats?: (stats: { fps: number; frameMs: number }) => void;
 }
 
 /** 拖拽阈值（米）：小于它就算一次点击（只选中，不改布局）。 */
@@ -137,6 +145,15 @@ export class TwinSceneController {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly controls: CameraControls;
   private frameId: number | undefined;
+  /** 渲染节拍的真实测量（只在传了 onStats 时累计）。 */
+  private readonly onStats: TwinSceneControllerOptions['onStats'];
+  private statsFrames = 0;
+  private statsCostMs = 0;
+  private statsElapsed = 0;
+  /** 视口底色：跟界面主题走，默认暗色（与 CSS 的 --bg 同值）。 */
+  private backdrop = '#0D0F12';
+  /** 最近一次上报的实测值（HUD 每拍读它）。 */
+  private lastStats = { fps: 0, frameMs: 0 };
 
   constructor(
     private readonly host: HTMLElement,
@@ -146,6 +163,7 @@ export class TwinSceneController {
     this.controller = options.controller;
     this.worldScene = options.scene;
     this.onDragCommit = options.onDragCommit;
+    this.onStats = options.onStats;
     this.entities = options.scene.entities.map((entity) => ({
       id: entity.id,
       kind: entity.kind,
@@ -154,7 +172,7 @@ export class TwinSceneController {
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.setClearColor('#F5F2EB');
+    this.renderer.setClearColor(this.backdrop);
     this.renderer.shadowMap.enabled = true;
     // PCFShadowMap：相比默认 BasicShadowMap（硬边、移动物体边缘严重闪烁）抗锯齿更好；
     // 旧版用的 PCFSoftShadowMap 在本版本 three 已废弃（强制回落 PCFShadowMap），故直接用 PCF。
@@ -199,6 +217,24 @@ export class TwinSceneController {
   /** 当前主题名，供 UI 同步按钮态。 */
   get themeName(): ThemeName {
     return getActiveTheme().name;
+  }
+
+  /** 最近一次测量的渲染节拍；没传 `onStats` 时一直是 0（HUD 据此隐藏读数）。 */
+  get stats(): { fps: number; frameMs: number } {
+    return this.lastStats;
+  }
+
+  /**
+   * 换视口底色（跟随界面主题）。画布与面板必须同色：暗色 UI 里嵌一块米黄，
+   * 看上去像视口没加载完。
+   *
+   * 只换背景，**不动**地面、网格与灯光：它们是场景的美术方向（奶油色台面 +
+   * 暖白主光），设备涂装与阴影都按它调过；换背景已足够让视口和界面融合。
+   */
+  setBackdrop(color: string): void {
+    this.backdrop = color;
+    this.renderer.setClearColor(color);
+    this.scene.background = new THREE.Color(color);
   }
 
   /**
@@ -422,7 +458,7 @@ export class TwinSceneController {
   }
 
   private buildEnvironment(scene: TwinScene): void {
-    this.scene.background = new THREE.Color('#F5F2EB');
+    this.scene.background = new THREE.Color(this.backdrop);
     if (this.presentation?.showHelpers !== false) {
       const grid = new THREE.GridHelper(64, 64, '#D8D0C2', '#E8E4DC');
       this.scene.add(grid);
@@ -1040,15 +1076,42 @@ export class TwinSceneController {
 
   private renderFrame = (): void => {
     this.frameId = requestAnimationFrame(this.renderFrame);
+    const startedAt = performance.now();
     // three r185 起 Clock 废弃，改用 Timer：每帧先 update() 再 getDelta()（单位同为秒）。
     this.timer.update();
     const delta = this.timer.getDelta();
     this.applyFrame(this.controller.advance(delta));
     this.animateSubParts(delta);
-    if (this.selectionHelper && 'update' in this.selectionHelper && typeof (this.selectionHelper as { update?: unknown }).update === 'function') {
-      (this.selectionHelper as unknown as { update: () => void }).update();
-    }
+    // 两个 helper 只有 BoxHelper 有 update()（Box3Helper 靠 updateMatrixWorld 跟随）。
+    // 用 `in` + typeof 收窄，别把联合类型强转成伪造形状再读成员。
+    const helper = this.selectionHelper;
+    if (helper && 'update' in helper && typeof helper.update === 'function') helper.update();
     this.controls.update(delta);
     this.renderer.render(this.scene, this.camera);
+    this.sampleStats(delta, performance.now() - startedAt);
   };
+
+  /**
+   * 帧率与帧耗时的真实测量：半秒一个窗口，两个数都来自实测。
+   *
+   * `fps` = 窗口内跑完的帧数 ÷ 墙钟时间（Timer 的 delta 累计），掉帧会如实反映；
+   * `frameMs` = 每帧渲染自身的 CPU 耗时均值（performance.now 夹住帧体，不含等 vsync）。
+   *
+   * 不传 `onStats` 就完全不测：HUD 宁可不显示，也不摆一个编出来的数字。
+   */
+  private sampleStats(delta: number, costMs: number): void {
+    if (!this.onStats) return;
+    this.statsFrames += 1;
+    this.statsCostMs += costMs;
+    this.statsElapsed += delta;
+    if (this.statsElapsed < 0.5) return;
+    this.lastStats = {
+      fps: Math.round((this.statsFrames / this.statsElapsed) * 10) / 10,
+      frameMs: Math.round((this.statsCostMs / this.statsFrames) * 10) / 10,
+    };
+    this.statsFrames = 0;
+    this.statsCostMs = 0;
+    this.statsElapsed = 0;
+    this.onStats(this.lastStats);
+  }
 }
