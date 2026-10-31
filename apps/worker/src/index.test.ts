@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import worker, { isApiPath, proxyApi, upstreamUrl, type WorkerEnv } from './index';
+import worker, { isApiPath, isStaticOnly, proxyApi, upstreamUrl, type WorkerEnv } from './index';
 
 /** 记录式 fetch：核对"发出去的请求长什么样"，不真的发包。 */
 function recorder(respond: () => Response = () => Response.json({ ok: true })) {
@@ -132,5 +132,25 @@ describe('worker.fetch', () => {
     const response = await worker.fetch(new Request('http://studio.local/api/health'), assets);
     // 上游没配 → 502（说明走的是反代分支，而不是返回静态资产）。
     expect(response.status).toBe(502);
+  });
+
+  test('单场景静态部署：/api 一律 404，不发包、也不回 502 未配置上游', async () => {
+    const response = await worker.fetch(new Request('http://scene.local/api/health'), env({ STATIC_ONLY: '1', UPSTREAM: undefined }));
+    expect(response.status).toBe(404);
+    expect(await response.json()).toMatchObject({ error: expect.stringContaining('静态') });
+  });
+
+  test('单场景静态部署：资产照常发（含 /scene.json）', async () => {
+    const response = await worker.fetch(new Request('http://scene.local/scene.json'), env({ STATIC_ONLY: '1' }));
+    expect(await response.text()).toBe('asset');
+  });
+});
+
+describe('isStaticOnly', () => {
+  test('只有 1 / true 开静态模式，未配置保持反代语义', () => {
+    expect(isStaticOnly({ STATIC_ONLY: '1' })).toBe(true);
+    expect(isStaticOnly({ STATIC_ONLY: 'true' })).toBe(true);
+    expect(isStaticOnly({ STATIC_ONLY: '0' })).toBe(false);
+    expect(isStaticOnly({})).toBe(false);
   });
 });

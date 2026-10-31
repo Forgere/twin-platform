@@ -13,6 +13,7 @@ import type { ThemeName } from '../scene/theme';
 import { diffScenes, parseSceneDocument, sceneFileName, serializeSceneDocument, type TwinScene } from '@twin-platform/scene-schema';
 import { createHttpStorage, pingServer } from '@twin-platform/storage-http';
 import { resolveServerUrl } from '../scene/serverUrl';
+import { fetchStaticScene, isStaticScene, staticPluginIds, staticSceneUrl } from '../scene/staticScene';
 import ScenePanel, {
   type SceneExportPayload,
   type SceneHistoryState,
@@ -112,6 +113,8 @@ function rememberTheme(name: ThemeName): void {
 
 /** 恢复上次的插件集；id 逐个校验，旧配置里的已删插件不会把页面卡死。 */
 function restorePluginIds(): readonly string[] {
+  // 单场景部署的插件集由构建期 VITE_SCENE_PLUGINS 决定；本地记忆会让访客看到别的领域包。
+  if (isStaticScene()) return staticPluginIds() ?? [...DEFAULT_PLUGIN_IDS];
   if (typeof localStorage === 'undefined') return [...DEFAULT_PLUGIN_IDS];
   try {
     const raw = localStorage.getItem(PLUGIN_MEMORY_KEY);
@@ -127,6 +130,8 @@ function restorePluginIds(): readonly string[] {
 
 /** 恢复上次的场景文档；解析 / 校验失败就当没存过（回落到插件模板）。 */
 function restoreScene(): TwinScene | undefined {
+  // 单场景模式永远以发布的那一份为准，不能被上一次会话的记忆顶掉。
+  if (isStaticScene()) return undefined;
   if (typeof localStorage === 'undefined') return undefined;
   try {
     const raw = localStorage.getItem(SCENE_MEMORY_KEY);
@@ -139,6 +144,7 @@ function restoreScene(): TwinScene | undefined {
 }
 
 function rememberScene(scene: TwinScene): void {
+  if (isStaticScene()) return; // 单场景部署不往访客浏览器写记忆。
   if (typeof localStorage === 'undefined') return;
   try {
     localStorage.setItem(SCENE_MEMORY_KEY, serializeSceneDocument(scene));
@@ -148,6 +154,7 @@ function rememberScene(scene: TwinScene): void {
 }
 
 function rememberPlugins(ids: readonly string[]): void {
+  if (isStaticScene()) return;
   if (typeof localStorage === 'undefined') return;
   try {
     localStorage.setItem(PLUGIN_MEMORY_KEY, JSON.stringify(ids));
@@ -709,15 +716,35 @@ export default function TwinViewport() {
     });
 
   /**
-   * 启动时探一次服务端。
+   * 启动只走两条路，且**互斥**：
    *
-   * 探不到是**正常状态**（纯静态部署），不报错、不弹提示，只是场景面板少了
-   * "服务端"那一块。探到了就把会话换成 HTTP 仓储，之后场景与事件都落服务端。
+   * - 单场景部署（`VITE_SCENE_URL`）：取那一份 scene.json 建会话，**不探测服务端**，
+   *   也不读 localStorage。首帧可能还是插件模板（会话在 mount 时就建好了，场景要等
+   *   一次 fetch），随后立刻被发布的那份替换；替换失败就把原因写到场景面板，
+   *   而不是让访客对着模板以为这就是发出去的场景。
+   * - 多场景工作台：探一次服务端。探不到是**正常状态**（纯静态部署），不报错、
+   *   不弹提示，只是场景面板少了"服务端"那一块；探到了就换 HTTP 仓储。
    */
   onSettled(() => {
     // onSettled 要求回调返回「清理函数或 undefined」；原 onMount 是 fire-and-forget，
     // 这里把异步体包成 IIFE 再以 void 返回，等价于挂载后只探一次服务端。
     void (async () => {
+      if (isStaticScene()) {
+        const url = staticSceneUrl();
+        try {
+          const raw = await fetchStaticScene(url);
+          const parsed = parseSceneDocument(raw);
+          if (!parsed.ok || !parsed.scene) {
+            const issues = parsed.issues.map((issue) => issue.message).join('；');
+            throw new Error(issues || '场景文档校验未通过。');
+          }
+          replaceSession(new StudioSession(parsed.scene, undefined, resolvePlugins(activePlugins())));
+        } catch (error) {
+          // 拿不到 / 校验不过 = 这份部署是坏的。把原因摆到面板上，而不是静默放一份模板。
+          setServer({ url, scenes: [], busy: false, note: error instanceof Error ? error.message : String(error) });
+        }
+        return;
+      }
       // 线上同源（经 Cloudflare Worker，token 由 Worker 注入）时这两个都是空：
       // URL 走 origin，前端不带 token，也带不了——它根本不知道 token。
       // 本地跨源联调才用 VITE_TWIN_SERVER / VITE_TWIN_API_TOKEN 覆盖。

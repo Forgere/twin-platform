@@ -24,6 +24,16 @@ export interface WorkerEnv {
   UPSTREAM?: string;
   /** 注入的共享 Bearer token，必须与服务端 `TWIN_API_TOKEN` 一致；为空则不注入。 */
   API_TOKEN?: string;
+  /**
+   * 单场景静态部署（`bun run deploy:scene`）：设为 `1` 时 `/api/*` 一律 404，
+   * 其余路径只发静态资产。没有 UPSTREAM 可配，也不再回 502「未配置上游」——
+   * 这份站点根本没有服务端，页面启动时也不探测它（见 studio 的 staticScene.ts）。
+   */
+  STATIC_ONLY?: string;
+}
+
+export function isStaticOnly(env: Pick<WorkerEnv, 'STATIC_ONLY'>): boolean {
+  return env.STATIC_ONLY === '1' || env.STATIC_ONLY === 'true';
 }
 
 const json = (body: unknown, status: number): Response =>
@@ -71,7 +81,10 @@ export async function proxyApi(
 export default {
   async fetch(request: Request, env: WorkerEnv): Promise<Response> {
     const url = new URL(request.url);
-    if (isApiPath(url.pathname)) return proxyApi(request, env);
+    if (isApiPath(url.pathname)) {
+      if (isStaticOnly(env)) return json({ error: '单场景静态部署：无服务端。' }, 404);
+      return proxyApi(request, env);
+    }
     // 非 API 路径（含 404）交给资产：wrangler.jsonc 里
     // `not_found_handling: single-page-application` 负责 SPA 回退到 index.html。
     return env.ASSETS.fetch(request);

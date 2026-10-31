@@ -1,6 +1,6 @@
 # Twin Platform
 
-面向低成本、可插拔数字孪生场景的平台，三个 app + 一组包：
+可验证仿真场景的基础设施：参考运行时 + 两套跨领域参考实现 + 多个外部 adapter + 一条验证链 CLI。
 
 ## 开源定位
 
@@ -12,6 +12,39 @@ Twin Platform 的长期目标是成为**可验证仿真场景（Verifiable Simul
 外部 runtime adapter 进一步证明同一套验证链不只服务内核：`adapters/simpy` 既跑内置离散事件模型，也能经静态预检与受限沙箱执行任意 SimPy 模型文件，`adapters/fmu` 用 ctypes 真加载 FMI 2.0 Co-Simulation FMU 二进制，`adapters/openscenario` 导入 ASAM OpenSCENARIO 1.x 场景 XML 的显式子集；三者都产出同一套 trace，并接受公共审计、差分与 CI 门禁；`adapters/introspector` 再提供不执行外部代码的通用 introspection，自动抽取模型事实并生成可运行场景草案；`adapters/opendrive` 负责 OpenDRIVE 路网求解，把 `LanePosition` 真解算成世界坐标并支持车道级跨道路换路；`examples/packages/` 给出 scene package 目录约定，`packages/plugin-conformance` 提供插件自检套件；[贡献指南](./CONTRIBUTING.md) 给出写规则 / 场景 / adapter / 插件的门槛，`examples/community/mini-line/` 演示外部贡献场景包。
 战略与落地路线见 [开源方向与行动计划](./docs/开源方向与行动计划.md)，公共 trace / run / audit / replay / diff / report 接口见 [可验证场景公共层](./docs/可验证场景.md)。
 
+## 5 分钟上手
+
+不装数据库、不开浏览器，从克隆一直跑到一份 HTML 审计报告：
+
+```bash
+git clone https://github.com/Forgere/twin-platform.git && cd twin-platform
+bun install
+
+# 跑一个工厂场景：智能物流中心（产出 → 打包 → 入库 → 出库 → 卡车运走）
+bun run scene run \
+  --scene examples/packages/logistics-center/scene.json \
+  --plugin logistics --seed 7 --seconds 300 \
+  --out .scene-ci/logistics-center
+
+open .scene-ci/logistics-center/report.html   # Linux 用 xdg-open
+```
+
+`scene run` 用固定步长跑完整段仿真，执行 2 条运行时不变式（全链路 + 物料守恒），
+产出 `trace.json`（可回放 / 可 diff）、`report.json` 与 `report.html`。把它和黄金基线比对，分歧即退出 1：
+
+```bash
+bun run scene replay \
+  --scene examples/packages/logistics-center/scene.json \
+  --plugin logistics --seed 7 --seconds 300 \
+  --baseline examples/packages/logistics-center/expected/trace.json
+```
+
+同一套验证链跨语言：`adapters/simpy` 用真实 Python 产出同一份 trace，`bun run scene verify` 用 TypeScript 重算其哈希。
+最小基线在 `examples/packages/hello`，外部贡献示例在 `examples/community/mini-line`，
+场景包目录约定见 [`examples/packages/README.md`](./examples/packages/README.md)，公共接口见 [可验证场景公共层](./docs/可验证场景.md)。
+
+## 仓库结构
+
 | | |
 |---|---|
 | `apps/studio` | SolidJS 2 工作台（三维视口 + 回放 + 指标 + 方案对比） |
@@ -19,7 +52,7 @@ Twin Platform 的长期目标是成为**可验证仿真场景（Verifiable Simul
 | `apps/worker` | Cloudflare Worker：静态资产 + `/api/*` 反代并**注入** token |
 | `packages/*` | `world-kernel` / `scene-schema` / `storage-*` / `replay-core` / `analytics-core` / `plugins-*` … |
 
-架构与路线见 [行动计划](./docs/行动计划.md) 与 [开源方向与行动计划](./docs/开源方向与行动计划.md)，贡献规则见 [贡献指南](./CONTRIBUTING.md)，数据契约见 [服务端与持久化](./docs/服务端与持久化.md)，上云方案见 [云端部署](./docs/云端部署.md)，场景 JSON 见 [场景文件格式](./docs/场景文件格式.md)。
+架构与路线见 [行动计划](./docs/行动计划.md) 与 [开源方向与行动计划](./docs/开源方向与行动计划.md)，贡献规则见 [贡献指南](./CONTRIBUTING.md)。
 
 ## 命令
 
@@ -31,15 +64,19 @@ Twin Platform 的长期目标是成为**可验证仿真场景（Verifiable Simul
 | `bun run dev` | Studio 开发服务器 → `http://localhost:3000` |
 | `bun run dev:server` | 服务端 → `:8787`（默认 file 后端，零外部依赖） |
 | `bun run dev:worker` | `wrangler dev` → `:8787`（上游读 `apps/worker/.dev.vars`） |
+| `bun run dev:scene` | 单场景开发 → `:3000`（不开服务端；`VITE_SCENE_URL` 指定场景） |
+| `bun run deploy:scene` | 构建单场景静态站点（`-- scene.json --plugin logistics`），配 `wrangler deploy --env scene` 上 Cloudflare |
 | `bun run build` | 构建静态产物到 `apps/studio/dist/client` |
 | `bun run test` | `bun test packages apps/server apps/worker`（包与服务端单测） |
 | `bun run typecheck` | Studio + 全部包 + server / worker |
+| `bun run scene run/audit/replay/diff/report` | 场景验证 CLI（上手见上方 5 分钟；接口见 [可验证场景公共层](./docs/可验证场景.md)） |
+| `bun run scene package <dir>` | 校验 scene package 目录契约（不跑仿真） |
 
 Studio 的组件测试走 vitest：`cd apps/studio && bun x vitest run`。
 
 ---
 
-## 本地开发要配什么
+## 本地开发（平台 app，可选）
 
 ### 1. 零配置起步（最常用）
 
@@ -56,6 +93,21 @@ bun run dev            # 终端 2：:3000
 
 > 服务端不在 8787 时（比如本地把 8787 让给 Worker、server 挪到 8799），
 > 用 `TWIN_SERVER_ORIGIN=http://127.0.0.1:8799 bun run dev` 改代理上游。
+
+### 1b. 只看一个场景（不开服务端）
+
+```bash
+bun run dev:scene        # 先把物流中心示例拷进 public/scene.json，再以单场景模式启动 :3000
+# 换场景 / 换领域包：
+bun scripts/deploy-scene.ts --no-build -- path/to/scene.json --plugin logistics
+VITE_SCENE_URL=/scene.json bun run dev
+```
+
+单场景模式由 `VITE_SCENE_URL` 开启（`apps/studio/src/scene/staticScene.ts`）：启动直接取这份
+`scene.json` 建会话，**跳过 localStorage 记忆与服务端探测**，所以页面打开就是它，
+不会被上一次会话或某个不存在的服务端影响。`VITE_SCENE_PLUGINS` 选领域包
+（逗号分隔的插件 id，留空用默认）。`public/scene.json` 是生成物（已 gitignore），
+`bun run build` 不会带它——普通构建仍是多场景工作台。
 
 ### 2. Studio 怎么决定"连不连服务端"
 
@@ -112,9 +164,31 @@ bun run dev:worker                                        # 终端 2：:8787
 
 ---
 
-## 部署要配什么
+## 部署（可选）
 
-两条路线二选一，**生产一律用 postgres 后端**（file 后端在容器里是临时存储）。
+两种形态，按你要发布的东西选：
+
+| 形态 | 适用 | 需要服务端 / 数据库 |
+|---|---|---|
+| **单场景静态站点** | 给别人看**一个**场景（演示、文档、交付） | 都不需要，零 secret |
+| 平台 app（多场景工作台） | 完整工作台：场景库、版本、事件落库 | 需要（postgres 后端） |
+
+### 单场景：一条命令发到 Cloudflare
+
+```bash
+bun run deploy:scene                                  # 默认物流中心示例
+bun run deploy:scene -- path/to/scene.json --plugin logistics
+cd apps/worker && bun x wrangler deploy --env scene   # 静态专用 Worker（twin-scene）
+```
+
+`deploy:scene` 做三件事：场景过一遍 `parseSceneDocument`（与 Studio 导入同一道校验）→
+拷进 `apps/studio/public/scene.json` → 用 `VITE_SCENE_URL=/scene.json` + `VITE_SCENE_PLUGINS`
+构建出 `apps/studio/dist/client`。`--env scene` 那个 Worker 只发静态资产、`/api/*` 回 404
+（`STATIC_ONLY=1`，见 `apps/worker/wrangler.jsonc`），**不需要 `UPSTREAM` / `API_TOKEN`**。
+想换 Pages 而不是 Worker：`bun run deploy:scene -- --out .scene-ci/site`，再
+`bun x wrangler pages deploy .scene-ci/site --project-name twin-scene`。
+
+下面是**平台 app** 的部署；两条路线二选一，**生产一律用 postgres 后端**（file 后端在容器里是临时存储）。
 
 ### 路线 A：Cloudflare Worker（静态资产 + 边缘反代）
 
@@ -129,7 +203,7 @@ bun run deploy                                  # 或回根目录 bun run --filt
 - 两个值走 **secret**，故意不写进 `wrangler.jsonc`（写进配置的 `vars` 会被提交并随每次部署覆盖线上值）。
 - token 只存在 Worker 与服务端，**不进前端 bundle**；Worker 先删掉客户端带来的 `authorization` 再盖上自己的。
 - 静态资产目录、SPA 回退由 `apps/worker/wrangler.jsonc` 的 `assets` 段配置。
-- 国内注意：`workers.dev` 被 DNS 污染，需绑自定义域名（详见 [云端部署 §4](./docs/云端部署.md)）。
+- 国内注意：`workers.dev` 被 DNS 污染，需绑自定义域名。
 
 ### 路线 B：Docker Compose（服务端 + 托管 PostgreSQL）
 
@@ -172,7 +246,7 @@ curl -o /dev/null -w '%{http_code}\n' https://你的域名/api/health   # => 401
 - [ ] 密钥只进 Secret / `deploy/.env`（均已 gitignore），绝不提交
 - [ ] 迁移已自动跑过（启动日志 / `_twin_migrations` 表）
 
-数据库选型、探活、连接池、水平扩展、备份见 [云端部署](./docs/云端部署.md)。
+
 
 ---
 

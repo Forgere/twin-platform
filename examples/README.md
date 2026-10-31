@@ -7,6 +7,7 @@
 | `hello/scene.json` | 静态最小场景（无随机、无渲染），跨平台逐字节一致 |
 | `hello/expected/trace.json` | 它的黄金基线（`--seconds 2` 生成） |
 | `logistics-center/fast.json` | 物流中心模板的加速参数（产出间隔 1s、在制 8、高水位 6） |
+| `packages/logistics-center/` | 工厂参考场景包：完整输入 + 黄金基线，`scene run/replay/package` 直接可跑 |
 
 ## 常用命令
 

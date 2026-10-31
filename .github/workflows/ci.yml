@@ -86,6 +86,8 @@ jobs:
           bun run scene package examples/packages/hello --out .scene-ci/package --junit .scene-ci/package/junit.xml
           bun run scene package examples/community/mini-line --out .scene-ci/community --junit .scene-ci/community/junit.xml
           bun run scene replay --scene examples/community/mini-line/scene.json --plugin logistics --seed 1 --seconds 30 --baseline examples/community/mini-line/expected/trace.json --junit .scene-ci/community/replay-junit.xml
+          bun run scene package examples/packages/logistics-center --out .scene-ci/logistics-center-pkg --junit .scene-ci/logistics-center-pkg/junit.xml
+          bun run scene replay --scene examples/packages/logistics-center/scene.json --plugin logistics --seed 7 --seconds 300 --baseline examples/packages/logistics-center/expected/trace.json --junit .scene-ci/logistics-center/replay-junit.xml
           python -m unittest discover -s adapters/introspector -p 'test_*.py'
           python adapters/introspector/run.py --target adapters/openscenario/scenes/follow-and-accelerate.xosc --out .scene-ci/introspect/osc --emit-spec .scene-ci/introspect/osc-spec.json
           python adapters/introspector/run.py --target adapters/fmu/build/tank.fmu --out .scene-ci/introspect/fmu --emit-spec .scene-ci/introspect/fmu-spec.json

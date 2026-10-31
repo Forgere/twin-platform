@@ -18,4 +18,13 @@
   //     API_TOKEN=dev-token
   // - 线上用 `wrangler secret put UPSTREAM` / `wrangler secret put API_TOKEN`。
   // 写进配置的 vars 会被提交并随每次部署覆盖线上值，secret 不会。
+
+  // 单场景静态站点（`bun run deploy:scene` 产物）：只发资产，`/api/*` 回 404。
+  // 与上面的多场景 Worker 分开部署，避免互相覆盖同一个 Worker 的 secret / 资产。
+  "env": {
+    "scene": {
+      "name": "twin-scene",
+      "vars": { "STATIC_ONLY": "1" }
+    }
+  }
 }
