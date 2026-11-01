@@ -4,11 +4,15 @@
   "private": true,
   "type": "module",
   "exports": { ".": "./src/index.ts" },
+  "bin": { "scene": "./bin/scene.mjs" },
+  "files": ["bin", "src"],
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "scene": "bun src/cli.ts"
+    "scene": "bun src/cli.ts",
+    "build": "bun build ./src/bin.ts --target=node --format=esm --outfile ./bin/scene.mjs",
+    "prepack": "bun run build"
   },
-  "dependencies": {
+  "devDependencies": {
     "@twin-platform/plugins-fishing": "workspace:*",
     "@twin-platform/plugin-sdk": "workspace:*",
     "@twin-platform/plugins-logistics": "workspace:*",

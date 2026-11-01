@@ -15,6 +15,7 @@
     "deploy:scene": "bun scripts/deploy-scene.ts",
     "gen:scale-scene": "bun scripts/gen-scale-scene.mjs",
     "scene": "bun packages/scene-cli/src/cli.ts",
+    "scene:build": "bun run --filter @twin-platform/scene-cli build",
     "scene:simpy": "python3 adapters/simpy/run.py",
     "test:simpy": "python3 -m unittest discover -s adapters/simpy -p 'test_*.py'",
     "build:fmu": "python3 adapters/fmu/scripts/build_reference_fmu.py",

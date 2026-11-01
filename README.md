@@ -43,6 +43,11 @@ bun run scene replay \
 最小基线在 `examples/packages/hello`，外部贡献示例在 `examples/community/mini-line`，
 场景包目录约定见 [`examples/packages/README.md`](./examples/packages/README.md)，公共接口见 [可验证场景公共层](./docs/可验证场景.md)。
 
+## 在线演示
+
+<https://twin-scene.forgere123zw.workers.dev> 跑的是 **Studio 展示层**：单场景静态托管（`scene.json` + 前端资产，不接 `/api`），
+用来在浏览器里看场景、播放回放。它不跑验证链——要验证，用上面的 `bun run scene`。
+
 ## 仓库结构
 
 | | |
@@ -71,6 +76,7 @@ bun run scene replay \
 | `bun run typecheck` | Studio + 全部包 + server / worker |
 | `bun run scene run/audit/replay/diff/report` | 场景验证 CLI（上手见上方 5 分钟；接口见 [可验证场景公共层](./docs/可验证场景.md)） |
 | `bun run scene package <dir>` | 校验 scene package 目录契约（不跑仿真） |
+| `bun run scene:build` | 把 CLI 打成单文件 `packages/scene-cli/bin/scene.mjs`；`npm pack` 后可 `npm i` 进任意目录，`node bin/scene.mjs` 即用 |
 
 Studio 的组件测试走 vitest：`cd apps/studio && bun x vitest run`。
 

@@ -39,6 +39,9 @@ data/
 # scene CLI 的运行产物（trace / 报告 / JUnit），每次跑都重写
 .scene-ci/
 
+# scene CLI 的打包产物（`bun run scene:build` 生成，发布时随包分发）
+packages/scene-cli/bin/
+
 # 单场景部署（deploy:scene）拷进 public 的场景资产，每次发布重写
 apps/studio/public/scene.json
 

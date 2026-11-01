@@ -1,0 +1,7 @@
+{
+  "source": "examples/community/mini-line/expected/trace.json",
+  "pointer": "/events/2/payload/status",
+  "from": "idle",
+  "to": "busy",
+  "note": "只改事件内容，不重算 eventHash/stateHash"
+}

@@ -8,6 +8,8 @@
 | `hello/expected/trace.json` | 它的黄金基线（`--seconds 2` 生成） |
 | `logistics-center/fast.json` | 物流中心模板的加速参数（产出间隔 1s、在制 8、高水位 6） |
 | `packages/logistics-center/` | 工厂参考场景包：完整输入 + 黄金基线，`scene run/replay/package` 直接可跑 |
+| `community/mini-line/` | 外部贡献模板：社区场景包 + 插件锁 + 指标口径 + 黄金基线 |
+| `fault-injection/` | 故障注入演练：篡改一条事件证据，看门禁能否定位到 JSON Pointer |
 
 ## 常用命令
 
