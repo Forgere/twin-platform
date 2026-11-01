@@ -25,6 +25,22 @@ The **logistics factory** exercises industrial invariants: material conservation
 
 They are examples and conformance suites, not two separate products. If the same runner and audit discipline work in both domains, a new plugin has a clear contract to implement and test.
 
+## One command, one verifiable scene package
+
+A **scene package** bundles every input for one verifiable run—versioned `scene.json`, a plugin lock (`plugins.lock.json`, not "whatever I have installed"), a `seed.json` time grid, optional `actions.json`, the invariants to assert (`invariants.json`), and a golden `expected/trace.json`. One command runs the whole thing:
+
+```bash
+bun run scene audit  --package examples/community/mini-line
+bun run scene replay --package examples/community/mini-line   # default baseline = the package's own expected/trace.json
+```
+
+An `invariants.json` entry that carries `"check": "<built-in id>"` is **actually executed**, not merely declared; an unregistered id fails rather than silently passing. Built-in checks cover loop lines (`logistics.line.loop` / `no-teleport`), the closed-loop center (`logistics.center.flow` / `conservation`), and deterministic quiescence (`scene.deterministic.quiet`). The center checks are **borrowed references** to the plugin's own exports—the exact objects Studio's audit panel uses—so "what CI blocks" and "what the page shows" can never drift apart.
+
+The loop invariant is the one that catches a real metric lie: on a **loop line**, a parcel fires `parcel:exit` then `parcel:enter` every lap, so any dashboard counting `parcel:exit` as shipped throughput is wrong. `logistics.line.loop` asserts `exit == enter − 1` (still on the loop). Set a parcel's `motion.loop` to `clamp` and the CLI exits 1 naming that parcel.
+
+Want the four headline claims—cross-OS determinism, tamper detection with a JSON Pointer, one gate over SimPy/FMU/OpenSCENARIO, and one-command scene packages—reproduced end-to-end? Run `bun scripts/demo-evidence.ts` (evidence lands in `./demo-evidence/`; add `--only core` to skip the Python runtimes).
+
+
 ## What this is not
 
 Twin Platform does not aim to replace IoT backends, 3D asset standards, industrial simulators, or LLM-based world models. Rendering, databases, MQTT, LLMs, and external simulators are adapters around the verification contract. The first product boundary is deliberately small:

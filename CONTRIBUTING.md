@@ -50,25 +50,53 @@ export const conservationCheck = {
   plugins.lock.json     必填：[{ id, version, configHash? }]
   seed.json             必填：{ seed?, step?, seconds | steps, observation? }
   actions.json          可选：外部输入 / 动作脚本
-  invariants.json       可选：该验什么
+  invariants.json       可选：该验什么（挂 check 就真执行）
   metrics.json          可选：指标口径
   expected/trace.json   可选：黄金基线
 ```
 
-流程：
+流程（`--package` 一次带齐输入与断言，seed/时间网格取自 `seed.json`）：
 
 ```bash
 # 1) 写场景，校验可迁移、可运行
 bun run scene package <dir>
 
-# 2) 生成黄金基线
-bun run scene run --scene <dir>/scene.json --seed 1 --seconds 60 --out <dir>/expected
+# 2) 生成黄金基线（用包自己的时间网格）
+bun run scene run --package <dir> --out <dir>/expected
 
-# 3) 以后都走门禁：变了要能说出第一处分歧
-bun run scene replay --scene <dir>/scene.json --seed 1 --seconds 60 --baseline <dir>/expected/trace.json
+# 3) 以后都走门禁：跑包里挂的不变量 + 比对基线，变了要能说出第一处分歧
+bun run scene replay --package <dir>
 ```
 
-示例：`examples/packages/hello`、`examples/community/mini-line`。
+### 在 invariants.json 里挂可执行断言
+
+条目不写 `check` 只是登记（声明"以后该验什么"）；写了 `"check": "<内置 id>"` 就**真执行**，失败即 exit 1。
+挂了 `check` 却指向未注册的 id，该条**判失败**而不是静默跳过——没执行的断言不算通过。
+
+```jsonc
+[
+  { "id": "loop", "description": "包裹绕圈不算出货", "check": "logistics.line.loop" },
+  { "id": "no-teleport", "check": "logistics.line.no-teleport" },
+  { "id": "flow", "check": "logistics.center.flow" },
+  { "id": "quiet", "check": "scene.deterministic.quiet", "params": { "maxEvents": 0 } }
+]
+```
+
+可用内置 id（实现见 `packages/scene-cli/src/invariants.ts`，参数默认值见 `examples/packages/README.md`）：
+
+| id | 断言什么 |
+|---|---|
+| `logistics.line.loop` | 环线包裹 `exit == enter − 1`：仍在环上，绕圈不算出货 |
+| `logistics.line.no-teleport` | 包裹沿闭环路径连续运动（`loop` 必须 `repeat`、弧长不越界、速度非负） |
+| `logistics.center.flow` | 闭环中心全链路都有事件：产出 → 打包 → 入库 → 出库 → 运走 |
+| `logistics.center.conservation` | 小货物与托盘在全链路中守恒 |
+| `scene.deterministic.quiet` | 观察窗内事件数不超上限，且随机源没被消耗 |
+
+`logistics.center.*` 是**从 `plugins-logistics` 借的引用**（与 Studio 审计面板同一份对象，惰性 import），
+不是 CLI 里抄的副本——别给非闭环场景硬挂，否则会把"这条链路本来就没有"报成违例。
+想加新的场景类型，优先在插件侧写运行时不变量（见 §1），再注册进内置表，**不要复制规则**。
+
+示例：`examples/packages/hello`（挂 `scene.deterministic.quiet`）、`examples/community/mini-line`（挂 `loop` / `no-teleport`）。
 
 ## 3. 写一个 runtime adapter
 

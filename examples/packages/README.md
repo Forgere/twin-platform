@@ -36,7 +36,13 @@ bun run scene replay --package examples/community/mini-line
 |---|---|---|
 | `logistics.line.loop` | 每个包裹 `exit == enter − 1`：仍在环上，绕圈不算出货 | `enterType`（默认 `parcel:enter`）、`exitType`（默认 `parcel:exit`） |
 | `logistics.line.no-teleport` | 包裹沿闭环路径连续运动：`loop` 必须 `repeat`、弧长不越界、速度非负 | `kind`（默认 `parcel`）、`tolerance` |
+| `logistics.center.flow` | 闭环中心全链路都有事件：产出 → 打包 → 入库 → 出库 → 运走 | 无（直接借 `plugins-logistics` 的 `centerFlowInvariant`，与 Studio 审计面板同一份） |
+| `logistics.center.conservation` | 小货物与托盘在全链路中守恒 | 无（借 `centerConservationInvariant`） |
 | `scene.deterministic.quiet` | 观察窗内事件数不超上限，且 `rngState` 没被推进（没有行为偷用随机） | `maxEvents`（默认 0） |
+
+`logistics.center.*` 这两条是**从插件借来的引用**（惰性 import），不是 CLI 里抄的一份副本——
+「CI 里挡你的」和「Studio 页面上看到的」永远是同一个口径。只在真的装了发生器 / 打包站 / 立库 / 卡车的
+闭环场景里有意义；套在 `line` 模板上会把"这条链路本来就没有"报成违例，所以别给非闭环场景硬挂。
 
 ## 校验
 
