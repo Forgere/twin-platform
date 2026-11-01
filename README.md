@@ -113,6 +113,7 @@ bun run scene replay --package examples/community/mini-line
 
 最小基线在 `examples/packages/hello`（无随机、无渲染，跨平台逐字节一致），外部贡献模板在 `examples/community/mini-line`，
 场景包目录约定见 [`examples/packages/README.md`](./examples/packages/README.md)，公共接口见 [可验证场景公共层](./docs/可验证场景.md)。
+想直接看这四件事跑出来，一条命令：`bun scripts/demo-evidence.ts`（证据落 `./demo-evidence/`）；讲解见 [对外传播素材](./docs/对外传播素材.md)。
 
 ## 在线演示
 
