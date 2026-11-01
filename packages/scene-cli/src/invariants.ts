@@ -134,6 +134,19 @@ const deterministicQuiet: BuiltInInvariant = (params) => {
   };
 };
 
+/**
+ * 从领域插件借来的内置检查（惰性 import，避免 scene-cli 静态硬绑插件）。
+ *
+ * 关键约束：**只注册引用，绝不复制实现**。`logistics.center.flow` / `conservation`
+ * 的规则已经写在 `plugins-logistics/src/invariants.ts`，Studio 审计面板与 CI 走的
+ * 正是那两个对象；这里若再抄一份，两个口径迟早分叉。loader 每次取的都是同一份导出。
+ */
+// 动态 import 例外（plugin loading，与 loadCliPlugin 一致）：none 插件的包不静态拖入 plugins-logistics。
+const PLUGIN_BACKED: Readonly<Record<string, () => Promise<SceneAuditCheck<TwinWorld>>>> = {
+  'logistics.center.flow': async () => (await import('@twin-platform/plugins-logistics')).centerFlowInvariant,
+  'logistics.center.conservation': async () => (await import('@twin-platform/plugins-logistics')).centerConservationInvariant,
+};
+
 /** 已注册的内置检查。id 就是 scene package 的 `invariants.json` 里 `check` 字段的取值。 */
 export const BUILTIN_INVARIANTS: Readonly<Record<string, BuiltInInvariant>> = {
   'logistics.line.loop': lineLoop,
@@ -141,7 +154,7 @@ export const BUILTIN_INVARIANTS: Readonly<Record<string, BuiltInInvariant>> = {
   'scene.deterministic.quiet': deterministicQuiet,
 };
 
-export const BUILTIN_INVARIANT_IDS: readonly string[] = Object.keys(BUILTIN_INVARIANTS);
+export const BUILTIN_INVARIANT_IDS: readonly string[] = [...Object.keys(BUILTIN_INVARIANTS), ...Object.keys(PLUGIN_BACKED)];
 
 export interface ResolvedPackageInvariants {
   readonly checks: readonly SceneAuditCheck<TwinWorld>[];
@@ -164,48 +177,52 @@ function failingCheck(id: string, description: string, reason: string): SceneAud
  * 没有 `check` 字段的条目保持"登记式"语义（只声明以后该验什么，不执行），
  * 这既兼容 logistics-center 已有的两条，也让"写了 check 就一定会被跑"成为硬约束。
  */
-export function resolvePackageInvariants(raw: readonly unknown[]): ResolvedPackageInvariants {
+export async function resolvePackageInvariants(raw: readonly unknown[]): Promise<ResolvedPackageInvariants> {
   const checks: SceneAuditCheck<TwinWorld>[] = [];
   const errors: string[] = [];
-  raw.forEach((entry, index) => {
+  for (const [index, entry] of raw.entries()) {
     if (typeof entry !== 'object' || entry === null) {
       errors.push(`invariants[${index}] 必须是对象`);
-      return;
+      continue;
     }
     const record = entry as Record<string, unknown>;
     const id = typeof record.id === 'string' ? record.id : '';
     if (!id) {
       errors.push(`invariants[${index}] 缺少 id`);
-      return;
+      continue;
     }
     const declared = record.check;
-    if (declared === undefined) return; // 纯登记，不执行
+    if (declared === undefined) continue; // 纯登记，不执行
     if (typeof declared !== 'string') {
       errors.push(`invariants[${index}]（${id}）的 check 必须是内置检查 id 字符串`);
-      return;
-    }
-    const build = BUILTIN_INVARIANTS[declared];
-    if (!build) {
-      checks.push(
-        failingCheck(
-          id,
-          typeof record.description === 'string' ? record.description : id,
-          `check="${declared}" 不是已注册的内置检查（可用：${BUILTIN_INVARIANT_IDS.join(' / ')}）；未执行的断言不算通过。`,
-        ),
-      );
-      return;
+      continue;
     }
     const params = record.params;
     if (params !== undefined && (typeof params !== 'object' || params === null || Array.isArray(params))) {
       errors.push(`invariants[${index}]（${id}）的 params 必须是对象`);
-      return;
+      continue;
     }
-    const built = build((params ?? {}) as JsonObject);
-    checks.push({
-      ...built,
-      id,
-      description: typeof record.description === 'string' ? record.description : built.description,
-    });
-  });
+    const description = typeof record.description === 'string' ? record.description : undefined;
+    // 两条来源：本地构造器（line / quiet），或从插件惰性借来的现成检查（center.*）。
+    const build = BUILTIN_INVARIANTS[declared];
+    const borrow = PLUGIN_BACKED[declared];
+    if (build) {
+      const built = build((params ?? {}) as JsonObject);
+      checks.push({ ...built, id, description: description ?? built.description });
+      continue;
+    }
+    if (borrow) {
+      const borrowed = await borrow();
+      checks.push({ ...borrowed, id, description: description ?? borrowed.description });
+      continue;
+    }
+    checks.push(
+      failingCheck(
+        id,
+        description ?? id,
+        `check="${declared}" 不是已注册的内置检查（可用：${BUILTIN_INVARIANT_IDS.join(' / ')}）；未执行的断言不算通过。`,
+      ),
+    );
+  }
   return { checks, errors };
 }

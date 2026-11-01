@@ -135,7 +135,7 @@ async function buildPlan(args: ParsedArgs, cwd: string): Promise<RunPlan> {
     packageSeed = Number.isFinite(Number(pkg.layout.seed?.seed)) ? Number(pkg.layout.seed!.seed) : undefined;
     packageStep = Number.isFinite(Number(pkg.layout.seed?.step)) ? Number(pkg.layout.seed!.step) : undefined;
     packageDuration = seedDuration(pkg.layout.seed, packageDir);
-    const resolved = resolvePackageInvariants(pkg.layout.invariants ?? []);
+    const resolved = await resolvePackageInvariants(pkg.layout.invariants ?? []);
     if (resolved.errors.length > 0) throw new Error(`场景包 ${packageDir} 的 invariants.json 无法解析：${resolved.errors.join('；')}`);
     packageChecks = resolved.checks;
     if (pkg.layout.actions) packageActions = pkg.layout.actions as readonly ActionSpec[];

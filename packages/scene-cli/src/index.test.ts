@@ -49,6 +49,32 @@ describe('scene-cli', () => {
     expect(readFileSync(join(dir, 'out-a/junit.xml'), 'utf-8')).toBe(readFileSync(join(dir, 'out-b/junit.xml'), 'utf-8'));
   });
 
+  test('--package 可挂插件的 center 不变量：借的是插件那份导出，不是副本', async () => {
+    const { resolvePackageInvariants } = await import('./invariants');
+    const { centerFlowInvariant, centerConservationInvariant } = await import('@twin-platform/plugins-logistics');
+    const resolved = await resolvePackageInvariants([
+      { id: 'flow', check: 'logistics.center.flow' },
+      { id: 'conservation', check: 'logistics.center.conservation' },
+    ]);
+    expect(resolved.errors).toEqual([]);
+    expect(resolved.checks).toHaveLength(2);
+    // 单一来源铁律：resolve 出来的必须是插件里那两个对象本身（改了描述也不换实现）。
+    expect(resolved.checks[0]?.check).toBe(centerFlowInvariant.check);
+    expect(resolved.checks[1]?.check).toBe(centerConservationInvariant.check);
+    expect(resolved.checks.map((c) => c.id)).toEqual(['flow', 'conservation']);
+  });
+
+  test('--package 挂 center 不变量后，非闭环场景会真报违例（不是静默通过）', async () => {
+    const pack = join(dir, 'notcenter');
+    mkdirSync(pack, { recursive: true });
+    // 只有一个 box，没有 source/pack/asrs/truck → 全链路必然缺环。
+    writeFileSync(join(pack, 'scene.json'), JSON.stringify(SCENE), 'utf-8');
+    writeFileSync(join(pack, 'plugins.lock.json'), '[]', 'utf-8');
+    writeFileSync(join(pack, 'seed.json'), JSON.stringify({ seed: 1, step: 0.5, seconds: 1 }), 'utf-8');
+    writeFileSync(join(pack, 'invariants.json'), `${JSON.stringify([{ id: 'flow', check: 'logistics.center.flow' }], null, 2)}\n`, 'utf-8');
+    expect(await cli(['audit', '--package', 'notcenter'])).toBe(1);
+  });
+
   test('replay 用黄金基线做门禁：一致通过，改动后给出首个分歧', async () => {
     expect(await cli(['replay', '--scene', 'scene.json', '--seconds', '2', '--update'])).toBe(0);
     expect(existsSync(join(dir, 'expected/trace.json'))).toBe(true);
