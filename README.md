@@ -1,46 +1,106 @@
 # Twin Platform
 
-可验证仿真场景的基础设施：参考运行时 + 两套跨领域参考实现 + 多个外部 adapter + 一条验证链 CLI。
+可验证仿真场景（Verifiable Simulation Scenes）的基础设施——
+让数字孪生和仿真场景像代码一样**可测试、可回放、可审计、可进 CI**。
+类比：**Playwright for simulation scenes**。
 
-## 开源定位
+## 它解决什么
 
-Twin Platform 的长期目标是成为**可验证仿真场景（Verifiable Simulation Scenes）的基础设施**——
-让数字孪生与仿真场景像代码一样**可测试、可回放、可审计、可进 CI**（类比 Playwright for simulation scenes）。
+如果你在做数字孪生或工业仿真，这三类问题大概都遇到过：
 
-当前仓库已包含参考运行时 `world-kernel`、版本化场景格式 `scene-schema`、插件契约 `plugin-sdk`，
-以及两套跨领域参考实现：**物流工厂插件**（证明工业不变量）与**钓鱼场景插件**（证明随机行为也能被验证）。
-外部 runtime adapter 进一步证明同一套验证链不只服务内核：`adapters/simpy` 既跑内置离散事件模型，也能经静态预检与受限沙箱执行任意 SimPy 模型文件，`adapters/fmu` 用 ctypes 真加载 FMI 2.0 Co-Simulation FMU 二进制，`adapters/openscenario` 导入 ASAM OpenSCENARIO 1.x 场景 XML 的显式子集；三者都产出同一套 trace，并接受公共审计、差分与 CI 门禁；`adapters/introspector` 再提供不执行外部代码的通用 introspection，自动抽取模型事实并生成可运行场景草案；`adapters/opendrive` 负责 OpenDRIVE 路网求解，把 `LanePosition` 真解算成世界坐标并支持车道级跨道路换路；`examples/packages/` 给出 scene package 目录约定，`packages/plugin-conformance` 提供插件自检套件；[贡献指南](./CONTRIBUTING.md) 给出写规则 / 场景 / adapter / 插件的门槛，`examples/community/mini-line/` 演示外部贡献场景包。
-战略与落地路线见 [开源方向与行动计划](./docs/开源方向与行动计划.md)，公共 trace / run / audit / replay / diff / report 接口见 [可验证场景公共层](./docs/可验证场景.md)。
+**1. 改完参数，不知道行为有没有回归。**
+演示能过，不等于没坏。缺的是一条能进 CI 的断言链：跑一次 → 产出 trace → 跟黄金基线比 → 分歧即红灯。
+
+**2. 指标比模型更容易骗人。**
+`parcel:exit` 在单向产线是出货，在**环线上只是绕圈**；末值 backlog 看不见中途爆仓；300 秒窗口会把慢周期设备判成"没有差异"。
+口径不写清楚，数字就是装饰。
+
+**3. 回放靠不住。**
+一个 RNG 多消耗一次，回放全废；一个插件异步 `activate`，插件锁全废；一个事件顺序不稳定，CI 全废。
+确定性不是卖点，是底线。
+
+Twin Platform 提供的就是这条链：版本化场景格式 → 固定步长执行 → 事件 trace → 不变量断言 → 差分定位 → HTML/JUnit 证据。
+它**不**是一个渲染器，也不替换你的仿真引擎——它独立于渲染器、行业仿真器和 LLM，只负责"场景质量契约"这一层。
+
+## 不是什么
+
+边界比定位更重要——这三个方向都有成熟玩家，撞上去只会稀释锐度：
+
+| 不做 | 谁来负责 |
+|---|---|
+| 通用数字孪生平台（设备状态、权限、connector、dashboard） | Eclipse Ditto / FIWARE / Azure Digital Twins |
+| 「确定性仿真内核」当主卖点 | Ananke、Chronos、Paracosm 已经在讲 |
+| 3D 资产与几何互操作 | OpenUSD / SimReady |
+| 动态模型封装与联合仿真接口 | FMI / FMU（我们**接**它，不重做它） |
+| 立刻发明一套行业标准 | 先把 runtime、插件、adapter 跑通，最后才谈 spec |
+
+`apps/studio` 的三维视口是我们的**展示层**，用来看场景和回放；它不是验证链的入口，也不托管在验证链里。
 
 ## 5 分钟上手
 
-不装数据库、不开浏览器，从克隆一直跑到一份 HTML 审计报告：
+不装数据库、不开浏览器，从克隆一直跑到一份**带断言结果的** HTML 审计报告：
 
 ```bash
 git clone https://github.com/Forgere/twin-platform.git && cd twin-platform
 bun install
 
-# 跑一个工厂场景：智能物流中心（产出 → 打包 → 入库 → 出库 → 卡车运走）
-bun run scene run \
-  --scene examples/packages/logistics-center/scene.json \
-  --plugin logistics --seed 7 --seconds 300 \
+# 跑物流中心模板：产出 → 打包 → 入库 → 出库 → 卡车运走
+bun run scene audit \
+  --template logistics.center \
+  --template-params examples/logistics-center/fast.json \
+  --seconds 300 \
   --out .scene-ci/logistics-center
 
 open .scene-ci/logistics-center/report.html   # Linux 用 xdg-open
 ```
 
-`scene run` 用固定步长跑完整段仿真，执行 2 条运行时不变式（全链路 + 物料守恒），
-产出 `trace.json`（可回放 / 可 diff）、`report.json` 与 `report.html`。把它和黄金基线比对，分歧即退出 1：
+实测输出（约 1.6s）：
+
+```text
+场景 logistics-center · seed=1 step=0.016666666666666666 steps=18000
+哈希 scene=fd62810f event=5b667316 state=999d0f18
+不变量 2 条：通过 2 / 失败 0 / 异常 0
+报告 PASS
+```
+
+那 2 条不是日志噪声，是**会真的让 CI 变红的断言**：
+
+| 不变量 | 断言什么 | JUnit testcase |
+|---|---|---|
+| `logistics.center.flow` | 全链路每一环都有事件（产出 → 打包 → 入库 → 出库 → 运走） | `invariant:logistics.center.flow` |
+| `logistics.center.conservation` | 小货物与托盘在全链路守恒（`goods: 70 = 2×31 + 8 \| pallets: 31 = 10 + 21`） | `invariant:logistics.center.conservation` |
+
+`run` 与 `audit` 的区别只有一条：`run` 默认**不**因不变量失败退出非 0（用来看场景），
+`audit` 失败即 exit 1（用来挡回归）。想让 `run` 也挡，加 `--strict`。
+
+### 回归门禁：分歧要指到具体字段
 
 ```bash
 bun run scene replay \
-  --scene examples/packages/logistics-center/scene.json \
-  --plugin logistics --seed 7 --seconds 300 \
-  --baseline examples/packages/logistics-center/expected/trace.json
+  --scene examples/community/mini-line/scene.json \
+  --plugin logistics --seed 1 --seconds 30 \
+  --baseline examples/community/mini-line/expected/trace.json
+```
+场景包（`mini-line`）自带的 `invariants.json` 是**登记式的**——它写出"以后该验什么"，但不执行；
+跑出来是 `不变量 0 条`，这行不代表"没验证"，只代表这一层没挂断言。真正会红的断言来自 `--template` 路径的运行时不变量（见上）。
+**当前边界**：scene package 的执行器还在 TODO（只校验不运行），这是已知的剩余项。
+
+同 commit 同种子重跑，trace 逐字节一致；一旦行为变了，输出是**首个分歧的 JSON Pointer**，不是"不一致"三个字：
+
+```text
+基线分歧：/events/2/payload/status（value）
 ```
 
-同一套验证链跨语言：`adapters/simpy` 用真实 Python 产出同一份 trace，`bun run scene verify` 用 TypeScript 重算其哈希。
-最小基线在 `examples/packages/hello`，外部贡献示例在 `examples/community/mini-line`，
+想看这条纪律真的抓得住伪造证据，跑 [`examples/fault-injection/`](./examples/fault-injection/README.md)——
+它改掉黄金 trace 里一个事件的 `status` 且**故意不重算哈希**，门禁照抓，并报出同一处 pointer。
+
+### 换引擎不换门禁
+
+同一套 `verify / diff / report` 也吃外部 runtime 的 trace：`adapters/simpy`（Python 真实跑）、
+`adapters/fmu`（ctypes 加载 FMI 2.0 FMU 二进制）、`adapters/openscenario`（导入 ASAM OpenSCENARIO 1.x 子集）。
+外部 runtime 不自证——`bun run scene verify` 用 TypeScript **重算**它的 `eventHash / stateHash`。
+
+最小基线在 `examples/packages/hello`（无随机、无渲染，跨平台逐字节一致），外部贡献模板在 `examples/community/mini-line`，
 场景包目录约定见 [`examples/packages/README.md`](./examples/packages/README.md)，公共接口见 [可验证场景公共层](./docs/可验证场景.md)。
 
 ## 在线演示
