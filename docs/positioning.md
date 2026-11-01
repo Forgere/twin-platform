@@ -40,6 +40,12 @@ The loop invariant is the one that catches a real metric lie: on a **loop line**
 
 Want the four headline claims—cross-OS determinism, tamper detection with a JSON Pointer, one gate over SimPy/FMU/OpenSCENARIO, and one-command scene packages—reproduced end-to-end? Run `bun scripts/demo-evidence.ts` (evidence lands in `./demo-evidence/`; add `--only core` to skip the Python runtimes).
 
+## Bring your own model—no need to rebuild the twin
+
+You don't author a scene from a blank page. `adapters/introspector` reads an existing artifact (OpenSCENARIO `.xosc`, FMU `.fmu`, SimPy `.py`, CSV) **without executing it**—Python via AST, FMU via its description, OpenSCENARIO via XML—emits a runnable scene draft, and hands it to the matching adapter, then the same TypeScript gate (`scene verify`) recomputes the hashes. End-to-end, one `.xosc` reaches a passing `verify` in ~0.15s; the OpenSCENARIO and OpenDRIVE drafts are not documents—their unit tests feed the drafts straight into a real run and assert the invariants.
+
+Building the twin—device connectors, dashboards, asset pipelines—is deliberately **out of scope** (that is Ditto / FIWARE territory). This layer guarantees one thing: a model you already have can enter the verifiable chain with a single command.
+
 
 ## What this is not
 

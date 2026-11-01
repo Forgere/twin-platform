@@ -98,6 +98,21 @@ bun run scene replay --package <dir>
 
 示例：`examples/packages/hello`（挂 `scene.deterministic.quiet`）、`examples/community/mini-line`（挂 `loop` / `no-teleport`）。
 
+### 手上已有模型？先 introspect，不必从 0 手搭
+
+外部贡献最常见的痛点是"对接麻烦、要从零搭场景"。这一层不解决"怎么建孪生"（那是 Ditto / FIWARE 的地盘，见 README「不是什么」），
+但已有一条**把现有工件搬进验证链**的路：`adapters/introspector` 只读识别工件（不执行外部代码），产出可运行场景草案，
+喂给对应适配器跑出公共 trace，再用 `bun run scene verify` 从 TypeScript 侧**重算**哈希（外部产物不自证）：
+
+```bash
+python3 adapters/introspector/run.py --target <你的.xosc|.fmu|.py|.csv> \
+  --out .scene-ci/introspect --emit-spec .scene-ci/introspect/spec.json
+python3 adapters/openscenario/run.py --spec .scene-ci/introspect/spec.json --out .scene-ci/introspect/run
+bun run scene verify .scene-ci/introspect/run/trace.json
+```
+
+草案**不是文档**：OpenSCENARIO / OpenDRIVE 草案被单测直接拿去真跑并通过不变量。边界见 §3 与 [通用 introspector 文档](./adapters/introspector/README.md)。
+
 ## 3. 写一个 runtime adapter
 
 adapter 的契约是**外部 runtime → SceneTrace → 不变量 → 报告 / CI**，不要求继承 `TwinWorld`。

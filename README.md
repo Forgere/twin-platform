@@ -111,6 +111,32 @@ bun run scene replay --package examples/community/mini-line
 `adapters/fmu`（ctypes 加载 FMI 2.0 FMU 二进制）、`adapters/openscenario`（导入 ASAM OpenSCENARIO 1.x 子集）。
 外部 runtime 不自证——`bun run scene verify` 用 TypeScript **重算**它的 `eventHash / stateHash`。
 
+### 不用从 0 搭：把已有模型搬进验证链
+
+上面的上手用的是**参考模板**。如果你手上已经有模型（OpenSCENARIO `.xosc`、FMU `.fmu`、SimPy `.py`、CSV），
+不需要重搭场景——`adapters/introspector` **只读**识别工件（不执行外部代码，Python 走 AST、FMU 只读描述、OpenSCENARIO 只解析 XML），
+吐出一份可运行场景草案，直接喂给对应适配器，再走同一道 TypeScript 门禁：
+
+```bash
+# 1) 识别工件，产出可运行草案（.scene-ci/introspect/spec.json）
+python3 adapters/introspector/run.py \
+  --target adapters/openscenario/scenes/follow-and-accelerate.xosc \
+  --out .scene-ci/introspect --emit-spec .scene-ci/introspect/spec.json
+
+# 2) 草案喂给适配器，跑出公共 trace + report
+python3 adapters/openscenario/run.py --spec .scene-ci/introspect/spec.json --out .scene-ci/introspect/run
+
+# 3) TypeScript 侧重算哈希做门禁——外部产物不自证
+bun run scene verify .scene-ci/introspect/run/trace.json
+```
+
+实测整链约 0.15s：草案 → `events=66` → `verify` 四条全 PASS，`event-hash` / `state-hash` 本端重算与声明逐位一致。
+草案**不是文档**：OpenSCENARIO 与 OpenDRIVE 草案被单测直接拿去 `run_scenario()` / `run_network()` 真跑并通过不变量。
+
+诚实边界：FMU 草案只跟踪第一个 output 变量；SimPy 草案的 `params` 需人工核对，且模型必须只用注入的 `rng` 才可复现。
+**"搭孪生、接设备、做 dashboard"不是这一层的事**（见上表「不是什么」，那是 Ditto / FIWARE 的地盘）——
+这一层只保证：你已有的模型，一条命令就能进可验证链。
+
 最小基线在 `examples/packages/hello`（无随机、无渲染，跨平台逐字节一致），外部贡献模板在 `examples/community/mini-line`，
 场景包目录约定见 [`examples/packages/README.md`](./examples/packages/README.md)，公共接口见 [可验证场景公共层](./docs/可验证场景.md)。
 想直接看这四件事跑出来，一条命令：`bun scripts/demo-evidence.ts`（证据落 `./demo-evidence/`）；讲解见 [对外传播素材](./docs/对外传播素材.md)。
