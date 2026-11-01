@@ -1,9 +1,10 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { renderAuditHtml, runAudit } from '@twin-platform/scene-audit';
+import { renderAuditHtml, runAudit, type SceneAuditCheck } from '@twin-platform/scene-audit';
 import { diffTrace, runTwinScene, type RunTwinSceneInput } from '@twin-platform/scene-runner';
 import { migrateTwinScene, validateTwinScene, type TwinScene } from '@twin-platform/scene-schema';
 import type { AuditReport, SceneTrace, TraceDiff } from '@twin-platform/scene-spec';
+import type { TwinWorld } from '@twin-platform/world-kernel';
 import { buildTwinActions, type ActionSpec } from './actions';
 import { flagBoolean, flagNumber, flagString, parseArgs, USAGE, type ParsedArgs } from './args';
 import {
@@ -17,7 +18,8 @@ import {
   writeTextFile,
 } from './artifacts';
 import { junitFromAudit, toJUnitXml } from './junit';
-import { auditScenePackage } from './package';
+import { auditScenePackage, loadScenePackage } from './package';
+import { resolvePackageInvariants } from './invariants';
 import { verifySceneTrace } from './verify';
 import { loadCliPlugin, parseTemplateSpec, type CliPlugin } from './plugins';
 
@@ -75,22 +77,41 @@ function parseActions(raw: string | undefined, cwd: string, step: number) {
   return buildTwinActions(parsed as ActionSpec[], step);
 }
 
+/** seed.json 的 seconds / steps：场景包自带的时间网格，命令行没显式覆盖就按它跑。 */
+function seedDuration(seed: Record<string, unknown> | undefined, dir: string): { seconds?: number; steps?: number } {
+  if (!seed) return {};
+  const seconds = Number(seed.seconds);
+  const steps = Number(seed.steps);
+  if (Number.isFinite(seconds) && seconds > 0) return { seconds };
+  if (Number.isInteger(steps) && steps > 0) return { steps };
+  if (seed.seconds !== undefined || seed.steps !== undefined) throw new Error(`场景包 ${dir} 的 seed.json 时间网格不可用。`);
+  return {};
+}
+
 async function buildPlan(args: ParsedArgs, cwd: string): Promise<RunPlan> {
   const flags = args.flags;
   const scenePath = flagString(flags, 'scene');
   const templateSpec = flagString(flags, 'template');
-  if (scenePath && templateSpec) throw new Error('--scene 与 --template 只能给一个。');
+  const packageDir = flagString(flags, 'package');
+  const given = [scenePath, templateSpec, packageDir].filter((value) => value !== undefined);
+  if (given.length > 1) throw new Error('--scene / --template / --package 只能给一个。');
 
-  const step = flagNumber(flags, 'step') ?? 1 / 60;
+  const stepFlag = flagNumber(flags, 'step');
+  const step = stepFlag ?? 1 / 60;
   if (!Number.isFinite(step) || step <= 0) throw new Error('--step 必须是正数字。');
-  const seed = flagNumber(flags, 'seed') ?? 1;
+  const seedFlag = flagNumber(flags, 'seed');
+  const seed = seedFlag ?? 1;
   const stepsFlag = flagNumber(flags, 'steps');
   const secondsFlag = flagNumber(flags, 'seconds');
   if (stepsFlag !== undefined && secondsFlag !== undefined) throw new Error('--steps 与 --seconds 只能给一个。');
-  const durationSeconds = stepsFlag === undefined ? secondsFlag ?? DEFAULT_DURATION_SECONDS : undefined;
 
   let scene: TwinScene;
   let pluginId: string;
+  let packageChecks: readonly SceneAuditCheck<TwinWorld>[] = [];
+  let packageActions: readonly ActionSpec[] | undefined;
+  let packageDuration: { seconds?: number; steps?: number } = {};
+  let packageSeed: number | undefined;
+  let packageStep: number | undefined;
   if (templateSpec) {
     const spec = parseTemplateSpec(templateSpec);
     const explicit = flagString(flags, 'plugin');
@@ -102,24 +123,44 @@ async function buildPlan(args: ParsedArgs, cwd: string): Promise<RunPlan> {
   } else if (scenePath) {
     scene = loadSceneFile(resolve(cwd, scenePath));
     pluginId = flagString(flags, 'plugin') ?? 'none';
+  } else if (packageDir) {
+    const pkg = loadScenePackage(resolve(cwd, packageDir));
+    if (!pkg.layout.scene) throw new Error(`场景包 ${packageDir} 的 scene.json 不可用：${pkg.issues.join('；')}`);
+    scene = pkg.layout.scene;
+    const firstLock = (pkg.layout.plugins ?? [])[0] as { id?: string } | undefined;
+    const lockId = typeof firstLock?.id === 'string' ? firstLock.id : 'none';
+    const explicit = flagString(flags, 'plugin');
+    if (explicit && explicit !== lockId) throw new Error(`--plugin ${explicit} 与场景包锁定的 ${lockId} 不一致。`);
+    pluginId = lockId;
+    packageSeed = Number.isFinite(Number(pkg.layout.seed?.seed)) ? Number(pkg.layout.seed!.seed) : undefined;
+    packageStep = Number.isFinite(Number(pkg.layout.seed?.step)) ? Number(pkg.layout.seed!.step) : undefined;
+    packageDuration = seedDuration(pkg.layout.seed, packageDir);
+    const resolved = resolvePackageInvariants(pkg.layout.invariants ?? []);
+    if (resolved.errors.length > 0) throw new Error(`场景包 ${packageDir} 的 invariants.json 无法解析：${resolved.errors.join('；')}`);
+    packageChecks = resolved.checks;
+    if (pkg.layout.actions) packageActions = pkg.layout.actions as readonly ActionSpec[];
   } else {
-    throw new Error('需要 --scene <file> 或 --template <plugin.template>。');
+    throw new Error('需要 --scene <file>、--template <plugin.template> 或 --package <dir>。');
   }
 
   const plugin = await loadCliPlugin(pluginId);
+  const resolvedStep = stepFlag ?? packageStep ?? step;
   const locks = pluginId === 'none' ? [] : [{ id: plugin.id, version: plugin.version }];
+  const steps = stepsFlag ?? packageDuration.steps;
+  const seconds = stepsFlag === undefined ? secondsFlag ?? packageDuration.seconds ?? DEFAULT_DURATION_SECONDS : undefined;
   const input: RunTwinSceneInput = {
     scene,
-    seed,
-    step,
+    seed: seedFlag ?? packageSeed ?? seed,
+    step: resolvedStep,
     behaviors: plugin.behaviors(),
-    checks: plugin.checksForScene(scene),
+    // 场景包自带的断言与插件的运行时不变量同一张表：CI 里挡你的和面板上看到的必须是一个口径。
+    checks: [...plugin.checksForScene(scene), ...packageChecks],
     plugins: locks,
-    ...(stepsFlag !== undefined ? { steps: stepsFlag } : {}),
-    ...(durationSeconds !== undefined ? { durationSeconds } : {}),
+    ...(steps !== undefined ? { steps } : {}),
+    ...(seconds !== undefined ? { durationSeconds: seconds } : {}),
     ...(flagNumber(flags, 'event-log-size') !== undefined ? { eventLogSize: flagNumber(flags, 'event-log-size')! } : {}),
   };
-  const actions = parseActions(flagString(flags, 'actions'), cwd, step);
+  const actions = parseActions(flagString(flags, 'actions'), cwd, resolvedStep) ?? (packageActions ? buildTwinActions(packageActions, resolvedStep) : undefined);
   if (actions) return { scene, plugin, input: { ...input, actions } };
   return { scene, plugin, input };
 }
@@ -261,7 +302,9 @@ async function executeCommand(args: ParsedArgs, cwd: string, io: CliIo): Promise
   const run = runTwinScene(plan.input);
 
   const baselineFlag = flagString(flags, 'baseline');
-  const baselinePath = resolve(cwd, baselineFlag ?? join(BASELINE_DIR, TRACE_FILE));
+  // 场景包自带黄金基线：--package 时默认基线就是 <包>/expected/trace.json。
+  const packageBaseline = flagString(flags, 'package') === undefined ? undefined : join(resolve(cwd, flagString(flags, 'package')!), BASELINE_DIR, TRACE_FILE);
+  const baselinePath = resolve(cwd, baselineFlag ?? packageBaseline ?? join(BASELINE_DIR, TRACE_FILE));
   const wantsBaseline = args.command === 'replay' || baselineFlag !== undefined;
   const update = flagBoolean(flags, 'update');
   let diff: TraceDiff | undefined;

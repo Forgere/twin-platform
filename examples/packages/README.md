@@ -8,10 +8,35 @@
   plugins.lock.json     必填：[{ id, version, configHash? }]
   seed.json             必填：{ seed?, step?, seconds | steps, observation? }
   actions.json          可选：外部输入 / 动作脚本
-  invariants.json       可选：这个包该验什么（登记项）
+  invariants.json       可选：这个包该验什么（挂了 `check` 的会被真跑）
   metrics.json          可选：指标口径
   expected/trace.json   可选：黄金基线（sceneId 要对得上）
 ```
+
+## 跑
+
+```bash
+bun run scene audit --package examples/packages/hello
+bun run scene replay --package examples/community/mini-line
+```
+
+`--package` 一次带齐输入：`scene.json` 作场景、`plugins.lock.json` 的首条锁作插件、
+`seed.json` 的 `seed / step / seconds` 作时间网格（命令行显式给了就覆盖包里的值）、
+`actions.json` 作动作脚本。`replay` 的默认基线就是包内的 `expected/trace.json`。
+
+`invariants.json` 的条目：
+
+- 不写 `check`：纯登记，只声明"以后该验什么"，不执行；
+- 写 `"check": "<id>"`：引用已注册的内置检查，**真跑**，失败即 exit 1；
+- 写了 `check` 却指向未注册的 id：该条**判失败**，不静默跳过。
+
+可用内置检查（`packages/scene-cli/src/invariants.ts`）：
+
+| id | 断言什么 | 参数 |
+|---|---|---|
+| `logistics.line.loop` | 每个包裹 `exit == enter − 1`：仍在环上，绕圈不算出货 | `enterType`（默认 `parcel:enter`）、`exitType`（默认 `parcel:exit`） |
+| `logistics.line.no-teleport` | 包裹沿闭环路径连续运动：`loop` 必须 `repeat`、弧长不越界、速度非负 | `kind`（默认 `parcel`）、`tolerance` |
+| `scene.deterministic.quiet` | 观察窗内事件数不超上限，且 `rngState` 没被推进（没有行为偷用随机） | `maxEvents`（默认 0） |
 
 ## 校验
 
@@ -19,7 +44,7 @@
 bun run scene package examples/packages/hello --junit .scene-ci/package/junit.xml
 ```
 
-`package` 命令不跑仿真，只做契约校验；报告检查是：
+`package` 命令只做契约校验，不跑仿真；报告检查是：
 
 - `package.layout`：必填文件齐全且都是合法 JSON；
 - `package.scene`：`scene.json` 可迁移并通过校验；
@@ -36,3 +61,4 @@ bun run scene run --scene examples/packages/hello/scene.json \
 ```
 
 `--out` 会写 `trace.json`、`report.json` 与 `report.html`；作为包基线只需要里面的 `trace.json`。
+用包自己的时间网格生成，就直接 `bun run scene run --package examples/packages/hello --out examples/packages/hello/expected`。

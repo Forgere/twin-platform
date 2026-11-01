@@ -127,6 +127,43 @@ describe('scene-cli', () => {
     expect(report.checks.every((check) => check.status === 'pass')).toBe(true);
   });
 
+  test('--package 跑场景包：seed.json 的时间网格生效，invariants.json 的 check 真被执行', async () => {
+    const pack = join(dir, 'line');
+    mkdirSync(pack, { recursive: true });
+    writeFileSync(join(pack, 'scene.json'), JSON.stringify(SCENE), 'utf-8');
+    writeFileSync(join(pack, 'plugins.lock.json'), '[]', 'utf-8');
+    writeFileSync(join(pack, 'seed.json'), JSON.stringify({ seed: 1, step: 0.5, seconds: 3 }), 'utf-8');
+    writeFileSync(
+      join(pack, 'invariants.json'),
+      `${JSON.stringify([{ id: 'quiet', description: '空场景不该有事件', check: 'scene.deterministic.quiet' }], null, 2)}\n`,
+      'utf-8',
+    );
+
+    const code = await cli(['audit', '--package', 'line', '--out', 'line-out']);
+    expect(code).toBe(0);
+    const trace = readJson('line-out/trace.json');
+    expect(trace['steps']).toBe(6); // seed.json 的 3s / 0.5s，不是默认 60s
+    const report = readJson('line-out/report.json') as { checks: { id: string; status: string }[] };
+    expect(report.checks.map((check) => check.id)).toEqual(['quiet']);
+  });
+
+  test('--package 的未知 check 不是静默跳过，而是失败', async () => {
+    const pack = join(dir, 'bad');
+    mkdirSync(pack, { recursive: true });
+    writeFileSync(join(pack, 'scene.json'), JSON.stringify(SCENE), 'utf-8');
+    writeFileSync(join(pack, 'plugins.lock.json'), '[]', 'utf-8');
+    writeFileSync(join(pack, 'seed.json'), JSON.stringify({ seed: 1, step: 0.5, seconds: 1 }), 'utf-8');
+    writeFileSync(join(pack, 'invariants.json'), `${JSON.stringify([{ id: 'ghost', check: 'nope' }], null, 2)}\n`, 'utf-8');
+
+    expect(await cli(['audit', '--package', 'bad'])).toBe(1);
+    expect(logs.join('\n')).toContain('不是已注册的内置检查');
+  });
+
+  test('--package 与 --scene / --template 互斥', async () => {
+    expect(await cli(['run', '--package', 'x', '--scene', 'scene.json'])).toBe(2);
+    expect(errors.join('\n')).toContain('只能给一个');
+  });
+
   test('用法错误退出 2，并把原因写到 stderr', async () => {
     expect(await cli(['nope'])).toBe(2);
     expect(errors.join('\n')).toContain('未知命令 nope');

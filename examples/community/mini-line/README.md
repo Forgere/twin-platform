@@ -9,14 +9,14 @@
 bun examples/community/mini-line/generate.ts
 bun run scene package examples/community/mini-line
 
-# 重新生成黄金基线
-bun run scene run --scene examples/community/mini-line/scene.json \
-  --plugin logistics --seed 1 --seconds 30 --out examples/community/mini-line/expected
+# 跑 + 跑包里挂的两条不变量（loop / no-teleport）
+bun run scene audit --package examples/community/mini-line
 
-# 门禁
-bun run scene replay --scene examples/community/mini-line/scene.json \
-  --plugin logistics --seed 1 --seconds 30 \
-  --baseline examples/community/mini-line/expected/trace.json
+# 重新生成黄金基线
+bun run scene run --package examples/community/mini-line --out examples/community/mini-line/expected
+
+# 门禁：与包内基线比对（默认基线就是 expected/trace.json）
+bun run scene replay --package examples/community/mini-line
 ```
 
 ## 它证明什么

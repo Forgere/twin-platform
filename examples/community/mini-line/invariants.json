@@ -1,10 +1,12 @@
 [
   {
     "id": "logistics.line.loop",
-    "description": "包裹沿闭环输送线循环，事件序列可复现；不按错误口径把绕圈当真实出货"
+    "description": "包裹沿闭环输送线循环，事件序列可复现；不按错误口径把绕圈当真实出货",
+    "check": "logistics.line.loop"
   },
   {
     "id": "logistics.line.no-teleport",
-    "description": "包裹位姿连续，不能凭空出现在路径外"
+    "description": "包裹位姿连续，不能凭空出现在路径外",
+    "check": "logistics.line.no-teleport"
   }
 ]

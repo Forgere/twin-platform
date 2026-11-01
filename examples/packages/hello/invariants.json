@@ -1,6 +1,7 @@
 [
   {
-    "id": "package.example.no-op",
-    "description": "示例包没有运行时不变量：这里只登记“以后该验什么”"
+    "id": "scene.deterministic.quiet",
+    "description": "空场景不产生事件，且随机源未被推进：任何偷偷引入随机 / 挂钟的行为都会在这里红",
+    "check": "scene.deterministic.quiet"
   }
 ]

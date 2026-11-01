@@ -76,14 +76,25 @@ open .scene-ci/logistics-center/report.html   # Linux 用 xdg-open
 ### 回归门禁：分歧要指到具体字段
 
 ```bash
-bun run scene replay \
-  --scene examples/community/mini-line/scene.json \
-  --plugin logistics --seed 1 --seconds 30 \
-  --baseline examples/community/mini-line/expected/trace.json
+bun run scene replay --package examples/community/mini-line
 ```
-场景包（`mini-line`）自带的 `invariants.json` 是**登记式的**——它写出"以后该验什么"，但不执行；
-跑出来是 `不变量 0 条`，这行不代表"没验证"，只代表这一层没挂断言。真正会红的断言来自 `--template` 路径的运行时不变量（见上）。
-**当前边界**：scene package 的执行器还在 TODO（只校验不运行），这是已知的剩余项。
+
+场景包自带输入（`scene.json` + `plugins.lock.json` + `seed.json`）与断言（`invariants.json`），
+一个 `--package` 就够了——seed 1 / step 1/60 / 30s 全部取自 `seed.json`，不变量由包里挂的
+`logistics.line.loop` 与 `logistics.line.no-teleport` 真跑出来：
+
+```text
+场景 community-mini-line · seed=1 step=0.016666666666666666 steps=1800
+哈希 scene=9c00f9f6 event=75856de3 state=80e4600a
+不变量 2 条：通过 2 / 失败 0 / 异常 0
+报告 PASS
+基线一致（762d489a）
+```
+
+这两条不是日志噪声。`mini-line` 是**环线**：包裹绕完一圈会先 `parcel:exit` 再 `parcel:enter`，
+把 `parcel:exit` 当吞吐量数出去的看板就栽在这里——`logistics.line.loop` 断言
+`exit == enter − 1`（仍在环上），`logistics.line.no-teleport` 断言包裹仍在闭环路径上连续运动
+（`loop` 必须是 `repeat`，弧长不越界）。把包裹的 `motion.loop` 改成 `clamp`，CLI 立刻 exit 1 并指名是哪一个包裹。
 
 同 commit 同种子重跑，trace 逐字节一致；一旦行为变了，输出是**首个分歧的 JSON Pointer**，不是"不一致"三个字：
 

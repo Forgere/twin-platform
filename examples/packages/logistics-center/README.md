@@ -10,14 +10,12 @@
 
 ```bash
 bun install
-bun run scene run \
-  --scene examples/packages/logistics-center/scene.json \
-  --plugin logistics --seed 7 --seconds 300 \
-  --out .scene-ci/logistics-center
+bun run scene run --package examples/packages/logistics-center --out .scene-ci/logistics-center
 # 打开 .scene-ci/logistics-center/report.html
 ```
 
-`run` 会跑固定步长仿真、执行 2 条运行时不变式（全链路 + 物料守恒），
+`seed 7 / step 1/60 / 300s` 全部取自包内 `seed.json`。`run` 会跑固定步长仿真、
+执行 2 条运行时不变式（全链路 + 物料守恒，由 `runtimeInvariantsFor(scene)` 选出），
 并写出 `trace.json` / `report.json` / `report.html`。
 
 ## 门禁
@@ -26,11 +24,8 @@ bun run scene run \
 # 契约校验（不跑仿真）
 bun run scene package examples/packages/logistics-center
 
-# 与黄金基线比对：分歧即退出 1
-bun run scene replay \
-  --scene examples/packages/logistics-center/scene.json \
-  --plugin logistics --seed 7 --seconds 300 \
-  --baseline examples/packages/logistics-center/expected/trace.json
+# 与黄金基线比对：分歧即退出 1（默认基线就是包内 expected/trace.json）
+bun run scene replay --package examples/packages/logistics-center
 ```
 
 ## 它证明什么
@@ -45,9 +40,7 @@ bun run scene replay \
 
 ```bash
 bun examples/packages/logistics-center/generate.ts   # 重写 scene.json
-bun run scene run \
-  --scene examples/packages/logistics-center/scene.json \
-  --plugin logistics --seed 7 --seconds 300 \
+bun run scene run --package examples/packages/logistics-center \
   --baseline examples/packages/logistics-center/expected/trace.json --update
 ```
 

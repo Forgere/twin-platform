@@ -21,6 +21,7 @@ export const USAGE = `scene —— 可验证场景命令行（run / audit / repl
   package 校验 scene package 目录：布局 / 场景 / 插件锁 / 时间网格 / 黄金基线（位置参数：<dir>）
 
 常用选项：
+  --package <dir>           场景包目录：scene.json + plugins.lock.json + seed.json（+ 可选 invariants/actions）
   --scene <file>            场景 JSON（版本化，可迁移）
   --template <id>           用参考插件模板建场景，如 logistics.center / fishing.pond
   --template-params <json>   模板参数（JSON 文件路径或直接 JSON 字符串）
