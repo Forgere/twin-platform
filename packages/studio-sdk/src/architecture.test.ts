@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { describe, expect, test } from 'bun:test';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import ts from 'typescript';
@@ -64,39 +64,41 @@ function assertHeadless(entry: string): void {
   visit(join(root, entry));
 }
 
-test('core modules do not import domain plugins', () => {
-  for (const name of ['world-kernel', 'scene-schema', 'plugin-sdk', 'replay-core', 'decision-core', 'analytics-core', 'scenario-compare']) {
-    for (const path of sourceFiles(join(root, 'packages', name, 'src'))) {
-      expect(text(path)).not.toMatch(/['"]@twin-platform\/plugins-/);
+describe('架构边界', () => {
+  test('core modules do not import domain plugins', () => {
+    for (const name of ['world-kernel', 'scene-schema', 'plugin-sdk', 'replay-core', 'decision-core', 'analytics-core', 'scenario-compare']) {
+      for (const path of sourceFiles(join(root, 'packages', name, 'src'))) {
+        expect(text(path)).not.toMatch(/['"]@twin-platform\/plugins-/);
+      }
     }
-  }
-});
+  });
 
-test('domain and headless catalog entry graphs stay free of browser dependencies', () => {
-  assertHeadless('packages/plugins-fishing/src/index.ts');
-  // catalog 本身位于 Studio；逐个检查它的领域依赖，且不可引入浏览器装配表。
-  const catalog = join(root, 'apps/studio/src/plugins/catalog.ts');
-  for (const specifier of imports(catalog)) {
-    const dependency = localModule(catalog, specifier);
-    if (dependency) assertHeadless(relative(root, dependency));
-  }
-});
-
-test('Studio only knows the fishing plugin at explicit composition roots', () => {
-  const allowed = new Set(['plugins/catalog.ts', 'plugins/presentations.ts']);
-  const dir = join(root, 'apps/studio/src');
-  for (const path of sourceFiles(dir)) {
-    if (allowed.has(relative(dir, path))) continue;
-    expect({ file: relative(dir, path), leak: /fishing|\b(?:rig|bait|pond|hook|float)-\d|钓[鱼场组]/i.test(text(path)) }).toEqual({ file: relative(dir, path), leak: false });
-  }
-});
-
-test('fishing browser implementation never imports the Studio application', () => {
-  for (const path of sourceFiles(join(root, 'packages/plugins-fishing/studio'))) {
-    if (path.endsWith('.css')) continue;
-    for (const specifier of imports(path)) {
-      expect(specifier).not.toMatch(/(?:apps\/studio|@twin-platform\/studio(?:\/|$))/);
-      if (specifier.startsWith('.')) expect(relative(root, resolve(dirname(path), specifier))).not.toMatch(/^apps\//);
+  test('domain and headless catalog entry graphs stay free of browser dependencies', () => {
+    assertHeadless('packages/plugins-fishing/src/index.ts');
+    // catalog 本身位于 Studio；逐个检查它的领域依赖，且不可引入浏览器装配表。
+    const catalog = join(root, 'apps/studio/src/plugins/catalog.ts');
+    for (const specifier of imports(catalog)) {
+      const dependency = localModule(catalog, specifier);
+      if (dependency) assertHeadless(relative(root, dependency));
     }
-  }
+  });
+
+  test('Studio only knows the fishing plugin at explicit composition roots', () => {
+    const allowed: Record<string, true> = { 'plugins/catalog.ts': true, 'plugins/presentations.ts': true };
+    const dir = join(root, 'apps/studio/src');
+    for (const path of sourceFiles(dir)) {
+      if (allowed[relative(dir, path)]) continue;
+      expect({ file: relative(dir, path), leak: /fishing|\b(?:rig|bait|pond|hook|float)-\d|钓[鱼场组]/i.test(text(path)) }).toEqual({ file: relative(dir, path), leak: false });
+    }
+  });
+
+  test('fishing browser implementation never imports the Studio application', () => {
+    for (const path of sourceFiles(join(root, 'packages/plugins-fishing/studio'))) {
+      if (path.endsWith('.css')) continue;
+      for (const specifier of imports(path)) {
+        expect(specifier).not.toMatch(/(?:apps\/studio|@twin-platform\/studio(?:\/|$))/);
+        if (specifier.startsWith('.')) expect(relative(root, resolve(dirname(path), specifier))).not.toMatch(/^apps\//);
+      }
+    }
+  });
 });
