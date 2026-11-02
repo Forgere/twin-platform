@@ -375,7 +375,7 @@ curl -o /dev/null -w '%{http_code}\n' https://你的域名/api/health   # => 401
 ## 项目状态
 
 - 包 / server / worker 单测与 Studio 组件测试全绿；`bun run typecheck` 覆盖 Studio、全部包与两个 app。
-- CI 另跑跨 OS 确定性、外部 runtime（SimPy / FMU / OpenSCENARIO / OpenDRIVE）与黄金基线门禁。
+- CI 另跑外部 runtime（SimPy / FMU / OpenSCENARIO / OpenDRIVE）与黄金基线门禁。
 - Studio 是展示层：静态托管时场景只在内存里，刷新回到初始状态；要持久化才需要服务端（见上方部署）。
 - 路线与边界见 [开源方向与行动计划](./docs/开源方向与行动计划.md)；已完成阶段见 [阶段归档](./docs/已完成阶段归档.md)。
 
