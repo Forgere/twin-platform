@@ -1,8 +1,15 @@
 # Twin Platform
 
+[![CI](https://github.com/Forgere/twin-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/Forgere/twin-platform/actions/workflows/ci.yml)
+[![在线演示](https://img.shields.io/badge/demo-live-0b7285)](https://twin-scene.forgere123zw.workers.dev)
+
 可验证仿真场景（Verifiable Simulation Scenes）的基础设施——
 让数字孪生和仿真场景像代码一样**可测试、可回放、可审计、可进 CI**。
 类比：**Playwright for simulation scenes**。
+
+[在线演示](https://twin-scene.forgere123zw.workers.dev) · [GitHub 仓库](https://github.com/Forgere/twin-platform) · [5 分钟上手](#5-分钟上手) · [可验证场景公共层](./docs/可验证场景.md)
+
+![Twin Studio 工作台：三维产线视口、遥测浮层与时间轴](./docs/assets/studio-overview.png)
 
 ## 它解决什么
 
@@ -143,8 +150,13 @@ bun run scene verify .scene-ci/introspect/run/trace.json
 
 ## 在线演示
 
-<https://twin-scene.forgere123zw.workers.dev> 跑的是 **Studio 展示层**：单场景静态托管（`scene.json` + 前端资产，不接 `/api`），
+**<https://twin-scene.forgere123zw.workers.dev>** 跑的是 **Studio 展示层**：单场景静态托管（`scene.json` + 前端资产，不接 `/api`），
 用来在浏览器里看场景、播放回放。它不跑验证链——要验证，用上面的 `bun run scene`。
+源码、issue 与贡献入口：**<https://github.com/Forgere/twin-platform>**。
+
+| 审计透镜：与 CLI 同一组不变量 | HTML 审计报告：PASS + 哈希证据 |
+|---|---|
+| ![Studio 审计透镜：logistics.center.flow 与 conservation 两项检查通过](./docs/assets/studio-audit.png) | ![logistics-center 审计报告：PASS、两项不变量与 trace 哈希](./docs/assets/audit-report.png) |
 
 ## 仓库结构
 

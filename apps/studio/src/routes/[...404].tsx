@@ -1,6 +1,7 @@
 import { Title } from '@solidjs/meta';
 import type { RouteDefinition } from '@solidjs/router';
 import { httpStatus } from '@solidjs/web';
+import { REPO_URL } from '../links';
 
 // The catch-all route. httpStatus() is a no-op in the browser and takes
 // effect when SSR is enabled; it runs in preload so the status code is set
@@ -12,14 +13,15 @@ export const route = {
 export default function NotFound() {
   return (
     <main>
-      <Title>Not Found - Solid App</Title>
-      <h1>Page Not Found</h1>
+      <Title>页面不存在 · Twin Studio</Title>
+      <h1>页面不存在</h1>
+      <p>这个地址没有对应的场景或面板。</p>
       <p>
-        Visit{' '}
-        <a href="https://docs.solidjs.com" target="_blank" rel="noreferrer">
-          docs.solidjs.com
-        </a>{' '}
-        to learn how to build Solid apps.
+        <a href="/">返回工作台</a>
+        {' · '}
+        <a href={REPO_URL} target="_blank" rel="noreferrer">
+          在 GitHub 上查看源码
+        </a>
       </p>
     </main>
   );

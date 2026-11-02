@@ -33,6 +33,7 @@ import Icon, { isIconName } from './Icon';
 import { VIEWPORT_BACKDROP } from '../viewportBackdrop';
 import { FOCUSABLE_SELECTOR, handleTabKeys, isTypingTarget, trapTabKey } from '../ui/keyboard';
 import { ENTITY_STATUS_LABEL, entityStatus, type EntityStatus } from '../scene/entityStatus';
+import { REPO_URL } from '../links';
 
 /**
  * Studio 主视口。
@@ -1027,6 +1028,10 @@ export default function TwinViewport() {
         <span class="brand">TWIN STUDIO</span>
         {/* 标题跟着场景走：导入外部布局后，这里显示的就是那个场景的名字。 */}
         <h1>{session().world.scene.name}</h1>
+        <a class="repo-link" href={REPO_URL} target="_blank" rel="noreferrer" title="在 GitHub 上查看源码">
+          <Icon name="git-branch" size={13} />
+          <span>GitHub</span>
+        </a>
         {/* 界面只有明亮一档：暗色档暂缓，不做半成品，所以这里没有明暗切换。 */}
         <button
           type="button"

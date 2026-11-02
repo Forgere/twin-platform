@@ -10,6 +10,7 @@
   .brand { display: none; }
   .studio-heading h1 { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 0.9rem; }
   .mobile-inspector-toggle { display: block; flex: none; padding: 8px 10px; font-size: 0.8rem; }
+  .repo-link { padding: 5px 8px; font-size: 0.72rem; }
   .studio-grid { min-width: 0; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 8px; }
   .inspector { display: none; min-width: 0; }
   .studio-inspecting .studio-grid { grid-template-rows: minmax(0, 1fr) minmax(0, 46%); }

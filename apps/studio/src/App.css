@@ -155,7 +155,7 @@ section > h3 { margin: 14px 0 8px; }
   overflow: hidden;
 }
 
-/* 标题行矮条：品牌 + 场景名 + 主题切换，高度 ~28px。 */
+/* 标题行矮条：品牌 + 场景名 + GitHub 外链 + 移动端面板开关，高度 ~28px。 */
 .studio-heading { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .brand {
   flex: none;
@@ -169,6 +169,24 @@ section > h3 { margin: 14px 0 8px; }
   letter-spacing: 0.14em;
 }
 .studio-heading h1 { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--ink); font-size: 0.9rem; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; }
+/* 页头外链：靠右但不抢场景名的宽度，和品牌胶囊同一套描边语言。 */
+.repo-link {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  color: var(--ink-mute);
+  background: transparent;
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.repo-link:hover { color: var(--ink); border-color: var(--line-hi); background: var(--hover); }
 .studio-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 340px;
