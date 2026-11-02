@@ -51,7 +51,12 @@ jobs:
 
       - name: 单元测试
         # 超时写在用例自己身上（见 closedLoop.test.ts 的 simTest），这里不加全局 flag。
-        run: bun run test
+        # architecture.test.ts 顶层同步加载 TypeScript 编译器（~600ms），Bun 1.3.x
+        # 并发跑时该文件求值晚于其他文件结束，触发 "Cannot call describe() after the
+        # test run has completed"。解法：先单独跑，再跑剩余批次（已从 test 脚本里排除）。
+        run: |
+          bun run test:arch
+          bun run test
 
       - name: 构建参考 FMU（FMI 2.0 Co-Simulation）
         run: |
